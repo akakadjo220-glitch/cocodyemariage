@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   FolderOpen, CheckCircle, Hourglass, UploadCloud, FileText,
-  Trash2, AlertCircle, Sparkles, Heart, ArrowRight, Camera, Loader2, X, Check, Lock, Calendar, RefreshCw, Zap, Upload
+  Trash2, AlertCircle, Sparkles, Heart, ArrowRight, Camera, Loader2, X, Check, Lock, Calendar, RefreshCw, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
@@ -12,26 +12,26 @@ const getDossierBordureStyle = (statut: string | null) => {
   if (!statut) return {};
   return {
     borderColor:
-      statut === 'disponible'   ? '#22c55e' :
-      statut === 'doublon'      ? '#ef4444' :
-      statut === 'invalide'     ? '#f97316' :
-      statut === 'verification' ? '#3b82f6' : '#d1d5db',
+      statut === 'disponible' ? '#22c55e' :
+        statut === 'doublon' ? '#ef4444' :
+          statut === 'invalide' ? '#f97316' :
+            statut === 'verification' ? '#3b82f6' : '#d1d5db',
     borderWidth: 2,
     borderStyle: 'solid'
   };
 };
 const getDossierIcone = (statut: string | null) =>
   statut === 'verification' ? '🔍' :
-  statut === 'disponible'   ? '✅' :
-  statut === 'doublon'      ? '❌' :
-  statut === 'invalide'     ? '⚠️' : '';
+    statut === 'disponible' ? '✅' :
+      statut === 'doublon' ? '❌' :
+        statut === 'invalide' ? '⚠️' : '';
 const getDossierMsgColor = (statut: string | null) => {
   switch (statut) {
-    case 'disponible':   return 'text-emerald-600';
-    case 'doublon':      return 'text-rose-600';
-    case 'invalide':     return 'text-orange-500';
+    case 'disponible': return 'text-emerald-600';
+    case 'doublon': return 'text-rose-600';
+    case 'invalide': return 'text-orange-500';
     case 'verification': return 'text-blue-500';
-    default:             return 'text-slate-400';
+    default: return 'text-slate-400';
   }
 };
 import { DocumentInfo, AiAnalysisResult } from '../types';
@@ -235,6 +235,7 @@ export default function Dossier({
   const [scannerStream, setScannerStream] = useState<MediaStream | null>(null);
   const [scannerError, setScannerError] = useState<string | null>(null);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
+  const scannerFrameRef = useRef<HTMLDivElement>(null);
 
   // Reset selected file when the upload modal closes
   useEffect(() => {
@@ -263,7 +264,7 @@ export default function Dossier({
         const scale = width / originalWidth;
         const heightRecto = (imgRecto.naturalHeight || 720) * scale;
         const heightVerso = (imgVerso.naturalHeight || 720) * scale;
-        
+
         canvas.width = width;
         canvas.height = heightRecto + heightVerso;
 
@@ -426,17 +427,17 @@ export default function Dossier({
       case 1: // CNI Époux
         return doc2?.status === 'verified';
       case 2: // Selfie Époux
-        return !!dossierDetails?.epoux_selfie_url && 
-               (dossierDetails?.epoux_identite_verifiee === true || 
-                (dossierDetails?.epoux_face_attempts ?? 0) >= 3);
+        return !!dossierDetails?.epoux_selfie_url &&
+          (dossierDetails?.epoux_identite_verifiee === true ||
+            (dossierDetails?.epoux_face_attempts ?? 0) >= 3);
       case 3: // Extrait Époux
         return doc1?.status === 'verified';
       case 4: // CNI Épouse
         return doc2_f?.status === 'verified';
       case 5: // Selfie Épouse
-        return !!dossierDetails?.epouse_selfie_url && 
-               (dossierDetails?.epouse_identite_verifiee === true || 
-                (dossierDetails?.epouse_face_attempts ?? 0) >= 3);
+        return !!dossierDetails?.epouse_selfie_url &&
+          (dossierDetails?.epouse_identite_verifiee === true ||
+            (dossierDetails?.epouse_face_attempts ?? 0) >= 3);
       case 6: // Extrait Épouse
         return doc1_f?.status === 'verified';
       case 7: // Autres docs
@@ -482,7 +483,7 @@ export default function Dossier({
     const doc2 = documents.find(d => d.id === 'doc2');
     const doc1_f = documents.find(d => d.id === 'doc1_f');
     const doc2_f = documents.find(d => d.id === 'doc2_f');
-    
+
     if (isStepCompleted(stepId)) return 'green';
 
     switch (stepId) {
@@ -626,30 +627,17 @@ export default function Dossier({
       return;
     }
 
-    // Step 2: Pre-check permissions to give a fast, precise error
-    if (navigator.permissions) {
-      try {
-        const permResult = await navigator.permissions.query({ name: 'camera' as PermissionName });
-        if (permResult.state === 'denied') {
-          setScannerError("L'accès à la caméra a été refusé par votre navigateur. Allez dans les paramètres de votre navigateur > Autorisations > Caméra et autorisez ce site, puis rechargez la page.");
-          return;
-        }
-      } catch {
-        // Permissions API not fully supported, continue to getUserMedia
-      }
-    }
-
     try {
       // Step 3: Start with a generic constraints request to obtain permission and unlock device labels
       // This has the highest success rate on all browsers and devices
       let stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      
+
       // Step 4: Enumerate devices to locate the rear camera precisely now that we have permission
       let backCameraId: string | null = null;
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(d => d.kind === 'videoinput');
-        
+
         // Find a device with back/rear/arrière/env in the label
         const backDevice = videoDevices.find(d => {
           const label = d.label.toLowerCase();
@@ -670,12 +658,12 @@ export default function Dossier({
       if (backCameraId) {
         const activeTrack = stream.getVideoTracks()[0];
         const activeSettings = activeTrack ? activeTrack.getSettings() : null;
-        
+
         if (activeSettings && activeSettings.deviceId !== backCameraId) {
           console.log("Switching to back camera deviceId:", backCameraId);
           // Stop the initial generic stream
           stream.getTracks().forEach(track => track.stop());
-          
+
           try {
             stream = await navigator.mediaDevices.getUserMedia({
               video: { deviceId: { exact: backCameraId } }
@@ -739,31 +727,73 @@ export default function Dossier({
   const captureDocumentPhoto = () => {
     if (!scannerVideoRef.current || !scannerSide) return;
     const video = scannerVideoRef.current;
-    const canvas = document.createElement('canvas');
+    
+    // Get actual display bounds of the video element
+    const videoRect = video.getBoundingClientRect();
+    
+    // Get actual display bounds of the golden frame
+    let frameRect = { left: 0, top: 0, width: 0, height: 0 };
+    if (scannerFrameRef.current) {
+      frameRect = scannerFrameRef.current.getBoundingClientRect();
+    } else {
+      // Fallback fallback if ref not mounted yet
+      const containerW = videoRect.width;
+      const containerH = videoRect.height;
+      const cropW = Math.min(containerW * 0.85, 400);
+      const cropH = cropW / 1.58;
+      frameRect = {
+        left: videoRect.left + (containerW - cropW) / 2,
+        top: videoRect.top + (containerH - cropH) / 2,
+        width: cropW,
+        height: cropH
+      };
+    }
+
     const videoW = video.videoWidth || 1280;
     const videoH = video.videoHeight || 720;
+    const displayW = videoRect.width || 640;
+    const displayH = videoRect.height || 480;
 
-    // Crop a centered rectangle of 85% width and height = width / 1.58 (credit card/CNI format)
-    const cropW = Math.round(videoW * 0.85);
-    const cropH = Math.round(cropW / 1.58);
-    const cropX = Math.round((videoW - cropW) / 2);
-    const cropY = Math.round((videoH - cropH) / 2);
+    // Calculate how object-cover scales and centers the video inside its display bounds
+    const scale = Math.max(displayW / videoW, displayH / videoH);
+    const scaledW = videoW * scale;
+    const scaledH = videoH * scale;
 
-    canvas.width = cropW;
-    canvas.height = cropH;
+    const offsetX = (displayW - scaledW) / 2;
+    const offsetY = (displayH - scaledH) / 2;
+
+    // Position of frame relative to scaled video
+    const relativeFrameX = (frameRect.left - videoRect.left) - offsetX;
+    const relativeFrameY = (frameRect.top - videoRect.top) - offsetY;
+
+    // Map screen crop coordinates back to raw video resolution coordinates
+    const cropX = Math.round(relativeFrameX / scale);
+    const cropY = Math.round(relativeFrameY / scale);
+    const cropW = Math.round(frameRect.width / scale);
+    const cropH = Math.round(frameRect.height / scale);
+
+    // Clamp values to prevent out of bounds drawing errors
+    const finalCropX = Math.max(0, Math.min(videoW - 1, cropX));
+    const finalCropY = Math.max(0, Math.min(videoH - 1, cropY));
+    const finalCropW = Math.max(1, Math.min(videoW - finalCropX, cropW));
+    const finalCropH = Math.max(1, Math.min(videoH - finalCropY, cropH));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = finalCropW;
+    canvas.height = finalCropH;
 
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+      ctx.drawImage(video, finalCropX, finalCropY, finalCropW, finalCropH, 0, 0, finalCropW, finalCropH);
 
       canvas.toBlob((blob) => {
         if (blob) {
           const reader = new FileReader();
           reader.onloadend = () => {
             const base64 = reader.result as string;
-            
+
             if (scannerSide === 'recto') {
               setCniRectoBase64(base64);
             } else if (scannerSide === 'verso') {
@@ -1156,7 +1186,7 @@ export default function Dossier({
           className="glass-premium rounded-3xl p-8 border border-accent/30 shadow-xl relative w-full flex flex-col items-center gap-6 overflow-hidden"
         >
           <div className="absolute top-0 left-0 w-full h-[4px] bg-gradient-to-r from-primary via-[#d4af37] to-primary" />
-          
+
           <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary relative animate-pulse shadow-sm">
             <Lock className="w-7 h-7 text-primary" />
           </div>
@@ -1375,9 +1405,8 @@ export default function Dossier({
             <h4 className="font-serif font-bold text-slate-800 text-sm">{label}</h4>
             <p className="font-sans text-[11px] text-slate-400 mt-0.5">Veuillez téléverser votre pièce pour analyse.</p>
           </div>
-          <span className={`px-2.5 py-0.5 rounded-full font-sans text-[10px] font-bold ${
-            isVerified ? 'bg-emerald-100 text-emerald-800' : isRejected ? 'bg-rose-100 text-rose-800' : isUploading ? 'bg-amber-100 text-amber-800' : 'bg-slate-150 text-slate-500'
-          }`}>
+          <span className={`px-2.5 py-0.5 rounded-full font-sans text-[10px] font-bold ${isVerified ? 'bg-emerald-100 text-emerald-800' : isRejected ? 'bg-rose-100 text-rose-800' : isUploading ? 'bg-amber-100 text-amber-800' : 'bg-slate-150 text-slate-500'
+            }`}>
             {isVerified ? 'Validé ✓' : isRejected ? 'Rejeté ✕' : isUploading ? 'IA Analyse...' : 'Requis'}
           </span>
         </div>
@@ -1428,9 +1457,8 @@ export default function Dossier({
             <h4 className="font-serif font-bold text-slate-800 text-sm">{label}</h4>
             <p className="font-sans text-[11px] text-slate-400 mt-0.5">Original de moins de 3 mois (6 mois si étranger).</p>
           </div>
-          <span className={`px-2.5 py-0.5 rounded-full font-sans text-[10px] font-bold ${
-            isVerified ? 'bg-emerald-100 text-emerald-800' : isRejected ? 'bg-rose-100 text-rose-800' : isUploading ? 'bg-amber-100 text-amber-800' : 'bg-slate-150 text-slate-500'
-          }`}>
+          <span className={`px-2.5 py-0.5 rounded-full font-sans text-[10px] font-bold ${isVerified ? 'bg-emerald-100 text-emerald-800' : isRejected ? 'bg-rose-100 text-rose-800' : isUploading ? 'bg-amber-100 text-amber-800' : 'bg-slate-150 text-slate-500'
+            }`}>
             {isVerified ? 'Validé ✓' : isRejected ? 'Rejeté ✕' : isUploading ? 'IA Analyse...' : 'Requis'}
           </span>
         </div>
@@ -1486,9 +1514,8 @@ export default function Dossier({
             <p className="font-sans text-[11px] text-slate-400 mt-0.5">Vérification de ressemblance avec votre pièce d'identité.</p>
           </div>
           {selfieUrl ? (
-            <span className={`px-2.5 py-0.5 rounded-full font-sans text-[10px] font-bold ${
-              isVerified === true ? 'bg-emerald-100 text-emerald-800' : isVerified === false ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'
-            }`}>
+            <span className={`px-2.5 py-0.5 rounded-full font-sans text-[10px] font-bold ${isVerified === true ? 'bg-emerald-100 text-emerald-800' : isVerified === false ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'
+              }`}>
               {isVerified === true ? 'Identité Validée ✓' : 'Vérification Manuelle ⚠️'}
             </span>
           ) : (
@@ -1923,9 +1950,8 @@ export default function Dossier({
                     </div>
 
                     <button type="submit" disabled={!chosenDate || !chosenTime}
-                      className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-1.5 ${
-                        chosenDate && chosenTime ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                      }`}>
+                      className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-1.5 ${chosenDate && chosenTime ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                        }`}>
                       <Calendar className="w-4 h-4" />
                       <span>Réserver mon créneau de mariage civil</span>
                     </button>
@@ -1955,7 +1981,7 @@ export default function Dossier({
                   Téléversement : {activeDoc?.name}
                 </h3>
                 <p className="text-xs text-slate-500 mb-5 font-medium leading-relaxed">
-                  {isIdentityDoc 
+                  {isIdentityDoc
                     ? "Photographiez le recto (devant) et le verso (derrière) de votre pièce."
                     : "Prenez en photo ou déposez votre fichier justificatif pour analyse."}
                 </p>
@@ -2024,31 +2050,12 @@ export default function Dossier({
                             </div>
                           </div>
 
-                          {/* Fallback upload buttons from gallery/system */}
-                          <div className="flex flex-col sm:flex-row gap-2 w-full mt-2">
-                            <button
-                              type="button"
-                              onClick={() => fileInputRectoRef.current?.click()}
-                              className="flex-1 py-2 px-3 border border-neutral-300 hover:bg-neutral-50 text-slate-700 rounded-xl font-sans text-[11px] font-bold cursor-pointer transition-colors text-center bg-transparent flex items-center justify-center gap-1.5"
-                            >
-                              <Upload className="w-3.5 h-3.5 text-slate-500" />
-                              <span>Téléverser Recto</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => fileInputVersoRef.current?.click()}
-                              className="flex-1 py-2 px-3 border border-neutral-300 hover:bg-neutral-50 text-slate-700 rounded-xl font-sans text-[11px] font-bold cursor-pointer transition-colors text-center bg-transparent flex items-center justify-center gap-1.5"
-                            >
-                              <Upload className="w-3.5 h-3.5 text-slate-500" />
-                              <span>Téléverser Verso</span>
-                            </button>
-                          </div>
-
-                          {/* Hidden file inputs for CNI native camera capture (no forced capture mode for max compatibility) */}
+                          {/* Hidden file inputs for CNI native camera capture */}
                           <input
                             type="file"
                             ref={fileInputRectoRef}
                             accept="image/*"
+                            capture="environment"
                             className="hidden"
                             onChange={(e) => handleCniFileChange(e, 'recto')}
                           />
@@ -2056,6 +2063,7 @@ export default function Dossier({
                             type="file"
                             ref={fileInputVersoRef}
                             accept="image/*"
+                            capture="environment"
                             className="hidden"
                             onChange={(e) => handleCniFileChange(e, 'verso')}
                           />
@@ -2099,26 +2107,18 @@ export default function Dossier({
                               <Camera className="w-5 h-5 text-primary animate-pulse" />
                             </div>
                             <span className="text-[12px] text-slate-800 font-extrabold group-hover:text-primary transition-colors">
-                              Prendre la photo du document (Scanner)
+                              Prendre la photo du document
                             </span>
                             <span className="text-[9px] text-slate-400 font-medium">
                               Ouvre directement la caméra de votre appareil
                             </span>
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => fileInputStandardRef.current?.click()}
-                            className="w-full py-3.5 border border-neutral-300 hover:bg-neutral-50 text-slate-700 rounded-xl font-sans text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-transparent shadow-sm"
-                          >
-                            <Upload className="w-4 h-4 text-slate-500" />
-                            <span>Sélectionner un fichier (Galerie / PDF)</span>
-                          </button>
-
                           <input
                             type="file"
                             ref={fileInputStandardRef}
-                            accept="image/*,application/pdf"
+                            accept="image/*"
+                            capture="environment"
                             className="hidden"
                             onChange={handleStandardFileChange}
                           />
@@ -2170,11 +2170,10 @@ export default function Dossier({
                     type="button"
                     onClick={handleUploadSubmit}
                     disabled={!selectedFile || isUploadingFile || isAnalyzingAi}
-                    className={`flex-1 py-3 px-4 rounded-xl font-sans text-xs font-bold uppercase tracking-wider text-white shadow-md transition-all flex items-center justify-center gap-2 ${
-                      !selectedFile || isUploadingFile || isAnalyzingAi
+                    className={`flex-1 py-3 px-4 rounded-xl font-sans text-xs font-bold uppercase tracking-wider text-white shadow-md transition-all flex items-center justify-center gap-2 ${!selectedFile || isUploadingFile || isAnalyzingAi
                         ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/20'
                         : 'bg-primary hover:bg-primary-container cursor-pointer border border-primary/20 hover:shadow-lg'
-                    }`}
+                      }`}
                   >
                     {isUploadingFile || isAnalyzingAi ? (
                       <>
@@ -2243,15 +2242,15 @@ export default function Dossier({
                 <div className="flex w-full aspect-[1.58/1] max-w-[400px] mx-auto relative shrink-0">
                   {/* Left mask */}
                   <div className="bg-black/60 flex-1 h-full" />
-                  
+
                   {/* The transparent window */}
-                  <div className="w-[85vw] max-w-[400px] aspect-[1.58/1] relative border-2 border-[#c5a368]/45 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] shrink-0">
+                  <div ref={scannerFrameRef} className="w-[85vw] max-w-[400px] aspect-[1.58/1] relative border-2 border-[#c5a368]/45 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] shrink-0">
                     {/* Corner indicators */}
                     <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-[4px] border-l-[4px] border-[#c5a368] rounded-tl-lg" />
                     <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-[4px] border-r-[4px] border-[#c5a368] rounded-tr-lg" />
                     <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-[4px] border-l-[4px] border-[#c5a368] rounded-bl-lg" />
                     <div className="absolute -bottom-[3px] -right-[3px] w-6 h-6 border-b-[4px] border-r-[4px] border-[#c5a368] rounded-br-lg" />
-                    
+
                     {/* Scanning line */}
                     <div className="absolute left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#c5a368] to-transparent shadow-[0_0_8px_#c5a368]"
                       style={{
@@ -2261,7 +2260,7 @@ export default function Dossier({
                       }}
                     />
                   </div>
-                  
+
                   {/* Right mask */}
                   <div className="bg-black/60 flex-1 h-full" />
                 </div>
@@ -2296,7 +2295,8 @@ export default function Dossier({
           </div>
 
           {/* Inject keyframes dynamically */}
-          <style dangerouslySetInnerHTML={{__html: `
+          <style dangerouslySetInnerHTML={{
+            __html: `
             @keyframes scan {
               0% { top: 0%; opacity: 0.1; }
               15% { opacity: 0.95; }

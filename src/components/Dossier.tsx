@@ -610,6 +610,16 @@ export default function Dossier({
     setScannerError(null);
     setScannerActive(true);
 
+    // Stop any active streams first to release the camera hardware
+    if (scannerStream) {
+      scannerStream.getTracks().forEach(track => track.stop());
+      setScannerStream(null);
+    }
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(track => track.stop());
+      setWebcamStream(null);
+    }
+
     // Step 1: Check mediaDevices API availability (requires HTTPS)
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setScannerError("L'accès à la caméra n'est pas disponible. Vérifiez que vous utilisez un navigateur récent (Chrome, Safari, Firefox) et que le site est ouvert en HTTPS.");
@@ -629,49 +639,80 @@ export default function Dossier({
       }
     }
 
-    // Step 3: Try getUserMedia with the simplest possible constraints for max compatibility
-    // NOTE: Never specify width/height on mobile — Android Chrome often throws NotReadableError
-    const constraintsList: MediaStreamConstraints[] = [
-      { video: { facingMode: { exact: 'environment' } } },
-      { video: { facingMode: 'environment' } },
-      { video: true }
-    ];
-
-    let stream: MediaStream | null = null;
-    let lastError: any = null;
-
-    for (const constraints of constraintsList) {
+    try {
+      // Step 3: Start with a generic constraints request to obtain permission and unlock device labels
+      // This has the highest success rate on all browsers and devices
+      let stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      // Step 4: Enumerate devices to locate the rear camera precisely now that we have permission
+      let backCameraId: string | null = null;
       try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        break;
-      } catch (err: any) {
-        lastError = err;
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') break;
-        console.warn("Camera constraint failed, trying next...", err.name);
-      }
-    }
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        
+        // Find a device with back/rear/arrière/env in the label
+        const backDevice = videoDevices.find(d => {
+          const label = d.label.toLowerCase();
+          return label.includes('back') || label.includes('rear') || label.includes('arrière') || label.includes('env') || label.includes('caméra 0');
+        });
 
-    if (!stream) {
-      const errName = lastError?.name || '';
+        if (backDevice) {
+          backCameraId = backDevice.deviceId;
+        } else if (videoDevices.length > 1) {
+          // If multiple cameras exist and no label matches, pick the last one (usually back on mobiles)
+          backCameraId = videoDevices[videoDevices.length - 1].deviceId;
+        }
+      } catch (enumErr) {
+        console.warn("Failed to enumerate devices:", enumErr);
+      }
+
+      // Step 5: If a back camera ID was found, attempt to switch to it
+      if (backCameraId) {
+        const activeTrack = stream.getVideoTracks()[0];
+        const activeSettings = activeTrack ? activeTrack.getSettings() : null;
+        
+        if (activeSettings && activeSettings.deviceId !== backCameraId) {
+          console.log("Switching to back camera deviceId:", backCameraId);
+          // Stop the initial generic stream
+          stream.getTracks().forEach(track => track.stop());
+          
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { deviceId: { exact: backCameraId } }
+            });
+          } catch (switchErr) {
+            console.warn("Failed to switch to specific back camera, trying facingMode environment...", switchErr);
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+              });
+            } catch (facingErr) {
+              console.warn("facingMode environment failed, restarting generic camera...", facingErr);
+              stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            }
+          }
+        }
+      }
+
+      // Assign final stream
+      setScannerStream(stream);
+      requestAnimationFrame(() => {
+        if (scannerVideoRef.current) {
+          attachStreamToVideo(scannerVideoRef.current, stream);
+        }
+      });
+
+    } catch (err: any) {
+      console.error("Camera access failed completely:", err);
+      const errName = err?.name || '';
       if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
         setScannerError("L'accès à la caméra a été refusé. Autorisez la caméra dans les paramètres de votre navigateur, puis rechargez la page.");
-      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
-        setScannerError("Aucune caméra arrière détectée sur cet appareil.");
       } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
         setScannerError("La caméra est déjà utilisée par une autre application. Fermez les autres applications et réessayez.");
       } else {
-        setScannerError("Impossible d'accéder à l'appareil photo. Vérifiez les autorisations de la caméra dans votre navigateur.");
+        setScannerError("Impossible d'accéder à la caméra. Vérifiez les autorisations de votre navigateur.");
       }
-      return;
     }
-
-    // Assign stream reliably once video element is mounted
-    setScannerStream(stream);
-    requestAnimationFrame(() => {
-      if (scannerVideoRef.current) {
-        attachStreamToVideo(scannerVideoRef.current, stream!);
-      }
-    });
   };
 
   const stopDocumentScanner = () => {
@@ -747,6 +788,16 @@ export default function Dossier({
     setSelfieError(null);
     setCapturedSelfieBase64(null);
 
+    // Stop any active streams first to release the camera hardware
+    if (scannerStream) {
+      scannerStream.getTracks().forEach(track => track.stop());
+      setScannerStream(null);
+    }
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(track => track.stop());
+      setWebcamStream(null);
+    }
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setSelfieError("L'accès à la caméra n'est pas disponible sur ce navigateur ou contexte. Utilisez Chrome ou Safari en HTTPS.");
       return;
@@ -754,7 +805,7 @@ export default function Dossier({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        video: { facingMode: 'user' }
       });
       setWebcamStream(stream);
       setWebcamActive(true);

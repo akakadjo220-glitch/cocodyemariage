@@ -840,18 +840,20 @@ export default function Dossier({
             addNotification(`📋 Document "${dbFileName}" reçu. Vérification municipale requise.`, 'info');
           }
         } catch (aiErr: any) {
-          console.warn("AI verification failed:", aiErr);
+          const friendlyErrMsg = (aiErr.message && !aiErr.message.includes('toLowerCase') && !aiErr.message.includes('TypeError'))
+            ? aiErr.message
+            : "Format du document ou analyse non conforme. Veuillez reprendre une photo bien nette.";
           updateDocumentStatus(docId, 'rejected', dbFileName, docNum, {
             type_document: 'INCONNU',
             est_lisible: false,
             est_authentique: false,
             confiance: 0,
             infos_extraites: { nom: '', prenoms: '', date_naissance: '', lieu_naissance: '', numero_document: '', date_expiration: '', nationalite: '' },
-            anomalies: ['Document illisible ou analyse impossible'],
+            anomalies: [friendlyErrMsg],
             action_recommandee: 'REJETER',
-            motif: aiErr.message || `L'analyse du document a échoué. Veuillez téléverser à nouveau.`
+            motif: friendlyErrMsg
           });
-          addNotification(`⚠️ Analyse impossible : ${aiErr.message || 'fichier corrompu'}.`, 'warning');
+          addNotification(`⚠️ Analyse du document : ${friendlyErrMsg}`, 'warning');
         } finally {
           setIsAnalyzingAi(false);
           setAnalysisStatus(prev => {

@@ -2775,8 +2775,21 @@ Tout document daté de ${new Date().getFullYear()} ou avant est valide.`;
     action_recommandee: "VERIFIER_MANUELLEMENT",
     motif: "Quota journalier atteint ou tous les modèles OpenRouter ont échoué.",
     _modele_utilise: null,
-    _tentative: models.length
   } as any;
+}
+
+export function safeString(val: any): string {
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (val && typeof val === 'object') {
+    if (typeof val.message === 'string') return val.message;
+    if (typeof val.motif === 'string') return val.motif;
+    if (typeof val.raison === 'string') return val.raison;
+    if (typeof val.text === 'string') return val.text;
+    if (typeof val.description === 'string') return val.description;
+    try { return JSON.stringify(val); } catch { return ''; }
+  }
+  return '';
 }
 
 export async function appelMistralVision(prompt: string, base64Data: string, mimeType: string, config: AiConfig): Promise<AiAnalysisResult> {
@@ -4029,27 +4042,41 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
     );
     const finalRes = fusionnerResultats(pageResults);
 
-    // 2. Smart Expiration Auto-Fixer: Correct false positive expiration errors if year >= current year
-    if (finalRes && finalRes.infos_extraites) {
-      const expStr = finalRes.infos_extraites.date_expiration || '';
-      const matchYear = expStr.match(/\b(20\d{2})\b/);
-      const currentYear = maintenant.getFullYear();
-      if (matchYear) {
-        const expYear = parseInt(matchYear[1], 10);
-        if (expYear >= currentYear) {
-          if (finalRes.action_recommandee === 'REJETER' && 
-             (finalRes.motif?.toLowerCase().includes('expir') || finalRes.anomalies?.some(a => a.toLowerCase().includes('expir')))) {
-            console.log(`[AI Auto-Fix] Overriding false expiration rejection: Expiration year ${expYear} >= current year ${currentYear}`);
-            finalRes.action_recommandee = 'ACCEPTER';
-            finalRes.motif = `Pièce d'identité valide (Expire le ${expStr}).`;
-            finalRes.anomalies = (finalRes.anomalies || []).filter(a => !a.toLowerCase().includes('expir'));
+    // 2. Smart Expiration Auto-Fixer & String Safeguard (Prevents n.toLowerCase crashes)
+    if (finalRes) {
+      const safeMotifText = safeString(finalRes.motif);
+      const safeAnomaliesList = Array.isArray(finalRes.anomalies)
+        ? finalRes.anomalies.map(a => safeString(a)).filter(Boolean)
+        : typeof finalRes.anomalies === 'string'
+        ? [finalRes.anomalies]
+        : [];
+
+      finalRes.motif = safeMotifText || "Analyse du document effectuée.";
+      finalRes.anomalies = safeAnomaliesList;
+
+      if (finalRes.infos_extraites) {
+        const expStr = safeString(finalRes.infos_extraites.date_expiration);
+        const matchYear = expStr.match(/\b(20\d{2})\b/);
+        const currentYear = maintenant.getFullYear();
+        const hasExpirInMotif = finalRes.motif.toLowerCase().includes('expir');
+        const hasExpirInAnomalies = finalRes.anomalies.some(a => a.toLowerCase().includes('expir'));
+
+        if (matchYear) {
+          const expYear = parseInt(matchYear[1], 10);
+          if (expYear >= currentYear) {
+            if (finalRes.action_recommandee === 'REJETER' && (hasExpirInMotif || hasExpirInAnomalies)) {
+              console.log(`[AI Auto-Fix] Overriding false expiration rejection: Expiration year ${expYear} >= current year ${currentYear}`);
+              finalRes.action_recommandee = 'ACCEPTER';
+              finalRes.motif = `Pièce d'identité valide (Expire le ${expStr}).`;
+              finalRes.anomalies = finalRes.anomalies.filter(a => !a.toLowerCase().includes('expir'));
+            }
           }
+        } else if (finalRes.action_recommandee === 'REJETER' && hasExpirInMotif) {
+          console.log(`[AI Auto-Fix] Overriding unverified expiration rejection for valid ID card`);
+          finalRes.action_recommandee = 'ACCEPTER';
+          finalRes.motif = `Pièce d'identité validée avec succès.`;
+          finalRes.anomalies = finalRes.anomalies.filter(a => !a.toLowerCase().includes('expir'));
         }
-      } else if (finalRes.action_recommandee === 'REJETER' && finalRes.motif?.toLowerCase().includes('expir')) {
-        console.log(`[AI Auto-Fix] Overriding unverified expiration rejection for valid ID card`);
-        finalRes.action_recommandee = 'ACCEPTER';
-        finalRes.motif = `Pièce d'identité validée avec succès.`;
-        finalRes.anomalies = (finalRes.anomalies || []).filter(a => !a.toLowerCase().includes('expir'));
       }
     }
 
@@ -4064,9 +4091,12 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
         );
         if (groqCrossCheck && groqCrossCheck.action === 'REJETER') {
           finalRes.action_recommandee = 'REJETER';
-          finalRes.motif = groqCrossCheck.motif;
+          finalRes.motif = safeString(groqCrossCheck.motif) || "Incohérence des identités";
           if (groqCrossCheck.anomalies) {
-            finalRes.anomalies = [...(finalRes.anomalies || []), ...groqCrossCheck.anomalies];
+            const extraAnom = Array.isArray(groqCrossCheck.anomalies)
+              ? groqCrossCheck.anomalies.map(a => safeString(a)).filter(Boolean)
+              : [safeString(groqCrossCheck.anomalies)];
+            finalRes.anomalies = [...(finalRes.anomalies || []), ...extraAnom];
           }
         }
       } catch (groqErr) {

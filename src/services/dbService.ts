@@ -4001,23 +4001,16 @@ Analyse cette pièce d'identité (CNI, Passeport, Attestation) et réponds UNIQU
 Examine attentivement l'image pour vérifier son authenticité et son originalité :
 1. ANALYSE DE LA PIÈCE D'IDENTITÉ OU ACTE D'ÉTAT CIVIL :
    - Vérifie la netteté des polices administratives officielles, les armoiries, les sceaux et tampons républicains.
-   - Détecte les signes de falsification numérique : typographie décalée, zones de texte retouchées (Photoshop/Paint), artefacts de découpage, incohérence des ombres ou polices non réglementaires.
-   - Détecte les captures d'écran de téléphone ou photos d'écran d'ordinateur (effet moiré, reflets de pixels).
-2. Si le document présente des signes clairs de falsification ou d'usurpation :
-   - Mets "est_authentique": false, "action_recommandee": "REJETER", et explique l'anomalie dans "anomalies".
-3. Si le document est authentique et conforme :
-   - Mets "est_authentique": true, "confiance": 95.
+   - Détecte les signes de falsification numérique : typographie décalée, zones de texte retouchées, artefacts de découpage.
+   - N'indique PAS qu'une photo de document physique est une falsification sauf si des altérations grossières sont visibles.
 
-[RÈGLES STRICTES DE VALIDATION]
-1. VALIDITÉ TEMPORELLE / EXPIRATION :
-   - Compare la date d'expiration figurant sur la pièce avec la Date actuelle (${dateActuelle}).
-   - Si la date d'expiration est dans le futur (ex: 2026, 2027, 2028, 2030, 2035, etc.) ou s'il s'agit d'une CNI en cours de validité, LE DOCUMENT EST VALIDE. Ne déclare PAS la pièce expirée !
-   - Ne déclare la pièce expirée QUE SI la date d'expiration est une date passée strictly antérieure à aujourd'hui (${dateActuelle}).
+2. RÈGLES STRICTES DE VALIDATION :
+   - Compare la date d'expiration figurant sur la pièce avec la Date actuelle (${dateActuelle}). Si la date d'expiration est dans le futur (ex: 2026, 2027, 2028, 2030, etc.), LE DOCUMENT EST VALIDE !
+   - Compare le Nom, les Prénoms et le Numéro de pièce figurant sur le document avec les DONNÉES DÉCLARÉES.
+   - Si les informations correspondent ou sont très proches : "action_recommandee": "ACCEPTER".
 
-2. CORRESPONDANCE DES IDENTITÉS :
-   - Si les informations principales correspondent ou sont très proches : "action_recommandee": "ACCEPTER".
-   - Si le document est illisible : "action_recommandee": "REUPLOADER".
-   - Si le document est expiré depuis des années ou non conforme : "action_recommandee": "REJETER".
+3. EXIGENCE DE PRÉCISION EN CAS DE REJET OU ANOMALIE :
+   Si le document est rejeté ou présente des incohérences, tu DOIS obligatoirement indiquer la raison EXACTE dans "message_utilisateur" et lister les détails précis dans "anomalies" (Exemples : "Nom extrait 'KADJO' ne correspond pas au nom déclaré 'KONÉ'", "Numéro de pièce 'PA12345' ne correspond pas au numéro déclaré 'C009876'", "Document expiré le 12/05/2022"). Ne donne JAMAIS de réponse vague sans donner les valeurs précises !
 
 [STRUCTURE JSON]
 {
@@ -4031,7 +4024,8 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
   "numero_piece_extrait": "",
   "date_expiration_extraite": "JJ/MM/AAAA",
   "action_recommandee": "ACCEPTER | REJETER | REUPLOADER | VERIFIER_MANUELLEMENT",
-  "message_utilisateur": "Explication en français."
+  "message_utilisateur": "Raison exacte et détaillée en français (indiquant précisément le champ en cause si rejet).",
+  "anomalies": ["Raison 1 exacte", "Raison 2 exacte"]
 }
 `;
   }

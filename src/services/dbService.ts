@@ -3074,26 +3074,47 @@ export async function verifierNemotronSafety(
   mimeType: string,
   cleAPI: string
 ): Promise<{ safe: boolean; reason?: string; bypass?: boolean }> {
-  if (!cleAPI) {
-    return { safe: true, bypass: true, reason: "Clé API OpenRouter manquante" };
+  const config = getAiConfig();
+  
+  // Decide which API, Key, and Model to use for safety check
+  let apiURL = "https://openrouter.ai/api/v1/chat/completions";
+  let apiKey = cleAPI;
+  let modelName = config.openRouterModelSafety || DEFAULT_AI_CONFIG.openRouterModelSafety || "google/gemini-2.0-flash:free";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+
+  if (config.groqKey) {
+    // Use ultra-fast Groq Vision API (takes ~0.3 seconds!)
+    apiURL = "https://api.groq.com/openai/v1/chat/completions";
+    apiKey = config.groqKey;
+    modelName = "llama-3.2-11b-vision-preview";
+    headers["Authorization"] = `Bearer ${config.groqKey}`;
+  } else {
+    // Use OpenRouter with a fast model
+    if (!cleAPI) {
+      return { safe: true, bypass: true, reason: "Clé API OpenRouter manquante" };
+    }
+    headers["Authorization"] = `Bearer ${cleAPI}`;
+    headers["X-Title"] = "I Mariage - Mairie Cocody";
+    // Avoid slow Nemotron safety model, default to gemini-2.0-flash:free for speed if safety is default
+    if (modelName === "nvidia/nemotron-3.5-content-safety:free") {
+      modelName = "google/gemini-2.0-flash:free";
+    }
   }
+
   try {
-    const config = getAiConfig();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1800);
 
     const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
+      apiURL,
       {
         signal: controller.signal,
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${cleAPI}`,
-          "Content-Type": "application/json",
-          "X-Title": "I Mariage - Mairie Cocody"
-        },
+        headers: headers,
         body: JSON.stringify({
-          model: config.openRouterModelSafety || DEFAULT_AI_CONFIG.openRouterModelSafety || "nvidia/nemotron-3.5-content-safety:free",
+          model: modelName,
           messages: [{
             role: "user",
             content: [
@@ -3116,22 +3137,22 @@ export async function verifierNemotronSafety(
     clearTimeout(timeoutId);
 
     if (response.status === 429) {
-      console.warn("Nemotron Safety 429: Bypassing safety check.");
+      console.warn("Safety check 429: Bypassing safety check.");
       return { safe: true, bypass: true, reason: "Rate limit (429)" };
     }
 
     if (!response.ok) {
-      console.warn(`Nemotron Safety HTTP error ${response.status}: Bypassing safety check.`);
+      console.warn(`Safety check HTTP error ${response.status}: Bypassing safety check.`);
       return { safe: true, bypass: true, reason: `HTTP ${response.status}` };
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content?.trim();
     if (!content) {
-      return { safe: true, bypass: true, reason: "Réponse vide de Nemotron" };
+      return { safe: true, bypass: true, reason: "Réponse vide de la validation" };
     }
 
-    console.log("Nemotron Safety content output:", content);
+    console.log("Safety content output:", content);
     const contentUpper = content.toUpperCase();
     if (contentUpper.startsWith("UNSAFE")) {
       const parts = content.split('|');
@@ -3142,8 +3163,8 @@ export async function verifierNemotronSafety(
 
     return { safe: true };
   } catch (err: any) {
-    console.warn("Nemotron Safety request failed: Bypassing safety check.", err);
-    return { safe: true, bypass: true, reason: err.message || "Erreur réseau" };
+    console.warn("Safety check failed or timed out: bypassing safety.", err);
+    return { safe: true, bypass: true, reason: err.message || "Timeout/Error" };
   }
 }
 

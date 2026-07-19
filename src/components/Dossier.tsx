@@ -236,6 +236,8 @@ export default function Dossier({
   const [scannerError, setScannerError] = useState<string | null>(null);
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
   const scannerFrameRef = useRef<HTMLDivElement>(null);
+  const [scannerVideoDevices, setScannerVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [currentDeviceIndex, setCurrentDeviceIndex] = useState<number>(0);
 
   // Reset selected file when the upload modal closes
   useEffect(() => {
@@ -611,95 +613,106 @@ export default function Dossier({
     setScannerError(null);
     setScannerActive(true);
 
-    // Stop any active streams first to release the camera hardware
+    // Stop any active streams first with a hardware release cooldown delay
     if (scannerStream) {
       scannerStream.getTracks().forEach(track => track.stop());
       setScannerStream(null);
+      await new Promise(r => setTimeout(r, 200));
     }
     if (webcamStream) {
       webcamStream.getTracks().forEach(track => track.stop());
       setWebcamStream(null);
+      await new Promise(r => setTimeout(r, 200));
     }
 
-    // Step 1: Check mediaDevices API availability (requires HTTPS)
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setScannerError("L'accès à la caméra n'est pas disponible. Vérifiez que vous utilisez un navigateur récent (Chrome, Safari, Firefox) et que le site est ouvert en HTTPS.");
+      setScannerError("L'accès à la caméra n'est pas disponible. Vérifiez que le site est ouvert en HTTPS.");
       return;
     }
 
-    try {
-      // Step 3: Start with a generic constraints request to obtain permission and unlock device labels
-      // This has the highest success rate on all browsers and devices
-      let stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    // List of progressive constraints — prefer back camera with standard/reduced resolution (ideal: 1280x720)
+    const constraintsList: MediaStreamConstraints[] = [
+      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+      { video: { facingMode: 'environment' } },
+      { video: { facingMode: { ideal: 'user' } } },
+      { video: true }
+    ];
 
-      // Step 4: Enumerate devices to locate the rear camera precisely now that we have permission
-      let backCameraId: string | null = null;
+    let stream: MediaStream | null = null;
+    let lastError: any = null;
+
+    for (const constraints of constraintsList) {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-
-        // Find a device with back/rear/arrière/env in the label
-        const backDevice = videoDevices.find(d => {
-          const label = d.label.toLowerCase();
-          return label.includes('back') || label.includes('rear') || label.includes('arrière') || label.includes('env') || label.includes('caméra 0');
-        });
-
-        if (backDevice) {
-          backCameraId = backDevice.deviceId;
-        } else if (videoDevices.length > 1) {
-          // If multiple cameras exist and no label matches, pick the last one (usually back on mobiles)
-          backCameraId = videoDevices[videoDevices.length - 1].deviceId;
-        }
-      } catch (enumErr) {
-        console.warn("Failed to enumerate devices:", enumErr);
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (stream) break;
+      } catch (err: any) {
+        lastError = err;
+        console.warn("Camera constraint attempt failed:", err.name);
+        await new Promise(r => setTimeout(r, 150));
       }
+    }
 
-      // Step 5: If a back camera ID was found, attempt to switch to it
-      if (backCameraId) {
-        const activeTrack = stream.getVideoTracks()[0];
-        const activeSettings = activeTrack ? activeTrack.getSettings() : null;
-
-        if (activeSettings && activeSettings.deviceId !== backCameraId) {
-          console.log("Switching to back camera deviceId:", backCameraId);
-          // Stop the initial generic stream
-          stream.getTracks().forEach(track => track.stop());
-
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { deviceId: { exact: backCameraId } }
-            });
-          } catch (switchErr) {
-            console.warn("Failed to switch to specific back camera, trying facingMode environment...", switchErr);
-            try {
-              stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
-              });
-            } catch (facingErr) {
-              console.warn("facingMode environment failed, restarting generic camera...", facingErr);
-              stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            }
-          }
-        }
+    if (!stream) {
+      console.error("All camera constraints failed:", lastError);
+      const errName = lastError?.name || '';
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setScannerError("L'accès à la caméra a été refusé. Veuillez autoriser la caméra dans votre navigateur puis recharger la page.");
+      } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+        setScannerError("La caméra est verrouillée par votre système ou une autre application. Redémarrez votre navigateur et réessayez.");
+      } else {
+        setScannerError("Impossible d'ouvrir l'appareil photo. Vérifiez les autorisations de votre navigateur.");
       }
+      return;
+    }
 
-      // Assign final stream
+    // Assign final stream
+    setScannerStream(stream);
+    requestAnimationFrame(() => {
+      if (scannerVideoRef.current) {
+        attachStreamToVideo(scannerVideoRef.current, stream!);
+      }
+    });
+
+    // Enumerate available devices for camera switcher
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const vDevices = devices.filter(d => d.kind === 'videoinput');
+      setScannerVideoDevices(vDevices);
+      const activeTrack = stream.getVideoTracks()[0];
+      const activeSettings = activeTrack ? activeTrack.getSettings() : null;
+      if (activeSettings?.deviceId) {
+        const idx = vDevices.findIndex(d => d.deviceId === activeSettings.deviceId);
+        if (idx !== -1) setCurrentDeviceIndex(idx);
+      }
+    } catch (e) {
+      console.warn("Failed to enumerate devices:", e);
+    }
+  };
+
+  const switchScannerCamera = async () => {
+    if (scannerVideoDevices.length < 2) return;
+    const nextIndex = (currentDeviceIndex + 1) % scannerVideoDevices.length;
+    const nextDevice = scannerVideoDevices[nextIndex];
+
+    if (scannerStream) {
+      scannerStream.getTracks().forEach(track => track.stop());
+      setScannerStream(null);
+      await new Promise(r => setTimeout(r, 250)); // Mandatory release delay for mobile hardware
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: nextDevice.deviceId } }
+      });
       setScannerStream(stream);
+      setCurrentDeviceIndex(nextIndex);
       requestAnimationFrame(() => {
         if (scannerVideoRef.current) {
           attachStreamToVideo(scannerVideoRef.current, stream);
         }
       });
-
-    } catch (err: any) {
-      console.error("Camera access failed completely:", err);
-      const errName = err?.name || '';
-      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-        setScannerError("L'accès à la caméra a été refusé. Autorisez la caméra dans les paramètres de votre navigateur, puis rechargez la page.");
-      } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
-        setScannerError("La caméra est déjà utilisée par une autre application. Fermez les autres applications et réessayez.");
-      } else {
-        setScannerError("Impossible d'accéder à la caméra. Vérifiez les autorisations de votre navigateur.");
-      }
+    } catch (e) {
+      console.warn("Failed to switch camera:", e);
     }
   };
 
@@ -1564,7 +1577,7 @@ export default function Dossier({
             {/* Camera viewport */}
             {webcamActive && (
               <div className="relative w-full max-w-[320px] rounded-2xl overflow-hidden border border-neutral-300 bg-black aspect-[4/3] flex items-center justify-center">
-                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                 <div className="absolute inset-0 border-[3px] border-primary/20 pointer-events-none rounded-2xl" />
               </div>
             )}
@@ -2213,6 +2226,16 @@ export default function Dossier({
             <h4 className="text-white text-sm font-bold mt-2">
               {scannerSide === 'recto' ? 'Cadrez le RECTO (Devant)' : scannerSide === 'verso' ? 'Cadrez le VERSO (Derrière)' : 'Cadrez le document'}
             </h4>
+            {scannerVideoDevices.length > 1 && !scannerError && (
+              <button
+                type="button"
+                onClick={switchScannerCamera}
+                className="mt-2.5 px-3.5 py-1.5 bg-white/10 hover:bg-white/20 border border-white/25 text-white rounded-full text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 mx-auto shadow-sm backdrop-blur-md active:scale-95"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-[#c5a368]" />
+                <span>Changer de caméra 🔄</span>
+              </button>
+            )}
           </div>
 
           {/* Video viewport and Bounding Box */}
@@ -2230,6 +2253,7 @@ export default function Dossier({
                 ref={scannerVideoRef}
                 autoPlay
                 playsInline
+                muted
                 className="absolute inset-0 w-full h-full object-cover"
               />
             )}

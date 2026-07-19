@@ -629,9 +629,10 @@ export default function Dossier({
       }
     }
 
-    // Step 3: Try getUserMedia with progressive constraint fallback
-    const constraintsList = [
-      { video: { facingMode: { exact: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+    // Step 3: Try getUserMedia with the simplest possible constraints for max compatibility
+    // NOTE: Never specify width/height on mobile — Android Chrome often throws NotReadableError
+    const constraintsList: MediaStreamConstraints[] = [
+      { video: { facingMode: { exact: 'environment' } } },
       { video: { facingMode: 'environment' } },
       { video: true }
     ];
@@ -645,26 +646,26 @@ export default function Dossier({
         break;
       } catch (err: any) {
         lastError = err;
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') break; // No point retrying
-        console.warn("Camera constraint failed, trying next...", err.name, constraints);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') break;
+        console.warn("Camera constraint failed, trying next...", err.name);
       }
     }
 
     if (!stream) {
       const errName = lastError?.name || '';
       if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-        setScannerError("L'accès à la caméra a été refusé. Veuillez autoriser l'accès dans les paramètres de votre navigateur et recharger la page.");
+        setScannerError("L'accès à la caméra a été refusé. Autorisez la caméra dans les paramètres de votre navigateur, puis rechargez la page.");
       } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
-        setScannerError("Aucune caméra détectée sur cet appareil. Utilisez l'appareil photo du système ci-dessous.");
+        setScannerError("Aucune caméra arrière détectée sur cet appareil.");
       } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
         setScannerError("La caméra est déjà utilisée par une autre application. Fermez les autres applications et réessayez.");
       } else {
-        setScannerError("Impossible d'accéder à l'appareil photo. Veuillez autoriser l'accès ou utiliser l'appareil photo du système ci-dessous.");
+        setScannerError("Impossible d'accéder à l'appareil photo. Vérifiez les autorisations de la caméra dans votre navigateur.");
       }
       return;
     }
 
-    // Step 4: Assign stream reliably once video element is mounted
+    // Assign stream reliably once video element is mounted
     setScannerStream(stream);
     requestAnimationFrame(() => {
       if (scannerVideoRef.current) {
@@ -2197,16 +2198,7 @@ export default function Dossier({
           {/* Footer actions */}
           <div className="flex flex-col gap-3 items-center z-10 font-sans w-full max-w-sm mx-auto">
             <div className="flex flex-col sm:flex-row gap-2.5 w-full">
-              {scannerError ? (
-                <button
-                  type="button"
-                  onClick={handleFallbackSystemCamera}
-                  className="w-full sm:flex-1 py-3 px-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
-                >
-                  <Camera className="w-4 h-4 text-white" />
-                  <span>Caméra du système 📸</span>
-                </button>
-              ) : (
+              {!scannerError && (
                 <button
                   type="button"
                   onClick={captureDocumentPhoto}
@@ -2224,16 +2216,6 @@ export default function Dossier({
                 Annuler
               </button>
             </div>
-            
-            {!scannerError && (
-              <button
-                type="button"
-                onClick={handleFallbackSystemCamera}
-                className="text-[10px] text-slate-400 hover:text-slate-200 underline bg-transparent border-0 cursor-pointer py-1"
-              >
-                Problème de caméra ? Cliquer ici pour utiliser l'appareil photo par défaut du système
-              </button>
-            )}
           </div>
 
           {/* Inject keyframes dynamically */}

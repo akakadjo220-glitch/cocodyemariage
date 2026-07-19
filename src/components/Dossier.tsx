@@ -626,7 +626,8 @@ export default function Dossier({
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setScannerError("L'accès à la caméra n'est pas disponible. Vérifiez que le site est ouvert en HTTPS.");
+      console.warn("MediaDevices API unavailable, triggering native system camera fallback...");
+      handleFallbackSystemCamera(side);
       return;
     }
 
@@ -653,15 +654,8 @@ export default function Dossier({
     }
 
     if (!stream) {
-      console.error("All camera constraints failed:", lastError);
-      const errName = lastError?.name || '';
-      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-        setScannerError("L'accès à la caméra a été refusé. Veuillez autoriser la caméra dans votre navigateur puis recharger la page.");
-      } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
-        setScannerError("La caméra est verrouillée par votre système ou une autre application. Redémarrez votre navigateur et réessayez.");
-      } else {
-        setScannerError("Impossible d'ouvrir l'appareil photo. Vérifiez les autorisations de votre navigateur.");
-      }
+      console.warn("All HTML5 camera constraints failed on this device, triggering native system camera fallback...", lastError);
+      handleFallbackSystemCamera(side);
       return;
     }
 
@@ -725,16 +719,18 @@ export default function Dossier({
     setScannerSide(null);
   };
 
-  const handleFallbackSystemCamera = () => {
-    const side = scannerSide;
+  const handleFallbackSystemCamera = (targetSide?: 'recto' | 'verso' | 'standard' | null) => {
+    const side = targetSide || scannerSide;
     stopDocumentScanner();
-    if (side === 'recto') {
-      fileInputRectoRef.current?.click();
-    } else if (side === 'verso') {
-      fileInputVersoRef.current?.click();
-    } else if (side === 'standard') {
-      fileInputStandardRef.current?.click();
-    }
+    setTimeout(() => {
+      if (side === 'recto') {
+        fileInputRectoRef.current?.click();
+      } else if (side === 'verso') {
+        fileInputVersoRef.current?.click();
+      } else if (side === 'standard') {
+        fileInputStandardRef.current?.click();
+      }
+    }, 150);
   };
 
   const captureDocumentPhoto = () => {
@@ -2247,6 +2243,14 @@ export default function Dossier({
                 </div>
                 <h4 className="text-white text-sm font-bold">Erreur d'accès à la caméra</h4>
                 <p className="text-rose-200/80 leading-relaxed font-sans font-medium">{scannerError}</p>
+                <button
+                  type="button"
+                  onClick={() => handleFallbackSystemCamera()}
+                  className="mt-2 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 border-0"
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                  <span>Prendre la photo avec le téléphone 📱</span>
+                </button>
               </div>
             ) : (
               <video
@@ -2308,6 +2312,14 @@ export default function Dossier({
                   <span>Prendre la photo 📸</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => handleFallbackSystemCamera()}
+                className="w-full sm:flex-1 py-3 px-4 bg-emerald-700/80 hover:bg-emerald-600 text-white rounded-xl font-sans text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-emerald-500/30 shadow-md"
+              >
+                <Camera className="w-4 h-4 text-white" />
+                <span>Caméra du téléphone 📱</span>
+              </button>
               <button
                 type="button"
                 onClick={stopDocumentScanner}

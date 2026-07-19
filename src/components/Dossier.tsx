@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   FolderOpen, CheckCircle, Hourglass, UploadCloud, FileText,
-  Trash2, AlertCircle, Sparkles, Heart, ArrowRight, Camera, Loader2, X, Check, Lock, Calendar, RefreshCw, Zap
+  Trash2, AlertCircle, Sparkles, Heart, ArrowRight, Camera, Loader2, X, Check, Lock, Calendar, RefreshCw, Zap, Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
@@ -2024,12 +2024,31 @@ export default function Dossier({
                             </div>
                           </div>
 
-                          {/* Hidden file inputs for CNI native camera capture */}
+                          {/* Fallback upload buttons from gallery/system */}
+                          <div className="flex flex-col sm:flex-row gap-2 w-full mt-2">
+                            <button
+                              type="button"
+                              onClick={() => fileInputRectoRef.current?.click()}
+                              className="flex-1 py-2 px-3 border border-neutral-300 hover:bg-neutral-50 text-slate-700 rounded-xl font-sans text-[11px] font-bold cursor-pointer transition-colors text-center bg-transparent flex items-center justify-center gap-1.5"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Téléverser Recto</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fileInputVersoRef.current?.click()}
+                              className="flex-1 py-2 px-3 border border-neutral-300 hover:bg-neutral-50 text-slate-700 rounded-xl font-sans text-[11px] font-bold cursor-pointer transition-colors text-center bg-transparent flex items-center justify-center gap-1.5"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Téléverser Verso</span>
+                            </button>
+                          </div>
+
+                          {/* Hidden file inputs for CNI native camera capture (no forced capture mode for max compatibility) */}
                           <input
                             type="file"
                             ref={fileInputRectoRef}
                             accept="image/*"
-                            capture="environment"
                             className="hidden"
                             onChange={(e) => handleCniFileChange(e, 'recto')}
                           />
@@ -2037,7 +2056,6 @@ export default function Dossier({
                             type="file"
                             ref={fileInputVersoRef}
                             accept="image/*"
-                            capture="environment"
                             className="hidden"
                             onChange={(e) => handleCniFileChange(e, 'verso')}
                           />
@@ -2081,18 +2099,26 @@ export default function Dossier({
                               <Camera className="w-5 h-5 text-primary animate-pulse" />
                             </div>
                             <span className="text-[12px] text-slate-800 font-extrabold group-hover:text-primary transition-colors">
-                              Prendre la photo du document
+                              Prendre la photo du document (Scanner)
                             </span>
                             <span className="text-[9px] text-slate-400 font-medium">
                               Ouvre directement la caméra de votre appareil
                             </span>
                           </button>
 
+                          <button
+                            type="button"
+                            onClick={() => fileInputStandardRef.current?.click()}
+                            className="w-full py-3.5 border border-neutral-300 hover:bg-neutral-50 text-slate-700 rounded-xl font-sans text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-transparent shadow-sm"
+                          >
+                            <Upload className="w-4 h-4 text-slate-500" />
+                            <span>Sélectionner un fichier (Galerie / PDF)</span>
+                          </button>
+
                           <input
                             type="file"
                             ref={fileInputStandardRef}
-                            accept="image/*"
-                            capture="environment"
+                            accept="image/*,application/pdf"
                             className="hidden"
                             onChange={handleStandardFileChange}
                           />

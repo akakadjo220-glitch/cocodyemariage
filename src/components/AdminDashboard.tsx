@@ -4887,7 +4887,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                       {/* OpenRouter */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-semibold text-slate-700 text-xs">Clé API OpenRouter (Gemma/Llama)*</label>
+                        <label className="font-semibold text-slate-700 text-xs">Clé API OpenRouter (Secours Vision)*</label>
                         <div className="relative">
                           <input
                             type={showApiKeys.gemini ? "text" : "password"}
@@ -4909,7 +4909,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
                       {/* Mistral */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-semibold text-slate-700 text-xs">Clé API Mistral (Double-Vérif)</label>
+                        <label className="font-semibold text-slate-700 text-xs">Clé API Mistral (Vision HD &amp; Originalité)</label>
                         <div className="relative">
                           <input
                             type={showApiKeys.mistral ? "text" : "password"}
@@ -4930,7 +4930,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
                       {/* Groq */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-semibold text-slate-700 text-xs">Clé API Groq (LLaMA 3.3)</label>
+                        <label className="font-semibold text-slate-700 text-xs">Clé API Groq LPU (Contrôle Rapide &amp; Anti-Fraude)</label>
                         <div className="relative">
                           <input
                             type={showApiKeys.groq ? "text" : "password"}
@@ -4951,7 +4951,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
                       {/* Tavily */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-semibold text-slate-700 text-xs">Clé API Tavily (Vérification Web)</label>
+                        <label className="font-semibold text-slate-700 text-xs">Clé API Tavily (Vérification Web Mairies)</label>
                         <div className="relative">
                           <input
                             type={showApiKeys.tavily ? "text" : "password"}
@@ -5195,102 +5195,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                     </div>
 
                     {aiTestResults ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-1 font-sans text-xs">
-                        {/* OpenRouter Result */}
-                        <div className={`p-3.5 rounded-xl border flex flex-col gap-1.5 ${
-                          aiTestResults.openRouter.status === 'testing'
-                            ? 'bg-amber-50/30 border-amber-200/50'
-                            : aiTestResults.openRouter.status === 'success'
-                            ? 'bg-emerald-50/30 border-emerald-250/50'
-                            : 'bg-rose-50/30 border-rose-250/50'
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">OpenRouter (Rotation)</span>
-                            {aiTestResults.openRouter.status === 'testing' ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
-                            ) : aiTestResults.openRouter.status === 'success' ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <AlertTriangle className="w-4 h-4 text-rose-600" />
-                            )}
-                          </div>
-                          <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Extraction &amp; analyse anti-doublon (Gemma, LLaMA, Qwen, Mistral, Nemotron)
-                          </p>
-                          {aiTestResults.openRouter.message && (
-                            <div className="text-[10px] text-slate-600 font-medium mt-0.5 leading-relaxed">
-                              {aiTestResults.openRouter.message}
-                            </div>
-                          )}
-                          {/* Models list detail */}
-                          {aiTestResults.openRouter.models && aiTestResults.openRouter.models.length > 0 && (
-                            <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-neutral-200/60 max-h-[180px] overflow-y-auto">
-                              {aiTestResults.openRouter.models.map((m, idx) => (
-                                <div key={idx} className="flex items-center justify-between gap-1 bg-white/40 p-1 rounded border border-neutral-200/30">
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="font-semibold text-slate-700 truncate text-[9px]">
-                                      {m.modele.split('/')[1] || m.modele}
-                                    </span>
-                                    {m.message && (
-                                      <span className="text-[8px] text-slate-500 truncate max-w-[140px]" title={m.message}>
-                                        {m.message}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span className={`text-[8px] px-1 py-0.5 rounded font-mono shrink-0 flex items-center gap-0.5 ${
-                                    m.statut === 'CONNECTÉ'
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : m.statut === 'QUOTA_DÉPASSÉ'
-                                      ? 'bg-amber-100 text-amber-800'
-                                      : 'bg-rose-100 text-rose-800'
-                                  }`}>
-                                    {m.icone} {m.statut === 'CONNECTÉ' ? 'OK' : m.statut}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* NVIDIA Nemotron 3.5 Content Safety Result */}
-                        <div className={`p-3.5 rounded-xl border flex flex-col gap-1.5 ${
-                          aiTestResults.nemotronSafety.status === 'testing'
-                            ? 'bg-amber-50/30 border-amber-200/50'
-                            : aiTestResults.nemotronSafety.status === 'success'
-                            ? 'bg-emerald-50/30 border-emerald-250/50'
-                            : aiTestResults.nemotronSafety.status === 'warning'
-                            ? 'bg-amber-50/30 border-amber-250/50'
-                            : 'bg-rose-50/30 border-rose-250/50'
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">Nemotron Safety (Filtre)</span>
-                            {aiTestResults.nemotronSafety.status === 'testing' ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
-                            ) : aiTestResults.nemotronSafety.status === 'success' ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            ) : aiTestResults.nemotronSafety.status === 'warning' ? (
-                              <AlertTriangle className="w-4 h-4 text-amber-600" />
-                            ) : (
-                              <AlertTriangle className="w-4 h-4 text-rose-600" />
-                            )}
-                          </div>
-                          <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Filtre de sécurité &amp; contrôle initial (OpenRouter)
-                          </p>
-                          {aiTestResults.nemotronSafety.message && (
-                            <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
-                              aiTestResults.nemotronSafety.status === 'success'
-                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800'
-                                : aiTestResults.nemotronSafety.status === 'warning'
-                                ? 'bg-amber-500/10 border-amber-500/20 text-amber-800'
-                                : 'bg-rose-500/10 border-rose-500/20 text-rose-800'
-                            }`}>
-                              {aiTestResults.nemotronSafety.message}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Mistral Result */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-1 font-sans text-xs">
+                        {/* Mistral Vision Result */}
                         <div className={`p-3.5 rounded-xl border flex flex-col gap-1.5 ${
                           aiTestResults.mistral.status === 'testing'
                             ? 'bg-amber-50/30 border-amber-200/50'
@@ -5299,7 +5205,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             : 'bg-rose-50/30 border-rose-250/50'
                         }`}>
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">Mistral Small</span>
+                            <span className="font-bold text-slate-800">Mistral Vision (Pixtral)</span>
                             {aiTestResults.mistral.status === 'testing' ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
                             ) : aiTestResults.mistral.status === 'success' ? (
@@ -5309,7 +5215,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             )}
                           </div>
                           <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Double-vérification de cohérence d'identité
+                            Rôle : Lecture HD, originalité &amp; extraction d'état civil
                           </p>
                           {aiTestResults.mistral.message && (
                             <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
@@ -5322,7 +5228,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                           )}
                         </div>
 
-                        {/* Groq Result */}
+                        {/* Groq LPU Result */}
                         <div className={`p-3.5 rounded-xl border flex flex-col gap-1.5 ${
                           aiTestResults.groq.status === 'testing'
                             ? 'bg-amber-50/30 border-amber-200/50'
@@ -5331,7 +5237,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             : 'bg-rose-50/30 border-rose-250/50'
                         }`}>
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">Groq (LLaMA 3.3)</span>
+                            <span className="font-bold text-slate-800">Groq LPU (LLaMA 3.3)</span>
                             {aiTestResults.groq.status === 'testing' ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
                             ) : aiTestResults.groq.status === 'success' ? (
@@ -5341,7 +5247,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             )}
                           </div>
                           <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Adjointe d'Honneur FAQ Clara (Citoyens)
+                            Rôle : Contrôle rapide &amp; assistant virtuel Clara
                           </p>
                           {aiTestResults.groq.message && (
                             <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
@@ -5373,7 +5279,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             )}
                           </div>
                           <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Recherche web de vérification d'état civil (Côte d'Ivoire)
+                            Rôle : Recherche web de vérification d'état civil
                           </p>
                           {aiTestResults.tavily.message && (
                             <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
@@ -5382,70 +5288,6 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                                 : 'bg-rose-500/10 border-rose-500/20 text-rose-800'
                             }`}>
                               {aiTestResults.tavily.message}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Mistral Embed Result */}
-                        <div className={`p-3.5 rounded-xl border flex flex-col gap-1.5 ${
-                          aiTestResults.mistralEmbed.status === 'testing'
-                            ? 'bg-amber-50/30 border-amber-200/50'
-                            : aiTestResults.mistralEmbed.status === 'success'
-                            ? 'bg-emerald-50/30 border-emerald-250/50'
-                            : 'bg-rose-50/30 border-rose-250/50'
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">Mistral Embed</span>
-                            {aiTestResults.mistralEmbed.status === 'testing' ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
-                            ) : aiTestResults.mistralEmbed.status === 'success' ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <AlertTriangle className="w-4 h-4 text-rose-600" />
-                            )}
-                          </div>
-                          <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Mémoire vectorielle des documents
-                          </p>
-                          {aiTestResults.mistralEmbed.message && (
-                            <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
-                              aiTestResults.mistralEmbed.status === 'success'
-                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800'
-                                : 'bg-rose-500/10 border-rose-500/20 text-rose-800'
-                            }`}>
-                              {aiTestResults.mistralEmbed.message}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* PaddleOCR-VL-1.6 Result */}
-                        <div className={`p-3.5 rounded-xl border flex flex-col gap-1.5 ${
-                          aiTestResults.paddleOcr.status === 'testing'
-                            ? 'bg-amber-50/30 border-amber-200/50'
-                            : aiTestResults.paddleOcr.status === 'success'
-                            ? 'bg-emerald-50/30 border-emerald-250/50'
-                            : 'bg-rose-50/30 border-rose-250/50'
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">PaddleOCR-VL-1.6</span>
-                            {aiTestResults.paddleOcr.status === 'testing' ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
-                            ) : aiTestResults.paddleOcr.status === 'success' ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <AlertTriangle className="w-4 h-4 text-rose-600" />
-                            )}
-                          </div>
-                          <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Moteur d'extraction d'images principal (OCR)
-                          </p>
-                          {aiTestResults.paddleOcr.message && (
-                            <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
-                              aiTestResults.paddleOcr.status === 'success'
-                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800'
-                                : 'bg-rose-500/10 border-rose-500/20 text-rose-800'
-                            }`}>
-                              {aiTestResults.paddleOcr.message}
                             </div>
                           )}
                         </div>
@@ -5460,7 +5302,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                               : 'bg-rose-50/30 border-rose-250/50'
                           }`}>
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-slate-800">DeepFace Biometrics &amp; Liveness</span>
+                              <span className="font-bold text-slate-800">DeepFace &amp; Liveness</span>
                               {aiTestResults.deepFace.status === 'testing' ? (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
                               ) : aiTestResults.deepFace.status === 'success' ? (
@@ -5470,7 +5312,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                               )}
                             </div>
                             <p className="text-[10px] text-secondary/80 font-medium">
-                              Rôle : Reconnaissance faciale &amp; anti-spoofing local souverain
+                              Rôle : Reconnaissance faciale &amp; anti-spoofing
                             </p>
                             {aiTestResults.deepFace.message && (
                               <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${

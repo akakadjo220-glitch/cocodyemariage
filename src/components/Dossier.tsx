@@ -55,6 +55,60 @@ import {
   getCapacityForDate
 } from '../services/dbService';
 
+const resizeImageForAi = (file: File, maxWidth = 1600, maxHeight = 1600): Promise<File> => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        if (width > height) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const resizedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(resizedFile);
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', 0.82);
+      } else {
+        resolve(file);
+      }
+    };
+    img.onerror = () => {
+      resolve(file);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+};
+
 interface DossierProps {
   documents: DocumentInfo[];
   addNotification: (text: string, type: 'info' | 'warning' | 'success') => void;
@@ -170,105 +224,20 @@ export default function Dossier({
   const [selfieStatus, setSelfieStatus] = useState('');
   const [selfieError, setSelfieError] = useState<string | null>(null);
 
-  // Document camera states and refs — declared before the useEffect that reads them
-  const [docCameraActive, setDocCameraActive] = useState(false);
-  const [docCameraStream, setDocCameraStream] = useState<MediaStream | null>(null);
-  const [docCameraError, setDocCameraError] = useState<string | null>(null);
-  const docVideoRef = useRef<HTMLVideoElement>(null);
-  const docCanvasRef = useRef<HTMLCanvasElement>(null);
-
   // CNI Recto/Verso flow states
   const [cniRectoBase64, setCniRectoBase64] = useState<string | null>(null);
   const [cniVersoBase64, setCniVersoBase64] = useState<string | null>(null);
   const [activeCaptureSide, setActiveCaptureSide] = useState<'recto' | 'verso' | null>(null);
 
-  // Reset selected file and stop document camera when the upload modal closes
+  // Reset selected file when the upload modal closes
   useEffect(() => {
     setSelectedFile(null);
     if (!showFileUploadModal) {
-      if (docCameraStream) {
-        docCameraStream.getTracks().forEach(track => track.stop());
-        setDocCameraStream(null);
-      }
-      setDocCameraActive(false);
       setCniRectoBase64(null);
       setCniVersoBase64(null);
       setActiveCaptureSide(null);
     }
-  }, [showFileUploadModal, docCameraStream]);
-
-  const startDocCamera = async () => {
-    setDocCameraError(null);
-    setSelectedFile(null);
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Accès caméra bloqué.");
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      setDocCameraStream(stream);
-      setDocCameraActive(true);
-      setTimeout(() => {
-        if (docVideoRef.current) {
-          docVideoRef.current.srcObject = stream;
-        }
-      }, 150);
-    } catch (err: any) {
-      console.warn("Document camera access failed:", err);
-      const isSecure = typeof window !== 'undefined' && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const errorMsg = !isSecure 
-        ? "L'accès à la caméra est bloqué en connexion non sécurisée (HTTP). Veuillez importer vos fichiers ci-dessous."
-        : "Impossible d'accéder à la caméra arrière de votre appareil. Veuillez autoriser l'accès ou importer un fichier.";
-      setDocCameraError(errorMsg);
-      
-      // Auto fallback to file input dialog
-      if (activeCaptureSide === 'recto') {
-        fileInputRectoRef.current?.click();
-      } else if (activeCaptureSide === 'verso') {
-        fileInputVersoRef.current?.click();
-      }
-    }
-  };
-
-  const stopDocCamera = () => {
-    if (docCameraStream) {
-      docCameraStream.getTracks().forEach(track => track.stop());
-      setDocCameraStream(null);
-    }
-    setDocCameraActive(false);
-  };
-
-  const captureDocPhoto = (docName: string) => {
-    if (docVideoRef.current && docCanvasRef.current) {
-      const video = docVideoRef.current;
-      const canvas = docCanvasRef.current;
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-        
-        if (activeCaptureSide === 'recto') {
-          setCniRectoBase64(dataUrl);
-          stopDocCamera();
-        } else if (activeCaptureSide === 'verso') {
-          setCniVersoBase64(dataUrl);
-          stopDocCamera();
-        } else {
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const fileName = `${docName.replace(/\s+/g, '_').toLowerCase()}_capture_${Date.now()}.jpg`;
-              const file = new File([blob], fileName, { type: 'image/jpeg' });
-              setSelectedFile(file);
-              stopDocCamera();
-            }
-          }, 'image/jpeg', 0.95);
-        }
-      }
-    }
-  };
+  }, [showFileUploadModal]);
 
   const handleStitchCniImages = (docName: string) => {
     if (!cniRectoBase64 || !cniVersoBase64) return;
@@ -281,9 +250,11 @@ export default function Dossier({
       loadedCount++;
       if (loadedCount === 2) {
         const canvas = document.createElement('canvas');
-        const width = Math.max(imgRecto.naturalWidth || 1280, imgVerso.naturalWidth || 1280);
-        const heightRecto = imgRecto.naturalHeight || 720;
-        const heightVerso = imgVerso.naturalHeight || 720;
+        const originalWidth = Math.max(imgRecto.naturalWidth || 1280, imgVerso.naturalWidth || 1280);
+        const width = Math.min(originalWidth, 1600);
+        const scale = width / originalWidth;
+        const heightRecto = (imgRecto.naturalHeight || 720) * scale;
+        const heightVerso = (imgVerso.naturalHeight || 720) * scale;
         
         canvas.width = width;
         canvas.height = heightRecto + heightVerso;
@@ -292,6 +263,8 @@ export default function Dossier({
         if (ctx) {
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(imgRecto, 0, 0, width, heightRecto);
           ctx.drawImage(imgVerso, 0, heightRecto, width, heightVerso);
 
@@ -301,7 +274,7 @@ export default function Dossier({
               const file = new File([blob], fileName, { type: 'image/jpeg' });
               setSelectedFile(file);
             }
-          }, 'image/jpeg', 0.90);
+          }, 'image/jpeg', 0.82);
         }
       }
     };
@@ -313,11 +286,6 @@ export default function Dossier({
   };
 
   const closeUploadModal = () => {
-    if (docCameraStream) {
-      docCameraStream.getTracks().forEach(track => track.stop());
-      setDocCameraStream(null);
-    }
-    setDocCameraActive(false);
     setSelectedFile(null);
     setShowFileUploadModal(null);
     setCniRectoBase64(null);
@@ -327,20 +295,49 @@ export default function Dossier({
 
   const fileInputRectoRef = useRef<HTMLInputElement>(null);
   const fileInputVersoRef = useRef<HTMLInputElement>(null);
+  const fileInputStandardRef = useRef<HTMLInputElement>(null);
 
   const handleCniFileChange = (e: React.ChangeEvent<HTMLInputElement>, side: 'recto' | 'verso') => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        if (side === 'recto') {
-          setCniRectoBase64(base64);
-        } else {
-          setCniVersoBase64(base64);
-        }
-      };
-      reader.readAsDataURL(file);
+      setIsUploadingFile(true);
+      resizeImageForAi(file).then(resizedFile => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          if (side === 'recto') {
+            setCniRectoBase64(base64);
+          } else {
+            setCniVersoBase64(base64);
+          }
+          setIsUploadingFile(false);
+        };
+        reader.readAsDataURL(resizedFile);
+      }).catch(err => {
+        console.error("Resize error:", err);
+        setIsUploadingFile(false);
+      });
+    }
+    e.target.value = '';
+  };
+
+  const handleStandardFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsUploadingFile(true);
+      resizeImageForAi(file).then(resizedFile => {
+        const nameParts = file.name.split('.');
+        nameParts.pop();
+        const baseName = nameParts.join('.');
+        const cleanFileName = `${baseName}_resized_${Date.now()}.jpg`;
+
+        const newFile = new File([resizedFile], cleanFileName, { type: 'image/jpeg' });
+        setSelectedFile(newFile);
+        setIsUploadingFile(false);
+      }).catch(err => {
+        console.error("Resize error:", err);
+        setIsUploadingFile(false);
+      });
     }
     e.target.value = '';
   };
@@ -1744,272 +1741,97 @@ export default function Dossier({
                     <div className="flex flex-col gap-3">
                       {isIdentityDoc ? (
                         /* CNI / Passport Special Flow */
-                        docCameraActive ? (
-                          <div className="flex flex-col items-center gap-3">
-                            <div className="relative w-full rounded-2xl overflow-hidden bg-black border border-neutral-300 shadow-lg" style={{ aspectRatio: '4/3' }}>
-                              <video
-                                ref={docVideoRef}
-                                autoPlay
-                                playsInline
-                                muted
-                                className="w-full h-full object-cover"
-                              />
-                              {/* ID card guide frame */}
-                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className="relative" style={{ width: '82%', height: '58%' }}>
-                                  {/* Semi-transparent dark overlay outside the frame */}
-                                  <div className="absolute -inset-[9999px] bg-black/45" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 0, 9999px 0, 9999px 9999px, 0 9999px)' }} />
-                                  {/* Corner markers */}
-                                  <span className="absolute top-0 left-0 w-6 h-6 border-t-[3px] border-l-[3px] border-white rounded-tl-md" />
-                                  <span className="absolute top-0 right-0 w-6 h-6 border-t-[3px] border-r-[3px] border-white rounded-tr-md" />
-                                  <span className="absolute bottom-0 left-0 w-6 h-6 border-b-[3px] border-l-[3px] border-white rounded-bl-md" />
-                                  <span className="absolute bottom-0 right-0 w-6 h-6 border-b-[3px] border-r-[3px] border-white rounded-br-md" />
-                                  {/* Frame border */}
-                                  <div className="absolute inset-0 border-2 border-white/60 rounded-md" />
-                                  {/* Instruction label */}
-                                  <span className="absolute -bottom-7 left-0 right-0 text-center text-[10px] font-bold text-white drop-shadow">
-                                    {activeCaptureSide === 'recto' ? 'Centrez le RECTO (Devant)' : 'Centrez le VERSO (Derrière)'}
-                                  </span>
-                                </div>
-                              </div>
-                              {/* Animated scan line */}
-                              <div className="absolute inset-x-[9%] h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent animate-bounce" style={{ top: '21%' }} />
-                            </div>
-                            <canvas ref={docCanvasRef} className="hidden" />
-                            <div className="flex gap-2 w-full justify-center flex-wrap">
-                              <button
-                                type="button"
-                                onClick={() => captureDocPhoto(activeDoc?.name || 'document')}
-                                className="px-5 py-2.5 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                              >
-                                <Camera className="w-4 h-4 text-accent" />
-                                <span>Prendre la photo</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  stopDocCamera();
-                                  setActiveCaptureSide(null);
-                                }}
-                                className="px-4 py-2.5 border border-neutral-250 rounded-xl font-sans text-xs font-bold text-slate-600 hover:bg-neutral-50 cursor-pointer"
-                              >
-                                Annuler
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {/* Recto component */}
-                              <div className="flex flex-col gap-2">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">En haut : Recto (Devant)</span>
-                                {cniRectoBase64 ? (
-                                  <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-neutral-300 bg-neutral-100 group shadow-sm">
-                                    <img src={cniRectoBase64} alt="CNI Recto" className="w-full h-full object-cover" />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveCaptureSide('recto');
-                                        startDocCamera();
-                                      }}
-                                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white border-0 cursor-pointer rounded-xl"
-                                    >
-                                      <Camera className="w-4 h-4 text-accent" />
-                                      <span className="text-[10px] font-bold">Reprendre</span>
-                                    </button>
-                                  </div>
-                                ) : (
+                        <div className="flex flex-col gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* Recto component */}
+                            <div className="flex flex-col gap-2">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">En haut : Recto (Devant)</span>
+                              {cniRectoBase64 ? (
+                                <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-neutral-300 bg-neutral-100 group shadow-sm">
+                                  <img src={cniRectoBase64} alt="CNI Recto" className="w-full h-full object-cover" />
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setActiveCaptureSide('recto');
-                                      startDocCamera();
-                                    }}
-                                    className="border border-dashed border-primary/40 hover:border-primary rounded-xl aspect-[4/3] bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
+                                    onClick={() => fileInputRectoRef.current?.click()}
+                                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white border-0 cursor-pointer rounded-xl"
                                   >
-                                    <Camera className="w-5 h-5 text-primary group-hover:scale-105 transition-transform" />
-                                    <span className="text-[10px] text-slate-700 font-bold">Photo Recto</span>
-                                    <span className="text-[8px] text-slate-400 font-medium">Devant de la pièce</span>
+                                    <Camera className="w-4 h-4 text-accent" />
+                                    <span className="text-[10px] font-bold">Reprendre</span>
                                   </button>
-                                )}
-                              </div>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => fileInputRectoRef.current?.click()}
+                                  className="border border-dashed border-primary/40 hover:border-primary rounded-xl aspect-[4/3] bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
+                                >
+                                  <Camera className="w-5 h-5 text-primary group-hover:scale-105 transition-transform" />
+                                  <span className="text-[10px] text-slate-700 font-bold">Photo Recto</span>
+                                  <span className="text-[8px] text-slate-400 font-medium">Devant de la pièce</span>
+                                </button>
+                              )}
+                            </div>
 
-                              {/* Verso component */}
-                              <div className="flex flex-col gap-2">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">En bas : Verso (Derrière)</span>
-                                {cniVersoBase64 ? (
-                                  <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-neutral-300 bg-neutral-100 group shadow-sm">
-                                    <img src={cniVersoBase64} alt="CNI Verso" className="w-full h-full object-cover" />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveCaptureSide('verso');
-                                        startDocCamera();
-                                      }}
-                                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white border-0 cursor-pointer rounded-xl"
-                                    >
-                                      <Camera className="w-4 h-4 text-accent" />
-                                      <span className="text-[10px] font-bold">Reprendre</span>
-                                    </button>
-                                  </div>
-                                ) : (
+                            {/* Verso component */}
+                            <div className="flex flex-col gap-2">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">En bas : Verso (Derrière)</span>
+                              {cniVersoBase64 ? (
+                                <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-neutral-300 bg-neutral-100 group shadow-sm">
+                                  <img src={cniVersoBase64} alt="CNI Verso" className="w-full h-full object-cover" />
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setActiveCaptureSide('verso');
-                                      startDocCamera();
-                                    }}
-                                    className="border border-dashed border-primary/40 hover:border-primary rounded-xl aspect-[4/3] bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
+                                    onClick={() => fileInputVersoRef.current?.click()}
+                                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white border-0 cursor-pointer rounded-xl"
                                   >
-                                    <Camera className="w-5 h-5 text-primary group-hover:scale-105 transition-transform" />
-                                    <span className="text-[10px] text-slate-700 font-bold">Photo Verso</span>
-                                    <span className="text-[8px] text-slate-400 font-medium">Dos de la pièce</span>
+                                    <Camera className="w-4 h-4 text-accent" />
+                                    <span className="text-[10px] font-bold">Reprendre</span>
                                   </button>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Hidden file inputs for CNI fallback selection */}
-                            <input
-                              type="file"
-                              ref={fileInputRectoRef}
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleCniFileChange(e, 'recto')}
-                            />
-                            <input
-                              type="file"
-                              ref={fileInputVersoRef}
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => handleCniFileChange(e, 'verso')}
-                            />
-
-                             {/* Merge and confirm button */}
-                             {cniRectoBase64 && cniVersoBase64 && (
-                               <button
-                                 type="button"
-                                 onClick={() => handleStitchCniImages(activeDoc?.name || 'Piece_Identite')}
-                                 className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-sans text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
-                               >
-                                 <Check className="w-4 h-4 text-white animate-bounce" />
-                                 <span>Confirmer les deux faces</span>
-                               </button>
-                             )}
-
-                            {/* presentation bypass option */}
-                            <div className="mt-4 pt-3 border-t border-dashed border-slate-200 w-full">
-                              <button
-                                type="button"
-                                onClick={() => activeDoc && handleBypassValidation(activeDoc.id)}
-                                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-750 text-white rounded-xl font-sans text-[11px] font-extrabold tracking-wide uppercase shadow-md hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-0.5"
-                              >
-                                <Zap className="w-4 h-4 text-white animate-pulse" />
-                                <span>Bypass Démo : Valider instantanément</span>
-                              </button>
-                              <p className="text-center text-[9px] text-amber-600 font-bold mt-1.5 animate-pulse">
-                                ⚡ Présentation / Démo — Ignore l'IA et valide directement le document avec des données conformes
-                              </p>
-                            </div>
-                          </div>
-                        )
-                      ) : (
-                        /* Standard Document Flow */
-                        docCameraActive ? (
-                          <div className="flex flex-col items-center gap-3">
-                            <div className="relative w-full rounded-2xl overflow-hidden bg-black border border-neutral-300 shadow-lg" style={{ aspectRatio: '4/3' }}>
-                              <video
-                                ref={docVideoRef}
-                                autoPlay
-                                playsInline
-                                muted
-                                className="w-full h-full object-cover"
-                              />
-                              {/* ID card guide frame */}
-                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className="relative" style={{ width: '82%', height: '58%' }}>
-                                  {/* Semi-transparent dark overlay outside the frame */}
-                                  <div className="absolute -inset-[9999px] bg-black/45" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 0, 9999px 0, 9999px 9999px, 0 9999px)' }} />
-                                  {/* Corner markers */}
-                                  <span className="absolute top-0 left-0 w-6 h-6 border-t-[3px] border-l-[3px] border-white rounded-tl-md" />
-                                  <span className="absolute top-0 right-0 w-6 h-6 border-t-[3px] border-r-[3px] border-white rounded-tr-md" />
-                                  <span className="absolute bottom-0 left-0 w-6 h-6 border-b-[3px] border-l-[3px] border-white rounded-bl-md" />
-                                  <span className="absolute bottom-0 right-0 w-6 h-6 border-b-[3px] border-r-[3px] border-white rounded-br-md" />
-                                  {/* Frame border */}
-                                  <div className="absolute inset-0 border-2 border-white/60 rounded-md" />
-                                  {/* Instruction label */}
-                                  <span className="absolute -bottom-7 left-0 right-0 text-center text-[10px] font-bold text-white drop-shadow">
-                                    Centrez votre pièce dans le cadre
-                                  </span>
                                 </div>
-                              </div>
-                              {/* Animated scan line */}
-                              <div className="absolute inset-x-[9%] h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent animate-bounce" style={{ top: '21%' }} />
-                            </div>
-                            <canvas ref={docCanvasRef} className="hidden" />
-                            <div className="flex gap-2 w-full justify-center flex-wrap">
-                              <button
-                                type="button"
-                                onClick={() => captureDocPhoto(activeDoc?.name || 'document')}
-                                className="px-5 py-2.5 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                              >
-                                <Camera className="w-4 h-4 text-accent" />
-                                <span>Photographier</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={stopDocCamera}
-                                className="px-4 py-2.5 border border-neutral-250 rounded-xl font-sans text-xs font-bold text-slate-600 hover:bg-neutral-50 cursor-pointer"
-                              >
-                                Annuler
-                              </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => fileInputVersoRef.current?.click()}
+                                  className="border border-dashed border-primary/40 hover:border-primary rounded-xl aspect-[4/3] bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
+                                >
+                                  <Camera className="w-5 h-5 text-primary group-hover:scale-105 transition-transform" />
+                                  <span className="text-[10px] text-slate-700 font-bold">Photo Verso</span>
+                                  <span className="text-[8px] text-slate-400 font-medium">Dos de la pièce</span>
+                                </button>
+                              )}
                             </div>
                           </div>
-                        ) : (
-                          <>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {/* Open in-app camera */}
+
+                          {/* Hidden file inputs for CNI native camera capture */}
+                          <input
+                            type="file"
+                            ref={fileInputRectoRef}
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(e) => handleCniFileChange(e, 'recto')}
+                          />
+                          <input
+                            type="file"
+                            ref={fileInputVersoRef}
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(e) => handleCniFileChange(e, 'verso')}
+                          />
+
+                          {/* Merge and confirm button */}
+                          {cniRectoBase64 && cniVersoBase64 && (
                             <button
                               type="button"
-                              onClick={startDocCamera}
-                              className="relative border border-primary/30 hover:border-primary rounded-xl p-4 bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center gap-2 cursor-pointer text-center group shadow-sm"
+                              onClick={() => handleStitchCniImages(activeDoc?.name || 'Piece_Identite')}
+                              className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-sans text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                             >
-                              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform border border-accent/20">
-                                <Camera className="w-4 h-4 text-primary" />
-                              </div>
-                              <span className="text-[11px] text-slate-800 font-bold group-hover:text-primary transition-colors">
-                                Photographier la pièce
-                              </span>
-                              <span className="text-[9px] text-slate-400 font-medium">Avec cadrage automatique</span>
+                              <Check className="w-4 h-4 text-white animate-bounce" />
+                              <span>Confirmer les deux faces</span>
                             </button>
+                          )}
 
-                            {/* File import fallback */}
-                            <div className="relative border border-accent/30 hover:border-primary rounded-xl p-4 bg-slate-50 hover:bg-primary/5 transition-all flex flex-col items-center gap-2 cursor-pointer text-center group shadow-sm">
-                              <div className="w-9 h-9 rounded-full bg-slate-200/50 flex items-center justify-center text-slate-700 group-hover:scale-105 transition-transform border border-accent/10">
-                                <UploadCloud className="w-4 h-4" />
-                              </div>
-                              <span className="text-[11px] text-slate-800 font-bold group-hover:text-primary transition-colors">
-                                Choisir un fichier
-                              </span>
-                              <span className="text-[9px] text-slate-400 font-medium">PDF, JPG, PNG, WEBP</span>
-                              <input
-                                type="file"
-                                accept=".pdf,.png,.jpg,.jpeg,.webp"
-                                className="absolute inset-0 opacity-0 cursor-pointer"
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    setSelectedFile(file);
-                                  }
-                                  e.target.value = '';
-                                }}
-                              />
-                            </div>
-                          </div>
-                          
                           {/* presentation bypass option */}
-                          <div className="mt-4 pt-3 border-t border-dashed border-slate-200">
+                          <div className="mt-4 pt-3 border-t border-dashed border-slate-200 w-full">
                             <button
                               type="button"
                               onClick={() => activeDoc && handleBypassValidation(activeDoc.id)}
@@ -2022,35 +1844,49 @@ export default function Dossier({
                               ⚡ Présentation / Démo — Ignore l'IA et valide directement le document avec des données conformes
                             </p>
                           </div>
-                        </>
-                      )
-                      )}
-
-                      {/* Camera error / Fallback import buttons */}
-                      {docCameraError && !docCameraActive && (
-                        <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-[11px] text-rose-800 font-semibold flex flex-col gap-2">
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                            <span>{docCameraError}</span>
-                          </div>
-                          {isIdentityDoc && (
-                            <div className="flex gap-2 mt-1">
-                              <button
-                                type="button"
-                                onClick={() => fileInputRectoRef.current?.click()}
-                                className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-850 rounded-lg text-[9px] font-bold border border-rose-200 cursor-pointer transition-colors"
-                              >
-                                Importer le Recto
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => fileInputVersoRef.current?.click()}
-                                className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-850 rounded-lg text-[9px] font-bold border border-rose-200 cursor-pointer transition-colors"
-                              >
-                                Importer le Verso
-                              </button>
+                        </div>
+                      ) : (
+                        /* Standard Document Flow */
+                        <div className="flex flex-col gap-4">
+                          <button
+                            type="button"
+                            onClick={() => fileInputStandardRef.current?.click()}
+                            className="relative border border-primary/30 hover:border-primary rounded-xl p-5 bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center gap-2.5 cursor-pointer text-center group shadow-sm"
+                          >
+                            <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform border border-accent/20">
+                              <Camera className="w-5 h-5 text-primary animate-pulse" />
                             </div>
-                          )}
+                            <span className="text-[12px] text-slate-800 font-extrabold group-hover:text-primary transition-colors">
+                              Prendre la photo du document
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-medium">
+                              Ouvre directement la caméra de votre appareil
+                            </span>
+                          </button>
+
+                          <input
+                            type="file"
+                            ref={fileInputStandardRef}
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={handleStandardFileChange}
+                          />
+
+                          {/* presentation bypass option */}
+                          <div className="mt-2 pt-3 border-t border-dashed border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => activeDoc && handleBypassValidation(activeDoc.id)}
+                              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-750 text-white rounded-xl font-sans text-[11px] font-extrabold tracking-wide uppercase shadow-md hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-0.5"
+                            >
+                              <Zap className="w-4 h-4 text-white animate-pulse" />
+                              <span>Bypass Démo : Valider instantanément</span>
+                            </button>
+                            <p className="text-center text-[9px] text-amber-600 font-bold mt-1.5 animate-pulse">
+                              ⚡ Présentation / Démo — Ignore l'IA et valide directement le document avec des données conformes
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2074,7 +1910,7 @@ export default function Dossier({
                   <div className="flex items-start gap-2 p-3 bg-accent/8 border border-accent/15 rounded-xl">
                     <AlertCircle className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
                     <p className="text-[10px] text-tertiary leading-relaxed font-medium">
-                      <span className="font-bold">Formats acceptés :</span> PDF, JPG, PNG, WEBP (Max 5 Mo).
+                      <span className="font-bold">Instructions :</span> Prenez une photo bien cadrée et lumineuse de votre document.
                     </p>
                   </div>
                 </div>

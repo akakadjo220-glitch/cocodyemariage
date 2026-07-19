@@ -812,14 +812,14 @@ export default function App() {
 
       {/* Elegant Toast notification banner */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 left-6 sm:left-auto sm:w-96 z-50 bg-slate-900 text-white p-4 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-800 animate-slide-in">
-          <div className="w-2.5 h-2.5 rounded-full bg-primary shrink-0 animate-ping" />
-          <p className="font-sans text-xs leading-relaxed font-semibold self-start text-left">
+        <div className="fixed bottom-24 right-6 left-6 sm:left-auto sm:w-96 z-[250] bg-slate-950/90 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-amber-500/30 animate-slide-in">
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
+          <p className="font-sans text-xs leading-relaxed font-semibold self-start text-left text-slate-100">
             {toastMessage}
           </p>
           <button
             onClick={() => setToastMessage(null)}
-            className="text-[10px] text-slate-400 hover:text-white ml-auto cursor-pointer font-bold"
+            className="text-[10px] text-slate-400 hover:text-amber-500 ml-auto cursor-pointer font-bold p-1 bg-white/5 hover:bg-white/10 rounded-full transition-all duration-200"
           >
             ✕
           </button>

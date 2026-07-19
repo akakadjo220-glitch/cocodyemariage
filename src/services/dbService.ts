@@ -2779,6 +2779,53 @@ Tout document daté de ${new Date().getFullYear()} ou avant est valide.`;
   } as any;
 }
 
+export async function appelMistralVision(prompt: string, base64Data: string, mimeType: string, config: AiConfig): Promise<AiAnalysisResult> {
+  if (config.mistralKey) {
+    try {
+      const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${config.mistralKey.trim()}`
+        },
+        body: JSON.stringify({
+          model: "pixtral-12b-2409",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}` } }
+              ]
+            }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.1
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        let content = data.choices?.[0]?.message?.content?.trim() || '';
+        if (content.includes('```json')) {
+          content = content.split('```json')[1].split('```')[0].trim();
+        } else if (content.includes('```')) {
+          content = content.split('```')[1].split('```')[0].trim();
+        }
+        const parsed = JSON.parse(content);
+        return {
+          ...parsed,
+          _modele_utilise: 'Mistral-Pixtral-12B (Direct API)'
+        };
+      }
+    } catch (err) {
+      console.warn("Direct Mistral Vision API call failed, falling back to OpenRouter Vision:", err);
+    }
+  }
+
+  return appelOpenRouter(prompt, base64Data, mimeType, config.geminiKey);
+}
+
 export async function testerConnexionOpenRouter(cleAPI: string): Promise<{ modele: string; statut: string; icone: string; message?: string }[]> {
   const resultats: { modele: string; statut: string; icone: string; message?: string }[] = [];
 
@@ -3927,11 +3974,22 @@ Type pièce      : ${TYPE_PIECE}
 [TA MISSION]
 Analyse cette pièce d'identité (CNI, Passeport, Attestation) et réponds UNIQUEMENT en JSON valide.
 
+[DÉTECTION D'AUTHENTICITÉ ET D'ORIGINALITÉ DU DOCUMENT]
+Examine attentivement l'image pour vérifier son authenticité et son originalité :
+1. ANALYSE DE LA PIÈCE D'IDENTITÉ OU ACTE D'ÉTAT CIVIL :
+   - Vérifie la netteté des polices administratives officielles, les armoiries, les sceaux et tampons républicains.
+   - Détecte les signes de falsification numérique : typographie décalée, zones de texte retouchées (Photoshop/Paint), artefacts de découpage, incohérence des ombres ou polices non réglementaires.
+   - Détecte les captures d'écran de téléphone ou photos d'écran d'ordinateur (effet moiré, reflets de pixels).
+2. Si le document présente des signes clairs de falsification ou d'usurpation :
+   - Mets "est_authentique": false, "action_recommandee": "REJETER", et explique l'anomalie dans "anomalies".
+3. Si le document est authentique et conforme :
+   - Mets "est_authentique": true, "confiance": 95.
+
 [RÈGLES STRICTES DE VALIDATION]
 1. VALIDITÉ TEMPORELLE / EXPIRATION :
    - Compare la date d'expiration figurant sur la pièce avec la Date actuelle (${dateActuelle}).
    - Si la date d'expiration est dans le futur (ex: 2026, 2027, 2028, 2030, 2035, etc.) ou s'il s'agit d'une CNI en cours de validité, LE DOCUMENT EST VALIDE. Ne déclare PAS la pièce expirée !
-   - Ne déclare la pièce expirée QUE SI la date d'expiration est une date passée strictement antérieure à aujourd'hui (${dateActuelle}).
+   - Ne déclare la pièce expirée QUE SI la date d'expiration est une date passée strictly antérieure à aujourd'hui (${dateActuelle}).
 
 2. CORRESPONDANCE DES IDENTITÉS :
    - Si les informations principales correspondent ou sont très proches : "action_recommandee": "ACCEPTER".
@@ -3942,6 +4000,8 @@ Analyse cette pièce d'identité (CNI, Passeport, Attestation) et réponds UNIQU
 {
   "type_document": "${TYPE_PIECE}",
   "est_lisible": true,
+  "est_authentique": true,
+  "confiance": 95,
   "nom_extrait": "",
   "prenoms_extraits": "",
   "date_naissance_extraite": "JJ/MM/AAAA",
@@ -3953,23 +4013,23 @@ Analyse cette pièce d'identité (CNI, Passeport, Attestation) et réponds UNIQU
 `;
   }
 
-  if (onStatusUpdate) onStatusUpdate("🔍 Analyse et vérification du document en cours...");
+  if (onStatusUpdate) onStatusUpdate("🔍 Analyse HD par Mistral Vision & Vérification en cours...");
 
   const safetyPromise = base64Images.length > 0
     ? verifierNemotronSafety(base64Images[0], isPdf ? 'image/jpeg' : typeFichier, config.geminiKey)
     : Promise.resolve({ safe: true, reason: undefined as string | undefined });
 
   const analysisPromise = (async (): Promise<AiAnalysisResult> => {
-    // Ultra-Fast Direct Vision AI Analysis (~1.2 - 1.8 seconds)
+    // 1. Mistral Vision Analysis (HD Image OCR + Authenticity Check)
     const pageResults = await Promise.all(
       base64Images.map((pageBase64) => {
         const mimeType = isPdf ? 'image/jpeg' : typeFichier;
-        return appelOpenRouter(promptAEnvoyer, pageBase64, mimeType, config.geminiKey);
+        return appelMistralVision(promptAEnvoyer, pageBase64, mimeType, config);
       })
     );
     const finalRes = fusionnerResultats(pageResults);
 
-    // Smart Expiration Auto-Fixer: Correct false positive expiration errors if year >= current year
+    // 2. Smart Expiration Auto-Fixer: Correct false positive expiration errors if year >= current year
     if (finalRes && finalRes.infos_extraites) {
       const expStr = finalRes.infos_extraites.date_expiration || '';
       const matchYear = expStr.match(/\b(20\d{2})\b/);
@@ -3990,6 +4050,27 @@ Analyse cette pièce d'identité (CNI, Passeport, Attestation) et réponds UNIQU
         finalRes.action_recommandee = 'ACCEPTER';
         finalRes.motif = `Pièce d'identité validée avec succès.`;
         finalRes.anomalies = (finalRes.anomalies || []).filter(a => !a.toLowerCase().includes('expir'));
+      }
+    }
+
+    // 3. Fast Groq LPU Cross-Validation (< 0.5s) if Groq API key is present
+    if (config.groqKey && finalRes && finalRes.action_recommandee === 'ACCEPTER') {
+      try {
+        if (onStatusUpdate) onStatusUpdate("⚡ Contrôle de sécurité rapide par Groq LPU...");
+        const groqCrossCheck = await croiserDonneesGroq(
+          finalRes.infos_extraites,
+          { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ },
+          config.groqKey
+        );
+        if (groqCrossCheck && groqCrossCheck.action === 'REJETER') {
+          finalRes.action_recommandee = 'REJETER';
+          finalRes.motif = groqCrossCheck.motif;
+          if (groqCrossCheck.anomalies) {
+            finalRes.anomalies = [...(finalRes.anomalies || []), ...groqCrossCheck.anomalies];
+          }
+        }
+      } catch (groqErr) {
+        console.warn("Groq LPU cross-check skipped:", groqErr);
       }
     }
 

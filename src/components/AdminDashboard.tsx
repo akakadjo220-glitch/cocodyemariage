@@ -5128,168 +5128,34 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                       </div>
                     </div>
 
-                    {/* Configuration PaddleOCR-VL-1.6 */}
+                    {/* Unified Architecture: Mistral Vision + Groq LPU */}
                     <div className="border-t border-slate-100 pt-5 mt-3 text-left">
-                      <h5 className="font-bold text-slate-800 text-xs mb-4 flex items-center gap-2 font-serif">
-                        <Cpu className="w-4 h-4 text-[#c5a368] shrink-0" />
-                        Moteur d'Extraction PaddleOCR-VL-1.6
+                      <h5 className="font-bold text-slate-800 text-xs mb-3 flex items-center gap-2 font-serif">
+                        <Cpu className="w-4 h-4 text-primary shrink-0" />
+                        Moteur IA Unifié : Mistral Vision (Image) + Groq LPU (Contrôle)
                       </h5>
-                      <div className="flex flex-col gap-4">
-                        <div className="flex items-center gap-3 p-3 bg-slate-50/60 rounded-xl border border-slate-100">
-                          <input
-                            type="checkbox"
-                            id="usePaddleOcr"
-                            checked={usePaddleOcr}
-                            onChange={(e) => setUsePaddleOcr(e.target.checked)}
-                            className="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded cursor-pointer transition-colors"
-                          />
-                          <label htmlFor="usePaddleOcr" className="font-semibold text-slate-700 text-xs cursor-pointer select-none">
-                            Activer PaddleOCR-VL-1.6 comme moteur d'extraction principal
-                          </label>
-                        </div>
-                        {usePaddleOcr && (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5 bg-slate-50/20 border border-slate-200/60 rounded-xl shadow-inner">
-                            <div className="flex flex-col gap-1.5">
-                              <label className="font-semibold text-slate-700 text-[10px]">Clé Token d'API PaddleOCR*</label>
-                              <div className="relative">
-                                <input
-                                  type={showApiKeys.paddleOcr ? "text" : "password"}
-                                  value={paddleOcrToken}
-                                  onChange={(e) => setPaddleOcrToken(e.target.value)}
-                                  placeholder="Token API AI Studio"
-                                  className="w-full border border-neutral-300 rounded-xl pl-4 pr-10 py-2.5 bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs shadow-sm transition-all"
-                                  required={usePaddleOcr}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => toggleKeyVisibility('paddleOcr')}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                >
-                                  {showApiKeys.paddleOcr ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                </button>
-                              </div>
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="font-semibold text-slate-700 text-[10px]">Nom du Modèle PaddleOCR*</label>
-                              <input
-                                type="text"
-                                value={paddleOcrModel}
-                                onChange={(e) => setPaddleOcrModel(e.target.value)}
-                                placeholder="PaddleOCR-VL-1.6"
-                                className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs"
-                                required={usePaddleOcr}
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="font-semibold text-slate-700 text-[10px]">URL d'API de Soumission*</label>
-                              <input
-                                type="text"
-                                value={paddleOcrJobUrl}
-                                onChange={(e) => setPaddleOcrJobUrl(e.target.value)}
-                                placeholder="https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
-                                className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs"
-                                required={usePaddleOcr}
-                              />
-                            </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50/40 border border-slate-200/60 rounded-xl">
+                        <div className="flex items-start gap-3 p-3.5 bg-white rounded-xl border border-slate-200/60 shadow-sm">
+                          <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-base shrink-0">
+                            👁️
                           </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Modèles OpenRouter en Rotation */}
-                    <div className="border-t border-slate-100 pt-5 mt-3">
-                      <h5 className="font-bold text-slate-800 text-xs mb-4 flex items-center gap-2 font-serif">
-                        <Settings className="w-4 h-4 text-primary shrink-0" />
-                        Modèles OpenRouter (Rotation &amp; Sécurité)
-                      </h5>
-                      <div className="flex flex-col gap-4 bg-slate-50/30 p-5 rounded-xl border border-slate-200/40">
-                        {/* Model 1 */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 border-b border-slate-100 pb-4 last:border-0 last:pb-0">
-                          <div className="flex flex-col text-left">
-                            <span className="font-semibold text-slate-800 text-xs">Modèle 1 (Principal)</span>
-                            <span className="text-[10px] text-slate-400 leading-normal">OCR principal et première analyse de documents</span>
-                          </div>
-                          <div className="md:col-span-2">
-                            <input
-                              type="text"
-                              value={openRouterModel1}
-                              onChange={(e) => setOpenRouterModel1(e.target.value)}
-                              placeholder="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
-                              className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs shadow-sm transition-all"
-                              required
-                            />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 text-xs">Mistral Vision (Pixtral 12B)</span>
+                            <span className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                              Lecture HD des pièces, contrôle d'originalité, détection de falsification/Photoshop et extraction des données d'état civil.
+                            </span>
                           </div>
                         </div>
 
-                        {/* Model 2 */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 border-b border-slate-100 pb-4 last:border-0 last:pb-0">
-                          <div className="flex flex-col text-left">
-                            <span className="font-semibold text-slate-800 text-xs">Modèle 2 (Secours)</span>
-                            <span className="text-[10px] text-slate-400 leading-normal">Premier modèle de basculement en cas de panne</span>
+                        <div className="flex items-start gap-3 p-3.5 bg-white rounded-xl border border-slate-200/60 shadow-sm">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-base shrink-0">
+                            ⚡
                           </div>
-                          <div className="md:col-span-2">
-                            <input
-                              type="text"
-                              value={openRouterModel2}
-                              onChange={(e) => setOpenRouterModel2(e.target.value)}
-                              placeholder="google/gemma-4-31b-it:free"
-                              className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs shadow-sm transition-all"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        {/* Model 3 */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 border-b border-slate-100 pb-4 last:border-0 last:pb-0">
-                          <div className="flex flex-col text-left">
-                            <span className="font-semibold text-slate-800 text-xs">Modèle 3 (Secours)</span>
-                            <span className="text-[10px] text-slate-400 leading-normal">Second modèle de basculement</span>
-                          </div>
-                          <div className="md:col-span-2">
-                            <input
-                              type="text"
-                              value={openRouterModel3}
-                              onChange={(e) => setOpenRouterModel3(e.target.value)}
-                              placeholder="nvidia/nemotron-nano-12b-v2-vl:free"
-                              className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs shadow-sm transition-all"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        {/* Model 4 */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 border-b border-slate-100 pb-4 last:border-0 last:pb-0">
-                          <div className="flex flex-col text-left">
-                            <span className="font-semibold text-slate-800 text-xs">Modèle 4 (Secours)</span>
-                            <span className="text-[10px] text-slate-400 leading-normal">Troisième modèle de basculement</span>
-                          </div>
-                          <div className="md:col-span-2">
-                            <input
-                              type="text"
-                              value={openRouterModel4}
-                              onChange={(e) => setOpenRouterModel4(e.target.value)}
-                              placeholder="google/gemma-4-26b-a4b-it"
-                              className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs shadow-sm transition-all"
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        {/* Model Safety */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 last:border-0 last:pb-0">
-                          <div className="flex flex-col text-left">
-                            <span className="font-semibold text-slate-800 text-xs">Modèle Safety (Nemotron)</span>
-                            <span className="text-[10px] text-slate-400 leading-normal">Filtre de modération et sécurité des contenus</span>
-                          </div>
-                          <div className="md:col-span-2">
-                            <input
-                              type="text"
-                              value={openRouterModelSafety}
-                              onChange={(e) => setOpenRouterModelSafety(e.target.value)}
-                              placeholder="nvidia/nemotron-3.5-content-safety:free"
-                              className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs shadow-sm transition-all"
-                              required
-                            />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 text-xs">Groq LPU (Llama 3.3 70B)</span>
+                            <span className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                              Vérification ultra-rapide des correspondances d'identité (nom, prénoms, dates, CNI) et détection des anomalies en &lt; 0,5 sec.
+                            </span>
                           </div>
                         </div>
                       </div>

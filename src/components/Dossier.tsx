@@ -596,52 +596,81 @@ export default function Dossier({
     });
   };
 
+  // Assign stream to video element reliably
+  const attachStreamToVideo = (videoEl: HTMLVideoElement, stream: MediaStream) => {
+    videoEl.srcObject = stream;
+    videoEl.onloadedmetadata = () => {
+      videoEl.play().catch(e => console.warn("Video play() failed:", e));
+    };
+  };
+
   // Document Scanner capture functions
   const startDocumentScanner = async (side: 'recto' | 'verso' | 'standard') => {
     setScannerSide(side);
     setScannerError(null);
     setScannerActive(true);
-    try {
-      const constraints = {
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      setScannerStream(stream);
-      setTimeout(() => {
-        if (scannerVideoRef.current) {
-          scannerVideoRef.current.srcObject = stream;
-        }
-      }, 150);
-    } catch (err: any) {
-      console.warn("Back camera environment constraint failed, trying generic constraints...", err);
+
+    // Step 1: Check mediaDevices API availability (requires HTTPS)
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setScannerError("L'accès à la caméra n'est pas disponible. Vérifiez que vous utilisez un navigateur récent (Chrome, Safari, Firefox) et que le site est ouvert en HTTPS.");
+      return;
+    }
+
+    // Step 2: Pre-check permissions to give a fast, precise error
+    if (navigator.permissions) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        setScannerStream(stream);
-        setTimeout(() => {
-          if (scannerVideoRef.current) {
-            scannerVideoRef.current.srcObject = stream;
-          }
-        }, 150);
-      } catch (fallbackErr: any) {
-        console.warn("Back camera environment completely failed, trying video: true...", fallbackErr);
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          setScannerStream(stream);
-          setTimeout(() => {
-            if (scannerVideoRef.current) {
-              scannerVideoRef.current.srcObject = stream;
-            }
-          }, 150);
-        } catch (finalErr: any) {
-          console.error("Camera completely inaccessible:", finalErr);
-          setScannerError("Impossible d'accéder à l'appareil photo de votre appareil. Veuillez autoriser l'accès ou utiliser l'appareil photo du système ci-dessous.");
+        const permResult = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        if (permResult.state === 'denied') {
+          setScannerError("L'accès à la caméra a été refusé par votre navigateur. Allez dans les paramètres de votre navigateur > Autorisations > Caméra et autorisez ce site, puis rechargez la page.");
+          return;
         }
+      } catch {
+        // Permissions API not fully supported, continue to getUserMedia
       }
     }
+
+    // Step 3: Try getUserMedia with progressive constraint fallback
+    const constraintsList = [
+      { video: { facingMode: { exact: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
+      { video: { facingMode: 'environment' } },
+      { video: true }
+    ];
+
+    let stream: MediaStream | null = null;
+    let lastError: any = null;
+
+    for (const constraints of constraintsList) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      } catch (err: any) {
+        lastError = err;
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') break; // No point retrying
+        console.warn("Camera constraint failed, trying next...", err.name, constraints);
+      }
+    }
+
+    if (!stream) {
+      const errName = lastError?.name || '';
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setScannerError("L'accès à la caméra a été refusé. Veuillez autoriser l'accès dans les paramètres de votre navigateur et recharger la page.");
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+        setScannerError("Aucune caméra détectée sur cet appareil. Utilisez l'appareil photo du système ci-dessous.");
+      } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+        setScannerError("La caméra est déjà utilisée par une autre application. Fermez les autres applications et réessayez.");
+      } else {
+        setScannerError("Impossible d'accéder à l'appareil photo. Veuillez autoriser l'accès ou utiliser l'appareil photo du système ci-dessous.");
+      }
+      return;
+    }
+
+    // Step 4: Assign stream reliably once video element is mounted
+    setScannerStream(stream);
+    requestAnimationFrame(() => {
+      if (scannerVideoRef.current) {
+        attachStreamToVideo(scannerVideoRef.current, stream!);
+      }
+    });
   };
 
   const stopDocumentScanner = () => {
@@ -716,18 +745,33 @@ export default function Dossier({
   const startWebcam = async () => {
     setSelfieError(null);
     setCapturedSelfieBase64(null);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setSelfieError("L'accès à la caméra n'est pas disponible sur ce navigateur ou contexte. Utilisez Chrome ou Safari en HTTPS.");
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
       setWebcamStream(stream);
       setWebcamActive(true);
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+          attachStreamToVideo(videoRef.current, stream);
         }
-      }, 100);
+      });
     } catch (err: any) {
       console.warn("Webcam not accessible:", err);
-      setSelfieError("Impossible d'accéder à votre webcam. Veuillez vérifier les permissions de votre navigateur et autoriser l'accès à la caméra pour votre selfie en direct.");
+      const errName = err?.name || '';
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setSelfieError("L'accès à la caméra a été refusé. Autorisez la caméra dans les paramètres de votre navigateur.");
+      } else if (errName === 'NotFoundError') {
+        setSelfieError("Aucune caméra frontale trouvée sur cet appareil.");
+      } else {
+        setSelfieError("Impossible d'accéder à votre webcam. Vérifiez les permissions de votre navigateur et autorisez l'accès à la caméra.");
+      }
     }
   };
 

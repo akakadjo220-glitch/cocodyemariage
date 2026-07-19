@@ -2462,10 +2462,10 @@ Informations utiles :
 - Contact mairie : [NUMÉRO]
 
 Question de l'utilisateur : [QUESTION]`,
-  openRouterModel1: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-  openRouterModel2: 'google/gemma-4-31b-it:free',
-  openRouterModel3: 'nvidia/nemotron-nano-12b-v2-vl:free',
-  openRouterModel4: 'google/gemma-4-26b-a4b-it',
+  openRouterModel1: 'google/gemini-2.0-flash:free',
+  openRouterModel2: 'google/gemini-2.0-flash-lite:free',
+  openRouterModel3: 'qwen/qwen2.5-vl-72b-instruct:free',
+  openRouterModel4: 'meta-llama/llama-3.2-11b-vision-instruct:free',
   openRouterModelSafety: 'nvidia/nemotron-3.5-content-safety:free',
   faceAPIKeyEpoux: '',
   faceAPISecretEpoux: '',
@@ -2603,10 +2603,10 @@ function fileToBase64(file: Blob): Promise<string> {
 export function getOpenRouterModels(): string[] {
   const config = getAiConfig();
   return [
-    config.openRouterModel1 || DEFAULT_AI_CONFIG.openRouterModel1 || 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-    config.openRouterModel2 || DEFAULT_AI_CONFIG.openRouterModel2 || 'google/gemma-4-31b-it:free',
-    config.openRouterModel3 || DEFAULT_AI_CONFIG.openRouterModel3 || 'nvidia/nemotron-nano-12b-v2-vl:free',
-    config.openRouterModel4 || DEFAULT_AI_CONFIG.openRouterModel4 || 'google/gemma-4-26b-a4b-it'
+    config.openRouterModel1 || DEFAULT_AI_CONFIG.openRouterModel1 || 'google/gemini-2.0-flash:free',
+    config.openRouterModel2 || DEFAULT_AI_CONFIG.openRouterModel2 || 'google/gemini-2.0-flash-lite:free',
+    config.openRouterModel3 || DEFAULT_AI_CONFIG.openRouterModel3 || 'qwen/qwen2.5-vl-72b-instruct:free',
+    config.openRouterModel4 || DEFAULT_AI_CONFIG.openRouterModel4 || 'meta-llama/llama-3.2-11b-vision-instruct:free'
   ].map(m => m.trim()).filter(Boolean);
 }
 
@@ -3079,9 +3079,13 @@ export async function verifierNemotronSafety(
   }
   try {
     const config = getAiConfig();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1800);
+
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
       {
+        signal: controller.signal,
         method: "POST",
         headers: {
           "Authorization": `Bearer ${cleAPI}`,
@@ -3109,6 +3113,7 @@ export async function verifierNemotronSafety(
         })
       }
     );
+    clearTimeout(timeoutId);
 
     if (response.status === 429) {
       console.warn("Nemotron Safety 429: Bypassing safety check.");
@@ -3920,65 +3925,31 @@ Si illisible = REUPLOADER
 `;
   }
 
-  if (onStatusUpdate) onStatusUpdate("🛡️ Étape 2A — Filtrage de sécurité (Nemotron)...");
+  if (onStatusUpdate) onStatusUpdate("🔍 Analyse et vérification du document en cours...");
 
-  const safetyResult = base64Images.length > 0
-    ? await verifierNemotronSafety(base64Images[0], isPdf ? 'image/jpeg' : typeFichier, config.geminiKey)
-    : { safe: true, reason: undefined as string | undefined };
+  const safetyPromise = base64Images.length > 0
+    ? verifierNemotronSafety(base64Images[0], isPdf ? 'image/jpeg' : typeFichier, config.geminiKey)
+    : Promise.resolve({ safe: true, reason: undefined as string | undefined });
 
-  if (!safetyResult.safe) {
-    const rejectResult: AiAnalysisResult = {
-      type_document: "INCONNU",
-      est_lisible: false,
-      est_authentique: false,
-      confiance: 0,
-      infos_extraites: {
-        nom: "",
-        prenoms: "",
-        date_naissance: "",
-        lieu_naissance: "",
-        numero_document: "",
-        date_expiration: "",
-        nationalite: ""
-      },
-      anomalies: [safetyResult.reason || "Document rejeté par le filtre de sécurité"],
-      action_recommandee: "REJETER",
-      motif: `Rejet automatique Sécurité (Nemotron) : ${safetyResult.reason || "Non conforme"}`
-    };
+  const analysisPromise = (async (): Promise<AiAnalysisResult> => {
+    let finalRes: AiAnalysisResult | null = null;
+    if (config.usePaddleOcr) {
+      try {
+        const jobId = await submitPaddleOcrJob(
+          file,
+          config.paddleOcrToken || '',
+          config.paddleOcrModel || 'PaddleOCR-VL-1.6',
+          config.paddleOcrJobUrl || 'https://paddleocr.aistudio-app.com/api/v2/ocr/jobs'
+        );
 
-    await updateDocumentInDb(dossierId, docId, 'rejected', fileName, rejectResult.motif, null, rejectResult);
-    await addNotificationToDb({
-      id: `safety_reject_${Date.now()}`,
-      text: `⚠️ Rejet sécurité (2A) : Le document "${fileName}" a été bloqué par le filtre Nemotron.`,
-      time: "À l'instant",
-      type: 'warning'
-    }, dossierId);
+        const markdownText = await pollPaddleOcrJob(
+          jobId,
+          config.paddleOcrToken || '',
+          config.paddleOcrJobUrl || 'https://paddleocr.aistudio-app.com/api/v2/ocr/jobs',
+          undefined
+        );
 
-    return rejectResult;
-  }
-
-  let finalResult: AiAnalysisResult | null = null;
-
-  if (config.usePaddleOcr) {
-    try {
-      if (onStatusUpdate) onStatusUpdate("⚡ Envoi à PaddleOCR-VL-1.6...");
-      const jobId = await submitPaddleOcrJob(
-        file,
-        config.paddleOcrToken || '',
-        config.paddleOcrModel || 'PaddleOCR-VL-1.6',
-        config.paddleOcrJobUrl || 'https://paddleocr.aistudio-app.com/api/v2/ocr/jobs'
-      );
-
-      if (onStatusUpdate) onStatusUpdate("⏳ Lecture OCR en cours...");
-      const markdownText = await pollPaddleOcrJob(
-        jobId,
-        config.paddleOcrToken || '',
-        config.paddleOcrJobUrl || 'https://paddleocr.aistudio-app.com/api/v2/ocr/jobs',
-        onStatusUpdate
-      );
-
-      if (onStatusUpdate) onStatusUpdate("🧠 Structuration des données...");
-      const promptStructuration = `
+        const promptStructuration = `
 Tu es un agent d'extraction et de validation de données d'état civil.
 Voici le texte brut extrait d'un document administratif :
 ---
@@ -4018,30 +3989,62 @@ Consignes :
 4. Si les informations ne correspondent pas du tout aux déclarations de l'utilisateur, signale-le dans "anomalies" et passe "action_recommandee" à "REJETER".
 5. Réponds UNIQUEMENT en JSON valide.
 `;
-      if (config.groqKey) {
-        if (onStatusUpdate) onStatusUpdate("🧠 Structuration ultra-rapide par Groq (Llama 3.3)...");
-        finalResult = await appelGroqStructuration(promptStructuration, config.groqKey);
-      } else {
-        if (onStatusUpdate) onStatusUpdate("🧠 Structuration par OpenRouter...");
-        finalResult = await appelOpenRouter(promptStructuration, "", "", config.geminiKey);
+        if (config.groqKey) {
+          finalRes = await appelGroqStructuration(promptStructuration, config.groqKey);
+        } else {
+          finalRes = await appelOpenRouter(promptStructuration, "", "", config.geminiKey);
+        }
+      } catch (ocrErr: any) {
+        console.warn("Échec PaddleOCR/Groq, bascule de sécurité sur OpenRouter direct:", ocrErr);
       }
-    } catch (ocrErr: any) {
-      console.warn("Échec PaddleOCR/Groq, bascule de sécurité sur OpenRouter direct:", ocrErr);
-      if (onStatusUpdate) onStatusUpdate("⚠️ Bascule de secours sur OpenRouter direct...");
     }
+
+    if (!finalRes) {
+      const pageResults = await Promise.all(
+        base64Images.map((pageBase64) => {
+          const mimeType = isPdf ? 'image/jpeg' : typeFichier;
+          return appelOpenRouter(promptAEnvoyer, pageBase64, mimeType, config.geminiKey);
+        })
+      );
+      finalRes = fusionnerResultats(pageResults);
+    }
+    return finalRes;
+  })();
+
+  const [safetyResult, analysisResult] = await Promise.all([safetyPromise, analysisPromise]);
+
+  if (!safetyResult.safe) {
+    const rejectResult: AiAnalysisResult = {
+      type_document: "INCONNU",
+      est_lisible: false,
+      est_authentique: false,
+      confiance: 0,
+      infos_extraites: {
+        nom: "",
+        prenoms: "",
+        date_naissance: "",
+        lieu_naissance: "",
+        numero_document: "",
+        date_expiration: "",
+        nationalite: ""
+      },
+      anomalies: [safetyResult.reason || "Document rejeté par le filtre de sécurité"],
+      action_recommandee: "REJETER",
+      motif: `Rejet automatique Sécurité (Nemotron) : ${safetyResult.reason || "Non conforme"}`
+    };
+
+    await updateDocumentInDb(dossierId, docId, 'rejected', fileName, rejectResult.motif, null, rejectResult);
+    await addNotificationToDb({
+      id: `safety_reject_${Date.now()}`,
+      text: `⚠️ Rejet sécurité (2A) : Le document "${fileName}" a été bloqué par le filtre Nemotron.`,
+      time: "À l'instant",
+      type: 'warning'
+    }, dossierId);
+
+    return rejectResult;
   }
 
-  // Fallback to standard OpenRouter cascade if PaddleOCR was not used or failed
-  if (!finalResult) {
-    if (onStatusUpdate) onStatusUpdate("🔍 Étape 2B — Analyse documentaire IA (OpenRouter)...");
-    const pageResults = await Promise.all(
-      base64Images.map((pageBase64) => {
-        const mimeType = isPdf ? 'image/jpeg' : typeFichier;
-        return appelOpenRouter(promptAEnvoyer, pageBase64, mimeType, config.geminiKey);
-      })
-    );
-    finalResult = fusionnerResultats(pageResults);
-  }
+  let finalResult: AiAnalysisResult = analysisResult;
 
   // --- PROGRAMMATIC COMPARISON VALIDATION ---
   if (finalResult.action_recommandee === 'VALIDER' || finalResult.action_recommandee === 'VERIFIER_MANUELLEMENT') {

@@ -2148,12 +2148,12 @@ export default function Dossier({
 
           {/* Footer actions */}
           <div className="flex flex-col gap-3 items-center z-10 font-sans w-full max-w-sm mx-auto">
-            <div className="flex gap-3 w-full">
+            <div className="flex flex-col sm:flex-row gap-2.5 w-full">
               {scannerError ? (
                 <button
                   type="button"
                   onClick={handleFallbackSystemCamera}
-                  className="flex-1 py-3 px-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
+                  className="w-full sm:flex-1 py-3 px-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
                 >
                   <Camera className="w-4 h-4 text-white" />
                   <span>Caméra du système 📸</span>
@@ -2162,7 +2162,7 @@ export default function Dossier({
                 <button
                   type="button"
                   onClick={captureDocumentPhoto}
-                  className="flex-1 py-3 px-5 bg-gradient-to-r from-[#c5a368] to-[#a0824b] text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
+                  className="w-full sm:flex-1 py-3 px-5 bg-gradient-to-r from-[#c5a368] to-[#a0824b] text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
                 >
                   <Camera className="w-4 h-4 text-accent" />
                   <span>Prendre la photo 📸</span>
@@ -2171,7 +2171,7 @@ export default function Dossier({
               <button
                 type="button"
                 onClick={stopDocumentScanner}
-                className="py-3 px-5 border border-white/20 hover:bg-white/5 text-white/90 rounded-xl font-sans text-xs font-bold cursor-pointer transition-colors bg-transparent"
+                className="w-full sm:w-auto py-3 px-5 border border-white/20 hover:bg-white/5 text-white/90 rounded-xl font-sans text-xs font-bold cursor-pointer transition-colors bg-transparent"
               >
                 Annuler
               </button>

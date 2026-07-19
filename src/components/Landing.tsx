@@ -91,12 +91,13 @@ const HORAIRES = [
 ];
 
 const REQUIRED_DOCS = [
-  { icon: '🪪', label: "Pièce d'identité (époux 1)", desc: "CNI, Passeport ou titre de séjour valide" },
-  { icon: '🪪', label: "Pièce d'identité (époux 2)", desc: "CNI, Passeport ou titre de séjour valide" },
-  { icon: '📜', label: "Extrait d'acte de naissance (époux 1)", desc: "Moins de 3 mois, avec filiation" },
-  { icon: '📜', label: "Extrait d'acte de naissance (époux 2)", desc: "Moins de 3 mois, avec filiation" },
-  { icon: '🏠', label: "Justificatif de domicile", desc: "Facture d'eau, d'électricité ou quittance" },
-  { icon: '👥', label: "Informations sur les témoins", desc: "2 témoins minimum (CNI de chaque témoin)" },
+  { id: 1, icon: '🪪', label: "CNI Époux", desc: "Pièce d'identité" },
+  { id: 2, icon: '📸', label: "Selfie Époux", desc: "Contrôle facial" },
+  { id: 3, icon: '📜', label: "Extrait Époux", desc: "Naissance" },
+  { id: 4, icon: '🪪', label: "CNI Épouse", desc: "Pièce d'identité" },
+  { id: 5, icon: '📸', label: "Selfie Épouse", desc: "Contrôle facial" },
+  { id: 6, icon: '📜', label: "Extrait Épouse", desc: "Naissance" },
+  { id: 7, icon: '🏠', label: "Autres docs", desc: "Justificatifs et témoins" }
 ];
 
 /** Détermine la première étape active selon l'état du dossier */
@@ -493,35 +494,10 @@ export default function Landing({
     return slots;
   };
 
-  const requiredDocs = (documents || []).filter(d => d.category !== 'special');
-  const allRequiredUploaded = requiredDocs.length > 0 && requiredDocs.every(d => d.status !== 'pending' && d.status !== 'rejected');
-  const missingDocsCount = requiredDocs.filter(d => d.status === 'pending' || d.status === 'rejected').length;
-
-  const isDocUploaded = (label: string): boolean => {
-    if (!documents || documents.length === 0) return false;
-
-    switch (label) {
-      case "Pièce d'identité (époux 1)":
-        return documents.some(d => d.id === 'doc2' && d.status !== 'pending' && d.status !== 'rejected');
-      case "Pièce d'identité (époux 2)":
-        return documents.some(d => d.id === 'doc2_f' && d.status !== 'pending' && d.status !== 'rejected');
-      case "Extrait d'acte de naissance (époux 1)":
-        return documents.some(d => d.id === 'doc1' && d.status !== 'pending' && d.status !== 'rejected');
-      case "Extrait d'acte de naissance (époux 2)":
-        return documents.some(d => d.id === 'doc1_f' && d.status !== 'pending' && d.status !== 'rejected');
-      case "Justificatif de domicile":
-        return documents.some(d => d.id === 'doc3' && d.status !== 'pending' && d.status !== 'rejected') &&
-          documents.some(d => d.id === 'doc3_f' && d.status !== 'pending' && d.status !== 'rejected');
-      case "Informations sur les témoins":
-        return documents.some(d => d.id === 'doc5' && d.status !== 'pending' && d.status !== 'rejected') &&
-          documents.some(d => d.id === 'doc9' && d.status !== 'pending' && d.status !== 'rejected');
-      default:
-        return false;
-    }
-  };
-
-  const getDocStatusDetailed = (label: string): { status: 'verified' | 'rejected' | 'uploading' | 'pending'; message?: string } => {
+  const getDocStatusDetailed = (stepId: number): { status: 'verified' | 'rejected' | 'uploading' | 'pending'; message?: string } => {
     if (!documents || documents.length === 0) return { status: 'pending' };
+
+    const currentDossier = allDossiers.find(d => d.id === dossierId);
 
     const findStatus = (id: string) => {
       const doc = documents.find(d => d.id === id);
@@ -537,39 +513,72 @@ export default function Landing({
       return doc?.aiAnalysis?.motif || doc?.rejectionReason || '';
     };
 
-    switch (label) {
-      case "Pièce d'identité (époux 1)": {
+    switch (stepId) {
+      case 1: { // CNI Époux
         const s = findStatus('doc2');
         return { status: s, message: s === 'rejected' ? getMessage('doc2') : undefined };
       }
-      case "Pièce d'identité (époux 2)": {
-        const s = findStatus('doc2_f');
-        return { status: s, message: s === 'rejected' ? getMessage('doc2_f') : undefined };
+      case 2: { // Selfie Époux
+        const attempts = currentDossier?.epoux_face_attempts ?? 0;
+        const verified = currentDossier?.epoux_identite_verifiee === true;
+        const hasUrl = !!currentDossier?.epoux_selfie_url;
+        
+        if (hasUrl && (verified || attempts >= 3)) {
+          return { status: 'verified' };
+        }
+        if (attempts >= 3 && !verified) {
+          return { status: 'rejected', message: "Contrôle facial non concordant après 3 essais." };
+        }
+        if (hasUrl && !verified) {
+          return { status: 'uploading' };
+        }
+        return { status: 'pending' };
       }
-      case "Extrait d'acte de naissance (époux 1)": {
+      case 3: { // Extrait Époux
         const s = findStatus('doc1');
         return { status: s, message: s === 'rejected' ? getMessage('doc1') : undefined };
       }
-      case "Extrait d'acte de naissance (époux 2)": {
+      case 4: { // CNI Épouse
+        const s = findStatus('doc2_f');
+        return { status: s, message: s === 'rejected' ? getMessage('doc2_f') : undefined };
+      }
+      case 5: { // Selfie Épouse
+        const attempts = currentDossier?.epouse_face_attempts ?? 0;
+        const verified = currentDossier?.epouse_identite_verifiee === true;
+        const hasUrl = !!currentDossier?.epouse_selfie_url;
+        
+        if (hasUrl && (verified || attempts >= 3)) {
+          return { status: 'verified' };
+        }
+        if (attempts >= 3 && !verified) {
+          return { status: 'rejected', message: "Contrôle facial non concordant après 3 essais." };
+        }
+        if (hasUrl && !verified) {
+          return { status: 'uploading' };
+        }
+        return { status: 'pending' };
+      }
+      case 6: { // Extrait Épouse
         const s = findStatus('doc1_f');
         return { status: s, message: s === 'rejected' ? getMessage('doc1_f') : undefined };
       }
-      case "Justificatif de domicile": {
-        const s1 = findStatus('doc3');
-        const s2 = findStatus('doc3_f');
-        if (s1 === 'verified' && s2 === 'verified') return { status: 'verified' };
-        if (s1 === 'rejected') return { status: 'rejected', message: `Époux : ${getMessage('doc3')}` };
-        if (s2 === 'rejected') return { status: 'rejected', message: `Épouse : ${getMessage('doc3_f')}` };
-        if (s1 === 'uploading' || s2 === 'uploading') return { status: 'uploading' };
-        return { status: 'pending' };
-      }
-      case "Informations sur les témoins": {
-        const s1 = findStatus('doc5');
-        const s2 = findStatus('doc9');
-        if (s1 === 'verified' && s2 === 'verified') return { status: 'verified' };
-        if (s1 === 'rejected') return { status: 'rejected', message: `Témoin 1 : ${getMessage('doc5')}` };
-        if (s2 === 'rejected') return { status: 'rejected', message: `Témoin 2 : ${getMessage('doc9')}` };
-        if (s1 === 'uploading' || s2 === 'uploading') return { status: 'uploading' };
+      case 7: { // Autres docs (Justificatifs + Témoins)
+        const s3 = findStatus('doc3');
+        const s3_f = findStatus('doc3_f');
+        const s5 = findStatus('doc5');
+        const s9 = findStatus('doc9');
+        
+        const allV = s3 === 'verified' && s3_f === 'verified' && s5 === 'verified' && s9 === 'verified';
+        if (allV) return { status: 'verified' };
+        
+        if (s3 === 'rejected') return { status: 'rejected', message: `Justif Époux : ${getMessage('doc3')}` };
+        if (s3_f === 'rejected') return { status: 'rejected', message: `Justif Épouse : ${getMessage('doc3_f')}` };
+        if (s5 === 'rejected') return { status: 'rejected', message: `Témoin 1 : ${getMessage('doc5')}` };
+        if (s9 === 'rejected') return { status: 'rejected', message: `Témoin 2 : ${getMessage('doc9')}` };
+        
+        if (s3 === 'uploading' || s3_f === 'uploading' || s5 === 'uploading' || s9 === 'uploading') {
+          return { status: 'uploading' };
+        }
         return { status: 'pending' };
       }
       default:
@@ -577,24 +586,19 @@ export default function Landing({
     }
   };
 
-  const handleDocumentAction = (label: string) => {
-    let targetStep = 1;
-    if (label.includes("époux 1") && label.includes("identité")) {
-      targetStep = 1;
-    } else if (label.includes("époux 1") && label.includes("naissance")) {
-      targetStep = 3;
-    } else if (label.includes("époux 2")) {
-      targetStep = 4;
-    } else {
-      targetStep = 5;
-    }
-    
+  const handleDocumentAction = (stepId: number) => {
     if (setDossierActiveStep) {
-      setDossierActiveStep(targetStep);
+      setDossierActiveStep(stepId);
     }
     setTab('dossier');
-    setShowParcours(false);
+    if (typeof setShowParcours === 'function') {
+      setShowParcours(false);
+    }
   };
+
+  const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
+  const allRequiredUploaded = stepStatuses.every(s => s.status !== 'pending' && s.status !== 'rejected');
+  const missingDocsCount = stepStatuses.filter(s => s.status === 'pending' || s.status === 'rejected').length;
 
   // Charger les mairies réelles et dossiers depuis la DB au montage
   useEffect(() => {
@@ -1692,7 +1696,7 @@ export default function Landing({
                       <label className="block text-[11px] font-bold text-slate-650 uppercase tracking-widest">Documents requis</label>
                       <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
                         {REQUIRED_DOCS.map((doc, i) => {
-                          const { status, message } = getDocStatusDetailed(doc.label);
+                          const { status, message } = getDocStatusDetailed(doc.id);
                           
                           let cardBg = "bg-neutral-50 border-neutral-200 hover:border-primary/45 hover:bg-neutral-50/80";
                           let badgeBg = "bg-neutral-250 text-slate-500";
@@ -1715,7 +1719,7 @@ export default function Landing({
                           return (
                             <div 
                               key={i} 
-                              onClick={() => handleDocumentAction(doc.label)}
+                              onClick={() => handleDocumentAction(doc.id)}
                               className={`flex flex-col gap-1.5 p-3 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm group ${cardBg}`}
                             >
                               <div className="flex items-center justify-between gap-3">

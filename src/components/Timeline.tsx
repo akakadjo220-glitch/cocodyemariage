@@ -844,6 +844,11 @@ export default function Timeline({
     }
   };
 
+  const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
+  const allRequiredUploaded = stepStatuses.every(s => s.status !== 'pending' && s.status !== 'rejected');
+  const allRequiredDocsVerified = stepStatuses.every(s => s.status === 'verified');
+  const missingDocsCount = stepStatuses.filter(s => s.status === 'pending' || s.status === 'rejected').length;
+
   const mappedSteps = steps.map(step => {
     let status = step.status;
     let desc = step.description;
@@ -936,11 +941,6 @@ export default function Timeline({
       status
     };
   });
-
-  const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
-  const allRequiredUploaded = stepStatuses.every(s => s.status !== 'pending' && s.status !== 'rejected');
-  const allRequiredDocsVerified = stepStatuses.every(s => s.status === 'verified');
-  const missingDocsCount = stepStatuses.filter(s => s.status === 'pending' || s.status === 'rejected').length;
 
   const currentStep = mappedSteps.find(s => s.id === guidedStepId) || mappedSteps[0];
   const slideDirection = guidedStepId > prevStepId ? 1 : -1;

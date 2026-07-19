@@ -1,0 +1,6 @@
+{
+  "name": "E-Mariage",
+  "description": "Plateforme moderne de préparation administrative du mariage civil et de mise en relation de prestataires.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

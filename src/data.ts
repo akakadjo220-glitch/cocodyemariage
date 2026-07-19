@@ -180,53 +180,55 @@ export const INITIAL_DOCUMENTS: DocumentInfo[] = [
 export const INITIAL_TIMELINE_STEPS: TimelineStep[] = [
   {
     id: 1,
-    title: "Réservation en ligne",
-    description: "Réservations reçues au service mariage 3 mois avant la date (Loi N° 2019-570).",
+    title: "Création du dossier",
+    description: "Saisie de l'identité des futurs époux et des témoins.",
     status: 'active',
     icon: 'UserPlus',
-    details: "Saisie de l'identité des futurs époux et des témoins, choix de la date de célébration."
+    details: "Saisie des noms, prénoms, contacts et informations des futurs époux pour initier le dossier."
   },
   {
     id: 2,
-    title: "Constitution numérique",
-    description: "Dépôt des pièces générales et supplémentaires requises selon votre situation.",
+    title: "Choix de la mairie",
+    description: "Sélection de la salle de célébration de votre choix à Cocody.",
     status: 'upcoming',
-    actionLabel: "Déposer les pièces",
-    icon: 'FolderUp',
-    details: "Téléversez les copies numériques des extraits de naissance (Article 2), certificats de résidence (Article 20), pièces d'identité et justificatifs requis."
+    actionLabel: "Choisir la mairie",
+    icon: 'Building',
+    details: "Sélectionnez votre mairie locale/salle de célébration de prédilection."
   },
   {
     id: 3,
-    title: "Frais de confirmation",
-    description: "Paiement en ligne de 2 500 FCFA pour verrouiller provisoirement le créneau.",
+    title: "Dépôt des documents",
+    description: "Téléversement des pièces justificatives obligatoires et contrôle facial.",
     status: 'upcoming',
-    actionLabel: "Payer les frais",
-    icon: 'CreditCard',
-    details: "Réglez vos frais de réservation via Wave ou Mobile Money pour bloquer votre créneau civil."
+    actionLabel: "Déposer les pièces",
+    icon: 'FolderUp',
+    details: "Téléversez les CNI, extraits de naissance, justificatifs et selfies pour validation IA."
   },
   {
     id: 4,
-    title: "Dépôt du dossier en Mairie",
-    description: "Présence obligatoire des deux (2) futurs époux pour le dépôt physique du dossier.",
+    title: "Option de date",
+    description: "Réservation provisoire de votre date et créneau horaire de célébration.",
     status: 'upcoming',
-    icon: 'FileSignature',
-    details: "Dépôt obligatoire 1 mois avant la date du mariage, et au plus tard 10 jours avant le mariage au service mariage."
+    actionLabel: "Réserver la date",
+    icon: 'CalendarDays',
+    details: "Choisissez un créneau horaire disponible dans le calendrier de la mairie sélectionnée."
   },
   {
     id: 5,
-    title: "Droits de célébration municipaux",
-    description: "Règlement du tarif légal de 100 000 FCFA (du Mercredi au Samedi).",
+    title: "Confirmation & Paiement",
+    description: "Règlement des frais de réservation en ligne pour confirmer définitivement le créneau.",
     status: 'upcoming',
-    icon: 'ShieldCheck',
-    details: "Acquittez les droits de célébration municipaux de 100 000 FCFA pour confirmer définitivement la cérémonie."
+    actionLabel: "Payer les frais",
+    icon: 'CreditCard',
+    details: "Réglez vos frais de confirmation en ligne (2 500 FCFA) par Mobile Money pour bloquer votre créneau."
   },
   {
     id: 6,
     title: "Célébration d'Union",
-    description: "Présentation obligatoire 1 heure avant la célébration avec engagement sur l'honneur.",
+    description: "Célébration officielle de votre mariage civil en mairie.",
     status: 'upcoming',
     icon: 'HeartHandshake',
-    details: "Les retards ne sont plus tolérés. Présentation requise 1 heure avant la célébration avec vos témoins majeurs."
+    details: "Présentation requise le Jour J munis des originaux de vos pièces et de vos témoins."
   }
 ];
 

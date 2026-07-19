@@ -392,10 +392,21 @@ export default function Timeline({
     changeGuidedStep(active);
   }, [hasNames, selectedMairie, currentDossier?.wedding_date, paymentInfo]);
 
+  // Synchroniser avec l'étape active globale
+  useEffect(() => {
+    if (dossierActiveStep && dossierActiveStep !== guidedStepId) {
+      setPrevStepId(guidedStepId);
+      setGuidedStepId(dossierActiveStep);
+    }
+  }, [dossierActiveStep]);
+
   const changeGuidedStep = (nextId: number) => {
     if (nextId !== guidedStepId) {
       setPrevStepId(guidedStepId);
       setGuidedStepId(nextId);
+      if (setDossierActiveStep) {
+        setDossierActiveStep(nextId);
+      }
       setIsMoving(true);
       setTimeout(() => {
         setIsMoving(false);
@@ -834,31 +845,102 @@ export default function Timeline({
   };
 
   const mappedSteps = steps.map(step => {
+    let status = step.status;
+    let desc = step.description;
+    let details = step.details || '';
+    let title = step.title;
+    let icon = step.icon;
+
     if (step.id === 1) {
-      return {
-        ...step,
-        status: hasNames ? ('completed' as const) : ('active' as const),
-        description: hasNames
-          ? `Identité de ${spouse1Name} & ${spouse2Name} enregistrée.`
-          : "Renseignez l'identité des futurs époux pour initialiser le dossier civil.",
-        details: hasNames
-          ? `Dossier N° ${dossierId.toUpperCase().replace('DOSSIER_', '')} initié avec succès. L'identité des futurs époux (${spouse1Name} & ${spouse2Name}) est déclarée.`
-          : "Veuillez renseigner le nom des futurs époux dans votre tableau de bord de suivi pour initialiser officiellement le dossier d'union."
-      };
+      title = "Création du dossier";
+      icon = "UserPlus";
+      status = hasNames ? ('completed' as const) : ('active' as const);
+      desc = hasNames
+        ? `Identité de ${spouse1Name} & ${spouse2Name} enregistrée.`
+        : "Renseignez l'identité des futurs époux pour initialiser le dossier civil.";
+      details = hasNames
+        ? `Dossier N° ${dossierId.toUpperCase().replace('DOSSIER_', '')} initié avec succès. L'identité des futurs époux (${spouse1Name} & ${spouse2Name}) est déclarée.`
+        : "Veuillez renseigner le nom des futurs époux dans votre tableau de bord de suivi pour initialiser officiellement le dossier d'union.";
+    } else if (step.id === 2) {
+      title = "Choix de la mairie";
+      icon = "Building";
+      status = hasNames
+        ? (selectedMairie ? ('completed' as const) : ('active' as const))
+        : ('upcoming' as const);
+      desc = selectedMairie
+        ? `Mairie de célébration sélectionnée : ${selectedMairieName || selectedMairie}.`
+        : "Sélectionnez votre mairie de célébration.";
+      details = selectedMairie
+        ? `Mairie : ${selectedMairieName || selectedMairie}.`
+        : "Veuillez choisir la mairie locale dans laquelle célébrer votre union civile.";
+    } else if (step.id === 3) {
+      title = "Dépôt des documents";
+      icon = "FolderUp";
+      status = selectedMairie
+        ? (allRequiredDocsVerified ? ('completed' as const) : ('active' as const))
+        : ('upcoming' as const);
+      desc = allRequiredDocsVerified
+        ? "Toutes vos pièces justificatives ont été vérifiées et validées."
+        : `Dépôt des documents en cours. ${missingDocsCount} document(s) restants ou rejetés.`;
+      details = allRequiredDocsVerified
+        ? "Félicitations, l'IA et l'officier d'état civil ont validé toutes vos pièces."
+        : "Veuillez téléverser les justificatifs requis et effectuer le contrôle de ressemblance faciale selfie.";
+    } else if (step.id === 4) {
+      title = "Option de date";
+      icon = "CalendarDays";
+      status = allRequiredDocsVerified
+        ? (currentDossier?.wedding_date ? ('completed' as const) : ('active' as const))
+        : ('upcoming' as const);
+      desc = currentDossier?.wedding_date
+        ? `Date réservée pour le ${currentDossier.wedding_date}.`
+        : "Choisissez et réservez votre date de célébration.";
+      details = currentDossier?.wedding_date
+        ? `Célébration programmée le ${currentDossier.wedding_date}.`
+        : "Sélectionnez une date libre dans le calendrier de la mairie sélectionnée.";
+    } else if (step.id === 5) {
+      title = "Confirmation & Paiement";
+      icon = "CreditCard";
+      const isPaid = paymentInfo?.status === 'success' || currentDossier?.status === 'scheduled' || currentDossier?.status === 'paid';
+      const isMairieValidated = currentDossier?.status === 'scheduled' || currentDossier?.status === 'paid';
+      const isReservationPaid = currentDossier?.frais_reservation_paye === true;
+      const allStep5Complete = isReservationPaid && isMairieValidated && isPaid;
+
+      status = currentDossier?.wedding_date
+        ? (allStep5Complete ? ('completed' as const) : ('active' as const))
+        : ('upcoming' as const);
+      desc = allStep5Complete
+        ? "Frais de confirmation réglés avec succès."
+        : "Réglez les frais de réservation en ligne pour valider votre créneau.";
+      details = allStep5Complete
+        ? "Votre paiement a été traité et votre créneau de célébration est officiellement verrouillé."
+        : "Réglez vos frais de réservation (2 500 FCFA) par Mobile Money ou carte pour bloquer définitivement le créneau.";
+    } else if (step.id === 6) {
+      title = "Célébration d'Union";
+      icon = "HeartHandshake";
+      const isPaid = paymentInfo?.status === 'success' || currentDossier?.status === 'scheduled' || currentDossier?.status === 'paid';
+      const isMairieValidated = currentDossier?.status === 'scheduled' || currentDossier?.status === 'paid';
+      const isReservationPaid = currentDossier?.frais_reservation_paye === true;
+      const allStep5Complete = isReservationPaid && isMairieValidated && isPaid;
+
+      status = allStep5Complete ? ('active' as const) : ('upcoming' as const);
+      desc = "Célébration officielle de votre mariage civil en mairie.";
+      details = "Présentation requise 1 heure avant la célébration avec vos témoins munis de leurs pièces d'identité.";
     }
-    if (step.id === 2) {
-      return {
-        ...step,
-        status: hasNames ? step.status : ('upcoming' as const)
-      };
-    }
-    return step;
+
+    return {
+      ...step,
+      title,
+      description: desc,
+      icon,
+      details,
+      status
+    };
   });
 
   const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
-  const allRequiredUploaded = stepStatuses.every(s => s.status !== 'pending');
+  const allRequiredUploaded = stepStatuses.every(s => s.status !== 'pending' && s.status !== 'rejected');
   const allRequiredDocsVerified = stepStatuses.every(s => s.status === 'verified');
-  const missingDocsCount = stepStatuses.filter(s => s.status === 'pending').length;
+  const missingDocsCount = stepStatuses.filter(s => s.status === 'pending' || s.status === 'rejected').length;
 
   const currentStep = mappedSteps.find(s => s.id === guidedStepId) || mappedSteps[0];
   const slideDirection = guidedStepId > prevStepId ? 1 : -1;
@@ -1029,6 +1111,59 @@ export default function Timeline({
       case 2:
         return (
           <div className="space-y-4">
+            {selectedMairie ? (
+              <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 flex items-center gap-2 animate-fade-in">
+                <Check className="w-4 h-4 text-sky-500 shrink-0" />
+                <p className="font-sans text-xs text-sky-700">Mairie sélectionnée : <strong>{selectedMairieName || selectedMairie}</strong>.</p>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-semibold">
+                ⚠️ Veuillez sélectionner la mairie/salle de célébration de votre choix ci-dessous.
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {mairies.map(m => (
+                <div
+                  key={m.id}
+                  onClick={() => selectMairie(m.id, m.name)}
+                  className={`p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 text-left ${
+                    (selectedMairie === m.name || currentDossier?.mairie_id === m.id)
+                      ? 'border-primary bg-primary/5 shadow-sm font-bold'
+                      : 'border-neutral-100 hover:border-primary/40 bg-white hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-sans font-bold text-sm text-slate-800 block">{m.name}</span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">{m.region}</span>
+                      {m.officer_name && (
+                        <span className="text-[10px] text-slate-400 block mt-0.5">Officier : {m.officer_name}</span>
+                      )}
+                    </div>
+                    {(selectedMairie === m.name || currentDossier?.mairie_id === m.id) && (
+                      <Check className="w-4 h-4 text-primary shrink-0" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {selectedMairie && (
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => changeGuidedStep(3)}
+                  className="bg-primary hover:bg-primary-container text-white py-2.5 px-5 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all shadow-md cursor-pointer border border-primary/20 flex items-center gap-1"
+                >
+                  Continuer → Dépôt des documents
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      case 3:
+        return (
+          <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {REQUIRED_DOCS.map((doc, i) => {
                 const { status, message } = getDocStatusDetailed(doc.id);
@@ -1097,19 +1232,7 @@ export default function Timeline({
               })}
             </div>
 
-            {!allRequiredUploaded && (
-              <div className="p-4 bg-rose-50 border border-primary/20 text-primary rounded-xl text-xs font-medium leading-relaxed flex items-start gap-2.5">
-                <AlertCircle className="w-4.5 h-4.5 text-primary shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-primary">Documents obligatoires manquants</p>
-                  <p className="text-primary/80 text-[11px] mt-0.5">
-                    Il vous reste <span className="font-bold">{missingDocsCount} document(s)</span> à ajouter dans l'onglet **Dossier** pour pouvoir continuer.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2">
+            <div className="flex gap-2 justify-end mt-4">
               <button
                 onClick={() => setTab('dossier')}
                 className="border border-neutral-300 hover:border-primary text-slate-700 hover:text-primary text-xs font-bold px-4 py-2.5 rounded-lg transition-colors bg-white font-sans cursor-pointer shadow-sm"
@@ -1117,19 +1240,28 @@ export default function Timeline({
                 Aller à l'espace Dossier
               </button>
 
-              {allRequiredDocsVerified && (
+              {allRequiredUploaded ? (
                 <button
-                  onClick={() => changeGuidedStep(3)}
-                  className="font-sans text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-lg transition-all flex items-center gap-1.5 bg-primary hover:bg-primary-container text-white shadow-md cursor-pointer border border-primary/20 animate-fade-in"
+                  onClick={() => changeGuidedStep(4)}
+                  className="bg-primary hover:bg-primary-container text-white py-2.5 px-5 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all shadow-md cursor-pointer border border-primary/20 flex items-center gap-1"
                 >
-                  <span>Planifier ma célébration</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-accent" />
+                  Continuer → Option de date
                 </button>
+              ) : (
+                <div className="p-3.5 bg-rose-50 border border-primary/20 text-primary rounded-xl text-xs font-semibold leading-relaxed flex items-start gap-2.5 flex-1">
+                  <AlertCircle className="w-4.5 h-4.5 text-primary shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="font-bold text-primary">Dépôt incomplet</p>
+                    <p className="text-primary/80 text-[11px] mt-0.5">
+                      Veuillez téléverser tous les documents requis pour continuer. Il vous reste <span className="font-bold">{missingDocsCount} document(s)</span> à ajouter.
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>
         );
-      case 3:
+      case 4:
         return (
           <div className="space-y-4 font-sans text-xs animate-fade-in">
             <div className="flex flex-col gap-1.5 text-left max-w-xs">
@@ -1187,20 +1319,24 @@ export default function Timeline({
             )}
 
             {currentDossier?.wedding_date && (
-              <div className="flex justify-between items-center bg-rose-50/40 border border-primary/15 p-4 rounded-xl text-primary font-bold mt-2">
-                <span>📅 Date planifiée : {currentDossier.wedding_date}</span>
-                <button onClick={() => changeGuidedStep(4)} className="text-primary hover:underline uppercase font-extrabold text-[10px] font-sans flex items-center gap-0.5">Suivant <ChevronRight className="w-3.5 h-3.5" /></button>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => changeGuidedStep(5)}
+                  className="bg-primary hover:bg-primary-container text-white py-2.5 px-5 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all shadow-md cursor-pointer border border-primary/20 flex items-center gap-1"
+                >
+                  Continuer → Confirmation & Paiement
+                </button>
               </div>
             )}
           </div>
         );
-      case 4:
+      case 5:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4 font-sans text-xs">
             {!currentDossier?.frais_reservation_paye ? (
               <div className="p-6 bg-gradient-to-br from-slate-50 to-slate-100 border border-neutral-200 rounded-2xl flex flex-col gap-4 text-left shadow-inner animate-fade-in">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-primary/10 text-primary rounded-full flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shrink-0 shadow">
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <div>
@@ -1260,236 +1396,187 @@ export default function Timeline({
               </div>
             ) : (
               <div className="space-y-4 animate-fade-in">
-                <div className="p-5 bg-emerald-50/50 border border-emerald-200 rounded-2xl flex items-start gap-3 shadow-inner">
-                  <div className="w-10 h-10 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow">
-                    <Check className="w-5 h-5 stroke-[3]" />
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-emerald-800">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-semibold text-[11px]">Frais de confirmation réglés (2 500 FCFA)</span>
                   </div>
-                  <div className="text-left">
-                    <h4 className="font-serif text-sm font-bold text-slate-800">Frais de confirmation réglés !</h4>
-                    <p className="font-sans text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                      Le paiement en ligne de 2 500 FCFA a été validé. Votre créneau est bloqué.
-                    </p>
-                  </div>
+                  <a
+                    href={currentDossier.recu_url_pdf || '#'}
+                    download={`recu_reservation_${dossierId}.pdf`}
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      const matchedSalle = salles.find(s => s.id === currentDossier.salle_id);
+                      const salleNom = matchedSalle ? matchedSalle.nom : 'Salle Principale';
+                      await generateReceiptPdf({
+                        dossierId: currentDossier.id,
+                        reference: currentDossier.frais_reservation_reference || 'EMAR-SIM-RES1234',
+                        spouse1Name: currentDossier.spouse1_name,
+                        spouse2Name: currentDossier.spouse2_name,
+                        weddingDate: currentDossier.wedding_date || '',
+                        salleNom: salleNom,
+                        montant: currentDossier.frais_reservation_montant || 2500,
+                        datePaiement: currentDossier.frais_reservation_date_paiement || new Date().toISOString()
+                      });
+                      triggerToast("Reçu de paiement téléchargé en PDF !");
+                    }}
+                    className="text-[10px] text-emerald-700 font-extrabold hover:underline flex items-center gap-0.5"
+                  >
+                    <Download className="w-3 h-3" /> Reçu PDF
+                  </a>
                 </div>
 
-                {/* Reçu de paiement */}
-                <div className="bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm max-w-md mx-auto relative overflow-hidden text-center">
-                  <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500" />
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="font-sans text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Reçu Numérique Officiel</span>
-                    <h5 className="font-serif font-bold text-slate-800 text-base">E-MARIAGE CÔTE D'IVOIRE</h5>
-                    <div className="w-24 h-24 bg-neutral-100 border border-neutral-200 rounded-xl my-3 flex items-center justify-center overflow-hidden">
-                      <QrCode className="w-16 h-16 text-slate-800" />
+                {currentDossier?.status !== 'scheduled' && currentDossier?.status !== 'paid' ? (
+                  <div className="p-5 bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-250 rounded-2xl flex flex-col gap-4 text-left shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-indigo-500 text-white rounded-full flex items-center justify-center shrink-0 shadow">
+                        <Building className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-serif text-sm font-bold text-slate-800">Dépôt du dossier physique & Rendez-vous</h4>
+                        <p className="font-sans text-[11px] text-slate-500 mt-0.5 leading-relaxed font-semibold">
+                          Présentation obligatoire des originaux pour instruction par l'officier civil.
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-2 text-xs font-sans w-full border-t border-dashed pt-4">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Réf. transaction :</span>
-                        <span className="font-mono font-bold text-slate-700">{currentDossier.frais_reservation_reference || 'EMAR-SIM-RES1234'}</span>
+
+                    <div className="p-4 bg-white border border-indigo-100 rounded-xl">
+                      <div className="grid grid-cols-2 gap-4 text-xs font-sans">
+                        <div>
+                          <span className="text-slate-400 uppercase tracking-widest text-[9px] font-bold block">Date du rendez-vous</span>
+                          <span className="font-bold text-slate-800 text-sm mt-0.5 block">
+                            {currentDossier?.date_rendezvous 
+                              ? new Date(currentDossier.date_rendezvous).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+                              : "Non planifié"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 uppercase tracking-widest text-[9px] font-bold block">Heure du rendez-vous</span>
+                          <span className="font-bold text-slate-800 text-sm mt-0.5 block">🕒 {currentDossier?.heure_rendezvous || "09:00"}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Montant payé :</span>
-                        <span className="font-bold text-slate-800">2 500 FCFA</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Date de paiement :</span>
-                        <span className="text-slate-600 font-medium">
-                          {currentDossier.frais_reservation_date_paiement
-                            ? new Date(currentDossier.frais_reservation_date_paiement).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-                            : new Date().toLocaleDateString('fr-FR')}
+                    </div>
+
+                    <div className="border-t pt-4 space-y-3 font-sans text-xs">
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-505 uppercase tracking-wider">
+                        <span>Reprogrammer mon rendez-vous</span>
+                        <span className={`${
+                          (currentDossier?.nombre_reprogrammations || 0) >= (systemParams?.nombre_reprogrammations_limite || 3)
+                            ? 'text-rose-500 font-extrabold'
+                            : 'text-indigo-600'
+                        }`}>
+                          {(currentDossier?.nombre_reprogrammations || 0)} / {systemParams?.nombre_reprogrammations_limite || 3} modifs
                         </span>
                       </div>
+
+                      {(currentDossier?.nombre_reprogrammations || 0) < (systemParams?.nombre_reprogrammations_limite || 3) ? (
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <input
+                            type="date"
+                            id="new-rdv-date-timeline"
+                            min={new Date().toISOString().split('T')[0]}
+                            className="border border-neutral-350 rounded-xl px-3 py-2 bg-white text-xs flex-1"
+                          />
+                          <select
+                            id="new-rdv-time-timeline"
+                            className="border border-neutral-355 rounded-xl px-3 py-2 bg-white text-xs"
+                          >
+                            <option value="08:30">08:30</option>
+                            <option value="09:00">09:00</option>
+                            <option value="09:30">09:30</option>
+                            <option value="10:00">10:00</option>
+                            <option value="10:30">10:30</option>
+                            <option value="11:00">11:00</option>
+                            <option value="11:30">11:30</option>
+                            <option value="13:30">13:30</option>
+                            <option value="14:00">14:00</option>
+                            <option value="14:30">14:30</option>
+                            <option value="15:00">15:00</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const dateEl = document.getElementById('new-rdv-date-timeline') as HTMLInputElement;
+                              const timeEl = document.getElementById('new-rdv-time-timeline') as HTMLSelectElement;
+                              if (!dateEl?.value) {
+                                triggerToast("Sélectionnez d'abord une date !");
+                                return;
+                              }
+                              const res = await rescheduleAppointment(dossierId, dateEl.value, timeEl.value);
+                              if (res.success) {
+                                triggerToast("Rendez-vous reprogrammé avec succès !");
+                                const dbDossiers = await getDossiers();
+                                setAllDossiers(dbDossiers);
+                              } else {
+                                triggerToast(res.error || "Erreur de reprogrammation.");
+                              }
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                          >
+                            Valider
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-rose-500 font-semibold italic">Limite de reprogrammation atteinte. Veuillez contacter la mairie pour toute modification.</p>
+                      )}
                     </div>
-
-                    <div className="flex gap-2 w-full mt-5">
-                      <a
-                        href={currentDossier.recu_url_pdf || '#'}
-                        download={`recu_reservation_${dossierId}.pdf`}
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          const matchedSalle = salles.find(s => s.id === currentDossier.salle_id);
-                          const salleNom = matchedSalle ? matchedSalle.nom : 'Salle Principale';
-                          await generateReceiptPdf({
-                            dossierId: currentDossier.id,
-                            reference: currentDossier.frais_reservation_reference || 'EMAR-SIM-RES1234',
-                            spouse1Name: currentDossier.spouse1_name,
-                            spouse2Name: currentDossier.spouse2_name,
-                            weddingDate: currentDossier.wedding_date || '',
-                            salleNom: salleNom,
-                            montant: currentDossier.frais_reservation_montant || 2500,
-                            datePaiement: currentDossier.frais_reservation_date_paiement || new Date().toISOString()
-                          });
-                          triggerToast("Reçu de paiement téléchargé en PDF !");
-                        }}
-                        className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-slate-750 font-sans text-[10px] font-extrabold uppercase tracking-wider py-2.5 rounded-xl border border-neutral-300 transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm"
-                      >
-                        <Download className="w-3.5 h-3.5" /> PDF
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => changeGuidedStep(5)}
-                        className="flex-1 bg-primary hover:bg-primary-container text-white font-sans text-[10px] font-extrabold uppercase tracking-wider py-2.5 rounded-xl transition-all flex items-center justify-center gap-1 shadow-md border border-primary/20"
-                      >
-                        Continuer <ChevronRight className="w-3.5 h-3.5 text-accent" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      case 5:
-        return (
-          <div className="space-y-4">
-            <div className="p-5 bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-250 rounded-2xl flex flex-col gap-4 text-left shadow-sm animate-fade-in">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-indigo-500 text-white rounded-full flex items-center justify-center shrink-0 shadow">
-                  <CalendarCheck className="w-5 h-5" />
-                </div>
-                <div className="text-left">
-                  <h4 className="font-serif text-sm font-bold text-slate-800">Rendez-vous de Signature et Contrôle</h4>
-                  <p className="font-sans text-[11px] text-slate-500 mt-0.5 leading-relaxed font-semibold">
-                    Votre présence physique en mairie est obligatoire pour la signature et le contrôle de vos pièces justificatives originales.
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-white border border-indigo-100 rounded-xl">
-                <div className="grid grid-cols-2 gap-4 text-xs font-sans">
-                  <div>
-                    <span className="text-slate-400 uppercase tracking-widest text-[9px] font-bold block">Date du rendez-vous</span>
-                    <span className="font-bold text-slate-800 text-sm mt-0.5 block">
-                      {currentDossier?.date_rendezvous 
-                        ? new Date(currentDossier.date_rendezvous).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-                        : "Non planifié"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 uppercase tracking-widest text-[9px] font-bold block">Heure du rendez-vous</span>
-                    <span className="font-bold text-slate-800 text-sm mt-0.5 block">🕒 {currentDossier?.heure_rendezvous || "09:00"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Reprogrammation Panel */}
-              <div className="border-t pt-4 space-y-3 font-sans text-xs">
-                <div className="flex justify-between items-center text-[10px] font-bold text-slate-505 uppercase tracking-wider">
-                  <span>Reprogrammer mon rendez-vous</span>
-                  <span className={`${
-                    (currentDossier?.nombre_reprogrammations || 0) >= (systemParams?.nombre_reprogrammations_limite || 3)
-                      ? 'text-rose-500 font-extrabold'
-                      : 'text-indigo-600'
-                  }`}>
-                    {(currentDossier?.nombre_reprogrammations || 0)} / {systemParams?.nombre_reprogrammations_limite || 3} modifs
-                  </span>
-                </div>
-
-                {(currentDossier?.nombre_reprogrammations || 0) < (systemParams?.nombre_reprogrammations_limite || 3) ? (
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <input
-                      type="date"
-                      id="new-rdv-date"
-                      min={new Date().toISOString().split('T')[0]}
-                      className="border border-neutral-350 rounded-xl px-3 py-2 bg-white text-xs flex-1"
-                    />
-                    <select
-                      id="new-rdv-time"
-                      className="border border-neutral-350 rounded-xl px-3 py-2 bg-white text-xs"
-                    >
-                      <option value="08:30">08:30</option>
-                      <option value="09:00">09:00</option>
-                      <option value="09:30">09:30</option>
-                      <option value="10:00">10:00</option>
-                      <option value="10:30">10:30</option>
-                      <option value="11:00">11:00</option>
-                      <option value="11:30">11:30</option>
-                      <option value="13:30">13:30</option>
-                      <option value="14:00">14:00</option>
-                      <option value="14:30">14:30</option>
-                      <option value="15:00">15:00</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const dateEl = document.getElementById('new-rdv-date') as HTMLInputElement;
-                        const timeEl = document.getElementById('new-rdv-time') as HTMLSelectElement;
-                        if (!dateEl?.value) {
-                          triggerToast("Sélectionnez d'abord une date !");
-                          return;
-                        }
-                        const res = await rescheduleAppointment(dossierId, dateEl.value, timeEl.value);
-                        if (res.success) {
-                          triggerToast("Rendez-vous reprogrammé avec succès !");
-                          const dbDossiers = await getDossiers();
-                          setAllDossiers(dbDossiers);
-                          const mine = dbDossiers.find(d => d.id === dossierId);
-                          if (mine) setCurrentDossier(mine);
-                        } else {
-                          triggerToast(`Erreur : ${res.error}`);
-                        }
-                      }}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl shadow cursor-pointer transition-all uppercase tracking-wider text-[10px]"
-                    >
-                      Modifier
-                    </button>
                   </div>
                 ) : (
-                  <p className="text-[10px] text-rose-500 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
-                    ⚠️ Limite de reprogrammation atteinte ({systemParams?.nombre_reprogrammations_limite || 3} modifs autorisées). Contactez le service d'état civil si besoin.
-                  </p>
+                  paymentInfo?.status !== 'success' ? (
+                    <div className="flex flex-col gap-4 animate-fade-in">
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="font-semibold text-[11px]">Dépôt physique validé par la Mairie</span>
+                      </div>
+                      
+                      <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-200 rounded-2xl flex flex-col gap-4 text-left shadow-sm">
+                        <div className="flex items-center gap-2 text-amber-850 font-bold text-sm">
+                          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                          <span>Paiement des Droits Légaux Municipaux</span>
+                        </div>
+                        <p className="font-sans text-xs text-slate-655 leading-relaxed font-semibold">
+                          Après publication des bans de 10 jours sans opposition, vous devez acquitter le montant des droits civils municipaux de célébration :
+                        </p>
+
+                        <div className="p-4 bg-white border border-amber-200/60 rounded-xl flex justify-between items-center shadow-inner-sm">
+                          <div>
+                            <span className="font-sans text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">Droits de célébration</span>
+                            <span className="font-serif font-bold text-amber-700 text-lg mt-0.5 block">100 000 FCFA</span>
+                          </div>
+                          <button
+                            onClick={(e) => startFinalPayment(e)}
+                            className="bg-primary hover:bg-primary-container text-white py-2.5 px-5 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all shadow-md cursor-pointer border border-primary/20 flex items-center gap-1"
+                          >
+                            Payer via Paystack
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-250 rounded-2xl flex flex-col gap-3 text-left shadow-sm animate-fade-in">
+                      <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                        <Check className="w-5 h-5 text-emerald-600 shrink-0 animate-scale-in" />
+                        <span>Tout est en règle !</span>
+                      </div>
+                      <p className="font-sans text-xs text-slate-655 leading-relaxed font-semibold">
+                        Frais de réservation et droits de célébration municipaux réglés avec succès. Votre créneau horaire est définitivement confirmé pour la cérémonie.
+                      </p>
+                      <div className="flex justify-end mt-2">
+                        <button
+                          onClick={() => changeGuidedStep(6)}
+                          className="bg-primary hover:bg-primary-container text-white py-2.5 px-5 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all shadow-md cursor-pointer border border-primary/20 flex items-center gap-1"
+                        >
+                          Aller à la Célébration
+                        </button>
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
-
-              {currentDossier?.rendezvous_confirme ? (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-850 rounded-xl text-xs font-semibold flex items-center justify-between mt-2">
-                  <span className="flex items-center gap-1.5">✓ Rendez-vous validé physiquement par l'agent municipal.</span>
-                  <button onClick={() => changeGuidedStep(6)} className="text-primary hover:underline uppercase font-extrabold text-[10px] font-sans flex items-center gap-0.5">Suivant <ChevronRight className="w-3.5 h-3.5" /></button>
-                </div>
-              ) : (
-                <div className="p-3.5 bg-amber-50 border border-amber-255 text-amber-800 rounded-xl text-[11px] font-semibold leading-relaxed">
-                  En attente de validation physique par l'agent en mairie. Présentez-vous à la mairie muni de vos originaux le jour de votre RDV.
-                </div>
-              )}
-            </div>
+            )}
           </div>
         );
       case 6:
-        return (
-          <div className="space-y-4">
-            {paymentInfo?.status === 'success' ? (
-              <div className="p-4 bg-rose-50 border border-primary/30 rounded-xl flex justify-between items-center text-primary font-bold animate-fade-in">
-                <span>✓ Droits de Timbre Fiscal Acquittés (100 000 XOF)</span>
-                <button onClick={() => changeGuidedStep(7)} className="text-primary hover:underline uppercase font-extrabold text-[10px] font-sans flex items-center gap-0.5">Célébration <ChevronRight className="w-3.5 h-3.5" /></button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-200 rounded-2xl flex flex-col gap-4 text-left shadow-sm">
-                  <div className="flex items-center gap-2 text-amber-850 font-bold text-sm">
-                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                    <span>Paiement des Droits Légaux Municipaux</span>
-                  </div>
-                  <p className="font-sans text-xs text-slate-655 leading-relaxed font-semibold">
-                    Après publication des bans de 10 jours sans opposition, vous devez acquitter le montant des droits civils municipaux de célébration :
-                  </p>
-
-                  <div className="p-4 bg-white border border-amber-200/60 rounded-xl flex justify-between items-center shadow-inner-sm">
-                    <div>
-                      <span className="font-sans text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">Droits de célébration</span>
-                      <span className="font-serif font-bold text-amber-700 text-lg mt-0.5 block">100 000 FCFA</span>
-                    </div>
-                    <button
-                      onClick={(e) => startFinalPayment(e)}
-                      className="bg-primary hover:bg-primary-container text-white py-2.5 px-5 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all shadow-md cursor-pointer border border-primary/20 flex items-center gap-1"
-                    >
-                      Payer via Paystack
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      case 7:
         return (
           <div className="space-y-4">
             <div className="p-6 bg-gradient-to-br from-primary/10 to-[#b20052]/5 border border-primary/25 rounded-3xl flex flex-col gap-4 text-left shadow-sm animate-fade-in relative overflow-hidden">
@@ -1502,7 +1589,7 @@ export default function Timeline({
                 <span>Le Grand Jour de Votre Union Civile</span>
               </div>
 
-              <p className="font-sans text-xs text-slate-650 leading-relaxed font-medium">
+              <p className="font-sans text-xs text-slate-655 leading-relaxed font-medium">
                 Toutes les conditions légales et financières ont été validées par le service de l'état civil de Cocody. Votre dossier est classé comme <strong>PRÊT POUR CÉLÉBRATION</strong>.
               </p>
 
@@ -1513,7 +1600,7 @@ export default function Timeline({
                 </div>
                 <div className="flex justify-between items-center text-xs font-sans">
                   <span className="text-slate-400">Lieu d'Union</span>
-                  <span className="font-bold text-slate-800">{selectedMairieName || "Mairie de Cocody - Hôtel de Ville"}</span>
+                  <span className="font-bold text-slate-800">{selectedMairieName || selectedMairie || "Mairie de Cocody"}</span>
                 </div>
               </div>
 

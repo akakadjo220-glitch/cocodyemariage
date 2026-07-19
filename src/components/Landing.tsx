@@ -101,23 +101,25 @@ const REQUIRED_DOCS = [
 ];
 
 /** Détermine la première étape active selon l'état du dossier */
-function getInitialStep(hasNames: boolean, hasMairie: boolean, isApproved: boolean, hasDate: boolean): number {
+function getInitialStep(hasNames: boolean, hasMairie: boolean, isApproved: boolean, hasDate: boolean, isReservationPaid: boolean, isFinalPaid: boolean): number {
   if (!hasNames) return 1;
   if (!hasMairie) return 2;
   if (!isApproved) return 3;
   if (!hasDate) return 4;
-  return 5;
+  if (!(isReservationPaid && isFinalPaid)) return 5;
+  return 6;
 }
 
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
 
 /** Détermine les étapes déjà complétées selon l'état du dossier */
-function getInitialCompletedSteps(hasNames: boolean, hasMairie: boolean, isApproved: boolean, hasDate: boolean): number[] {
+function getInitialCompletedSteps(hasNames: boolean, hasMairie: boolean, isApproved: boolean, hasDate: boolean, isReservationPaid: boolean, isFinalPaid: boolean): number[] {
   const done: number[] = [];
   if (hasNames) done.push(1);
   if (hasMairie) done.push(2);
   if (isApproved) done.push(3);
   if (hasDate) done.push(4);
+  if (isReservationPaid && isFinalPaid) done.push(5);
   return done;
 }
 
@@ -398,6 +400,20 @@ export default function Landing({
   const [activeStep, setActiveStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
+  // Synchroniser l'étape active locale avec la globale (pour les autres onglets)
+  useEffect(() => {
+    if (dossierActiveStep && dossierActiveStep !== activeStep) {
+      setActiveStep(dossierActiveStep);
+    }
+  }, [dossierActiveStep]);
+
+  // Propager l'étape active locale vers la globale
+  useEffect(() => {
+    if (setDossierActiveStep && activeStep !== dossierActiveStep) {
+      setDossierActiveStep(activeStep);
+    }
+  }, [activeStep, setDossierActiveStep, dossierActiveStep]);
+
   // Données Step 1 - Noms
   const [editS1, setEditS1] = useState('');
   const [editS2, setEditS2] = useState('');
@@ -661,9 +677,13 @@ export default function Landing({
     const hasNames = Boolean(spouse1Name?.trim() && spouse2Name?.trim());
     const hasMairie = Boolean(selectedMairieId);
     const hasDate = Boolean(weddingDate);
-    const isApproved = steps
-      ? steps.find(s => s.id === 3)?.status === 'completed'
-      : (documents?.length > 0 && documents.filter(d => d.category !== 'special').every(d => d.status === 'verified'));
+
+    const targetDossier = allDossiers.find(d => d.id === dossierId);
+    const isReservationPaid = targetDossier?.frais_reservation_paye === true;
+    const isFinalPaid = targetDossier?.status === 'scheduled' || targetDossier?.status === 'paid';
+
+    const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
+    const isApproved = stepStatuses.every(s => s.status === 'verified');
 
     // Pré-remplir avec les données existantes
     setEditS1(spouse1Name || '');
@@ -685,16 +705,8 @@ export default function Landing({
     setAllDone(false);
 
     // Initialiser étapes complétées et étape active selon avancement réel
-    let done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate);
-    let startStep = getInitialStep(hasNames, hasMairie, isApproved, hasDate);
-
-    if (steps && steps.length > 0) {
-      done = steps.filter(s => s.status === 'completed').map(s => s.id);
-      const activeDbStep = steps.find(s => s.status === 'active')?.id
-        || steps.find(s => s.status === 'upcoming')?.id
-        || 1;
-      startStep = activeDbStep;
-    }
+    const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+    const startStep = getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
 
     setCompletedSteps(done);
     setActiveStep(startStep);

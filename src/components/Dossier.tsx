@@ -229,6 +229,13 @@ export default function Dossier({
   const [cniVersoBase64, setCniVersoBase64] = useState<string | null>(null);
   const [activeCaptureSide, setActiveCaptureSide] = useState<'recto' | 'verso' | null>(null);
 
+  // Scanner states
+  const [scannerActive, setScannerActive] = useState(false);
+  const [scannerSide, setScannerSide] = useState<'recto' | 'verso' | 'standard' | null>(null);
+  const [scannerStream, setScannerStream] = useState<MediaStream | null>(null);
+  const [scannerError, setScannerError] = useState<string | null>(null);
+  const scannerVideoRef = useRef<HTMLVideoElement>(null);
+
   // Reset selected file when the upload modal closes
   useEffect(() => {
     setSelectedFile(null);
@@ -236,6 +243,7 @@ export default function Dossier({
       setCniRectoBase64(null);
       setCniVersoBase64(null);
       setActiveCaptureSide(null);
+      stopDocumentScanner();
     }
   }, [showFileUploadModal]);
 
@@ -586,6 +594,110 @@ export default function Dossier({
       };
       reader.onerror = error => reject(error);
     });
+  };
+
+  // Document Scanner capture functions
+  const startDocumentScanner = async (side: 'recto' | 'verso' | 'standard') => {
+    setScannerSide(side);
+    setScannerError(null);
+    setScannerActive(true);
+    try {
+      const constraints = {
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setScannerStream(stream);
+      setTimeout(() => {
+        if (scannerVideoRef.current) {
+          scannerVideoRef.current.srcObject = stream;
+        }
+      }, 150);
+    } catch (err: any) {
+      console.warn("Back camera environment constraint failed, trying generic constraints...", err);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setScannerStream(stream);
+        setTimeout(() => {
+          if (scannerVideoRef.current) {
+            scannerVideoRef.current.srcObject = stream;
+          }
+        }, 150);
+      } catch (fallbackErr: any) {
+        console.error("Camera completely inaccessible:", fallbackErr);
+        setScannerError("Impossible d'accéder à la caméra arrière. Redirection vers le sélecteur d'appareil photo standard...");
+        // Fallback to standard input click after a small delay
+        setTimeout(() => {
+          setScannerActive(false);
+          if (side === 'recto') {
+            fileInputRectoRef.current?.click();
+          } else if (side === 'verso') {
+            fileInputVersoRef.current?.click();
+          } else {
+            fileInputStandardRef.current?.click();
+          }
+        }, 2500);
+      }
+    }
+  };
+
+  const stopDocumentScanner = () => {
+    if (scannerStream) {
+      scannerStream.getTracks().forEach(track => track.stop());
+      setScannerStream(null);
+    }
+    setScannerActive(false);
+    setScannerSide(null);
+  };
+
+  const captureDocumentPhoto = () => {
+    if (!scannerVideoRef.current || !scannerSide) return;
+    const video = scannerVideoRef.current;
+    const canvas = document.createElement('canvas');
+    const videoW = video.videoWidth || 1280;
+    const videoH = video.videoHeight || 720;
+
+    // Crop a centered rectangle of 85% width and height = width / 1.58 (credit card/CNI format)
+    const cropW = Math.round(videoW * 0.85);
+    const cropH = Math.round(cropW / 1.58);
+    const cropX = Math.round((videoW - cropW) / 2);
+    const cropY = Math.round((videoH - cropH) / 2);
+
+    canvas.width = cropW;
+    canvas.height = cropH;
+
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            
+            if (scannerSide === 'recto') {
+              setCniRectoBase64(base64);
+            } else if (scannerSide === 'verso') {
+              setCniVersoBase64(base64);
+            } else {
+              const activeDoc = documents.find(d => d.id === showFileUploadModal);
+              const nameParts = (activeDoc?.name || 'document').replace(/\s+/g, '_').toLowerCase();
+              const fileName = `${nameParts}_complet_${Date.now()}.jpg`;
+              const file = new File([blob], fileName, { type: 'image/jpeg' });
+              setSelectedFile(file);
+            }
+            stopDocumentScanner();
+          };
+          reader.readAsDataURL(blob);
+        }
+      }, 'image/jpeg', 0.85);
+    }
   };
 
   // Webcam capture functions
@@ -1751,7 +1863,7 @@ export default function Dossier({
                                   <img src={cniRectoBase64} alt="CNI Recto" className="w-full h-full object-cover" />
                                   <button
                                     type="button"
-                                    onClick={() => fileInputRectoRef.current?.click()}
+                                    onClick={() => startDocumentScanner('recto')}
                                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white border-0 cursor-pointer rounded-xl"
                                   >
                                     <Camera className="w-4 h-4 text-accent" />
@@ -1761,7 +1873,7 @@ export default function Dossier({
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => fileInputRectoRef.current?.click()}
+                                  onClick={() => startDocumentScanner('recto')}
                                   className="border border-dashed border-primary/40 hover:border-primary rounded-xl aspect-[4/3] bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
                                 >
                                   <Camera className="w-5 h-5 text-primary group-hover:scale-105 transition-transform" />
@@ -1779,7 +1891,7 @@ export default function Dossier({
                                   <img src={cniVersoBase64} alt="CNI Verso" className="w-full h-full object-cover" />
                                   <button
                                     type="button"
-                                    onClick={() => fileInputVersoRef.current?.click()}
+                                    onClick={() => startDocumentScanner('verso')}
                                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white border-0 cursor-pointer rounded-xl"
                                   >
                                     <Camera className="w-4 h-4 text-accent" />
@@ -1789,7 +1901,7 @@ export default function Dossier({
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => fileInputVersoRef.current?.click()}
+                                  onClick={() => startDocumentScanner('verso')}
                                   className="border border-dashed border-primary/40 hover:border-primary rounded-xl aspect-[4/3] bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
                                 >
                                   <Camera className="w-5 h-5 text-primary group-hover:scale-105 transition-transform" />
@@ -1850,7 +1962,7 @@ export default function Dossier({
                         <div className="flex flex-col gap-4">
                           <button
                             type="button"
-                            onClick={() => fileInputStandardRef.current?.click()}
+                            onClick={() => startDocumentScanner('standard')}
                             className="relative border border-primary/30 hover:border-primary rounded-xl p-5 bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center gap-2.5 cursor-pointer text-center group shadow-sm"
                           >
                             <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform border border-accent/20">
@@ -1952,6 +2064,119 @@ export default function Dossier({
           );
         })()}
       </AnimatePresence>
+
+      {/* HTML5 Document Scanner Overlay */}
+      {scannerActive && (
+        <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col justify-between p-6 select-none font-sans">
+          {/* Header */}
+          <div className="text-center pt-4 z-10">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest bg-primary/20 text-[#c5a368] px-3 py-1 rounded-full border border-primary/30">
+              Numérisation intelligente CNI / Passeport
+            </span>
+            <h4 className="text-white text-sm font-bold mt-2">
+              {scannerSide === 'recto' ? 'Cadrez le RECTO (Devant)' : scannerSide === 'verso' ? 'Cadrez le VERSO (Derrière)' : 'Cadrez le document'}
+            </h4>
+          </div>
+
+          {/* Video viewport and Bounding Box */}
+          <div className="relative flex-1 flex items-center justify-center my-4 overflow-hidden rounded-2xl bg-neutral-950 border border-white/10">
+            {scannerError ? (
+              <div className="p-5 text-center text-xs text-rose-400 font-semibold max-w-xs flex flex-col gap-2">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-rose-500" />
+                <span>{scannerError}</span>
+              </div>
+            ) : (
+              <video
+                ref={scannerVideoRef}
+                autoPlay
+                playsInline
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            )}
+
+            {/* Guide frame overlay */}
+            {!scannerError && (
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                {/* Masking overlay (top, bottom, sides) */}
+                <div className="bg-black/60 flex-1 w-full" />
+                <div className="flex w-full aspect-[1.58/1] max-w-[400px] mx-auto relative shrink-0">
+                  {/* Left mask */}
+                  <div className="bg-black/60 flex-1 h-full" />
+                  
+                  {/* The transparent window */}
+                  <div className="w-[85vw] max-w-[400px] aspect-[1.58/1] relative border-2 border-[#c5a368]/45 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] shrink-0">
+                    {/* Corner indicators */}
+                    <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-[4px] border-l-[4px] border-[#c5a368] rounded-tl-lg" />
+                    <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-[4px] border-r-[4px] border-[#c5a368] rounded-tr-lg" />
+                    <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-[4px] border-l-[4px] border-[#c5a368] rounded-bl-lg" />
+                    <div className="absolute -bottom-[3px] -right-[3px] w-6 h-6 border-b-[4px] border-r-[4px] border-[#c5a368] rounded-br-lg" />
+                    
+                    {/* Scanning line */}
+                    <div className="absolute left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#c5a368] to-transparent shadow-[0_0_8px_#c5a368]"
+                      style={{
+                        animation: 'scan 2.5s infinite linear',
+                        position: 'absolute',
+                        top: '0%'
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Right mask */}
+                  <div className="bg-black/60 flex-1 h-full" />
+                </div>
+                <div className="bg-black/60 flex-1 w-full flex flex-col justify-center items-center p-3">
+                  <span className="text-[9px] text-[#c5a368] font-bold tracking-wider uppercase animate-pulse">Aligner les bords de la pièce avec le cadre doré</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer actions */}
+          <div className="flex flex-col gap-3 items-center z-10 font-sans">
+            <div className="flex gap-3 w-full max-w-sm">
+              <button
+                type="button"
+                onClick={captureDocumentPhoto}
+                disabled={!!scannerError}
+                className="flex-1 py-3 px-5 bg-gradient-to-r from-[#c5a368] to-[#a0824b] text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
+              >
+                <Camera className="w-4 h-4 text-accent" />
+                <span>Prendre la photo 📸</span>
+              </button>
+              <button
+                type="button"
+                onClick={stopDocumentScanner}
+                className="py-3 px-5 border border-white/20 hover:bg-white/5 text-white/90 rounded-xl font-sans text-xs font-bold cursor-pointer transition-colors bg-transparent"
+              >
+                Annuler
+              </button>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => {
+                stopDocumentScanner();
+                if (scannerSide === 'recto') fileInputRectoRef.current?.click();
+                else if (scannerSide === 'verso') fileInputVersoRef.current?.click();
+                else fileInputStandardRef.current?.click();
+              }}
+              className="text-[10px] text-slate-400 hover:text-slate-200 underline bg-transparent border-0 cursor-pointer py-1"
+            >
+              Problème de caméra ? Cliquer ici pour utiliser l'appareil photo par défaut du système
+            </button>
+          </div>
+
+          {/* Inject keyframes dynamically */}
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes scan {
+              0% { top: 0%; opacity: 0.1; }
+              15% { opacity: 0.95; }
+              85% { opacity: 0.95; }
+              100% { top: 100%; opacity: 0.1; }
+            }
+          `}} />
+        </div>
+      )}
     </div>
   );
 }

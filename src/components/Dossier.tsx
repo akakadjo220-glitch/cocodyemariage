@@ -867,7 +867,11 @@ export default function Dossier({
     setIsUploadingFile(true);
 
     try {
-      const dbFileName = selectedFile.name;
+      let fileToUpload = selectedFile;
+      if (selectedFile.type.startsWith('image/')) {
+        fileToUpload = await resizeImageForAi(selectedFile, 1200, 1200);
+      }
+      const dbFileName = fileToUpload.name;
       const docNum = "";
 
       // Clean up previous rejection
@@ -877,7 +881,7 @@ export default function Dossier({
       }
 
       updateDocumentStatus(docId, 'uploading', dbFileName, docNum);
-      await uploadDocumentFile(dossierId, docId, selectedFile, dbFileName);
+      await uploadDocumentFile(dossierId, docId, fileToUpload, dbFileName);
       setIsUploadingFile(false);
 
       const AI_ANALYZED_DOCS = ['doc1', 'doc1_f', 'doc2', 'doc2_f'];
@@ -887,7 +891,7 @@ export default function Dossier({
       if (requiresAiAnalysis && config.geminiKey) {
         setIsAnalyzingAi(true);
         try {
-          const aiResult = await runDocumentAiAnalysis(dossierId, docId, selectedFile, dbFileName, (status) => {
+          const aiResult = await runDocumentAiAnalysis(dossierId, docId, fileToUpload, dbFileName, (status) => {
             setAnalysisStatus(prev => ({ ...prev, [docId]: status }));
           });
 

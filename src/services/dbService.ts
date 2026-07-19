@@ -3678,7 +3678,9 @@ async function pollPaddleOcrJob(
       if (onStatusUpdate) onStatusUpdate("⏳ En attente de traitement PaddleOCR...");
     }
 
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Adaptive sleep time to minimize latency for fast jobs (e.g. CNI)
+    const sleepTime = attempts <= 3 ? 600 : attempts <= 10 ? 1000 : 2000;
+    await new Promise(resolve => setTimeout(resolve, sleepTime));
   }
 
   throw new Error("Délai d'attente PaddleOCR dépassé (3 minutes).");

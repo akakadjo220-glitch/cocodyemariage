@@ -325,12 +325,13 @@ export default function Landing({
           sendOpenwaWhatsapp(config, targetNum, messageText);
         }
 
-        // Événement personnalisé pour afficher le Toast réactif avec le code (très utile pour la démo locale !)
+        // Événement personnalisé pour afficher le Toast réactif sans révéler le code secret à l'écran
+        const maskedToastMessage = messageText.replace(/\[CODE:\s*\d+\]/gi, '[CODE: ******]');
         const customEvent = new CustomEvent('e_mariage_notif_sent', {
           detail: {
             whatsapp: true,
             spouse1_phone: targetNum,
-            message: messageText
+            message: maskedToastMessage
           }
         });
         window.dispatchEvent(customEvent);
@@ -381,11 +382,12 @@ export default function Landing({
         sendOpenwaWhatsapp(config, otpTargetPhone, messageText);
       }
 
+      const maskedToastMessage = messageText.replace(/\[CODE:\s*\d+\]/gi, '[CODE: ******]');
       const customEvent = new CustomEvent('e_mariage_notif_sent', {
         detail: {
           whatsapp: true,
           spouse1_phone: otpTargetPhone,
-          message: messageText
+          message: maskedToastMessage
         }
       });
       window.dispatchEvent(customEvent);

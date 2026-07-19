@@ -55,7 +55,7 @@ import {
   getCapacityForDate
 } from '../services/dbService';
 
-const resizeImageForAi = (file: File, maxWidth = 1600, maxHeight = 1600): Promise<File> => {
+const resizeImageForAi = (file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.68): Promise<File> => {
   return new Promise((resolve) => {
     if (!file.type.startsWith('image/')) {
       resolve(file);
@@ -97,7 +97,7 @@ const resizeImageForAi = (file: File, maxWidth = 1600, maxHeight = 1600): Promis
           } else {
             resolve(file);
           }
-        }, 'image/jpeg', 0.82);
+        }, 'image/jpeg', quality);
       } else {
         resolve(file);
       }
@@ -229,16 +229,6 @@ export default function Dossier({
   const [cniVersoBase64, setCniVersoBase64] = useState<string | null>(null);
   const [activeCaptureSide, setActiveCaptureSide] = useState<'recto' | 'verso' | null>(null);
 
-  // Scanner states
-  const [scannerActive, setScannerActive] = useState(false);
-  const [scannerSide, setScannerSide] = useState<'recto' | 'verso' | 'standard' | null>(null);
-  const [scannerStream, setScannerStream] = useState<MediaStream | null>(null);
-  const [scannerError, setScannerError] = useState<string | null>(null);
-  const scannerVideoRef = useRef<HTMLVideoElement>(null);
-  const scannerFrameRef = useRef<HTMLDivElement>(null);
-  const [scannerVideoDevices, setScannerVideoDevices] = useState<MediaDeviceInfo[]>([]);
-  const [currentDeviceIndex, setCurrentDeviceIndex] = useState<number>(0);
-
   // Reset selected file when the upload modal closes
   useEffect(() => {
     setSelectedFile(null);
@@ -246,7 +236,6 @@ export default function Dossier({
       setCniRectoBase64(null);
       setCniVersoBase64(null);
       setActiveCaptureSide(null);
-      stopDocumentScanner();
     }
   }, [showFileUploadModal]);
 
@@ -312,22 +301,47 @@ export default function Dossier({
     const file = e.target.files?.[0];
     if (file) {
       setIsUploadingFile(true);
-      resizeImageForAi(file).then(resizedFile => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result as string;
+      
+      const img = new Image();
+      img.onload = () => {
+        const targetW = 800;
+        const targetH = 506; // Ratio 1.58:1 (Standard CNI/Passeport ID Card)
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          
+          // Center crop calculation for exact framing
+          const imgW = img.naturalWidth || img.width;
+          const imgH = img.naturalHeight || img.height;
+          const scale = Math.max(targetW / imgW, targetH / imgH);
+          const cropW = targetW / scale;
+          const cropH = targetH / scale;
+          const cropX = (imgW - cropW) / 2;
+          const cropY = (imgH - cropH) / 2;
+          
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, targetW, targetH);
+          ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+          
+          const base64 = canvas.toDataURL('image/jpeg', 0.68); // ~50-80 KB
           if (side === 'recto') {
             setCniRectoBase64(base64);
           } else {
             setCniVersoBase64(base64);
           }
-          setIsUploadingFile(false);
-        };
-        reader.readAsDataURL(resizedFile);
-      }).catch(err => {
-        console.error("Resize error:", err);
+        }
         setIsUploadingFile(false);
-      });
+      };
+      img.onerror = () => {
+        setIsUploadingFile(false);
+      };
+      img.src = URL.createObjectURL(file);
     }
     e.target.value = '';
   };
@@ -336,11 +350,11 @@ export default function Dossier({
     const file = e.target.files?.[0];
     if (file) {
       setIsUploadingFile(true);
-      resizeImageForAi(file).then(resizedFile => {
+      resizeImageForAi(file, 1000, 1000, 0.68).then(resizedFile => {
         const nameParts = file.name.split('.');
         nameParts.pop();
         const baseName = nameParts.join('.');
-        const cleanFileName = `${baseName}_resized_${Date.now()}.jpg`;
+        const cleanFileName = `${baseName}_compressed_${Date.now()}.jpg`;
 
         const newFile = new File([resizedFile], cleanFileName, { type: 'image/jpeg' });
         setSelectedFile(newFile);
@@ -607,231 +621,11 @@ export default function Dossier({
     };
   };
 
-  // Document Scanner capture functions
-  const startDocumentScanner = async (side: 'recto' | 'verso' | 'standard') => {
-    setScannerSide(side);
-    setScannerError(null);
-    setScannerActive(true);
-
-    // Stop any active streams first with a hardware release cooldown delay
-    if (scannerStream) {
-      scannerStream.getTracks().forEach(track => track.stop());
-      setScannerStream(null);
-      await new Promise(r => setTimeout(r, 200));
-    }
-    if (webcamStream) {
-      webcamStream.getTracks().forEach(track => track.stop());
-      setWebcamStream(null);
-      await new Promise(r => setTimeout(r, 200));
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.warn("MediaDevices API unavailable, triggering native system camera fallback...");
-      handleFallbackSystemCamera(side);
-      return;
-    }
-
-    // List of progressive constraints — prefer back camera with standard/reduced resolution (ideal: 1280x720)
-    const constraintsList: MediaStreamConstraints[] = [
-      { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-      { video: { facingMode: 'environment' } },
-      { video: { facingMode: { ideal: 'user' } } },
-      { video: true }
-    ];
-
-    let stream: MediaStream | null = null;
-    let lastError: any = null;
-
-    for (const constraints of constraintsList) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (stream) break;
-      } catch (err: any) {
-        lastError = err;
-        console.warn("Camera constraint attempt failed:", err.name);
-        await new Promise(r => setTimeout(r, 150));
-      }
-    }
-
-    if (!stream) {
-      console.warn("All HTML5 camera constraints failed on this device, triggering native system camera fallback...", lastError);
-      handleFallbackSystemCamera(side);
-      return;
-    }
-
-    // Assign final stream
-    setScannerStream(stream);
-    requestAnimationFrame(() => {
-      if (scannerVideoRef.current) {
-        attachStreamToVideo(scannerVideoRef.current, stream!);
-      }
-    });
-
-    // Enumerate available devices for camera switcher
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const vDevices = devices.filter(d => d.kind === 'videoinput');
-      setScannerVideoDevices(vDevices);
-      const activeTrack = stream.getVideoTracks()[0];
-      const activeSettings = activeTrack ? activeTrack.getSettings() : null;
-      if (activeSettings?.deviceId) {
-        const idx = vDevices.findIndex(d => d.deviceId === activeSettings.deviceId);
-        if (idx !== -1) setCurrentDeviceIndex(idx);
-      }
-    } catch (e) {
-      console.warn("Failed to enumerate devices:", e);
-    }
-  };
-
-  const switchScannerCamera = async () => {
-    if (scannerVideoDevices.length < 2) return;
-    const nextIndex = (currentDeviceIndex + 1) % scannerVideoDevices.length;
-    const nextDevice = scannerVideoDevices[nextIndex];
-
-    if (scannerStream) {
-      scannerStream.getTracks().forEach(track => track.stop());
-      setScannerStream(null);
-      await new Promise(r => setTimeout(r, 250)); // Mandatory release delay for mobile hardware
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: nextDevice.deviceId } }
-      });
-      setScannerStream(stream);
-      setCurrentDeviceIndex(nextIndex);
-      requestAnimationFrame(() => {
-        if (scannerVideoRef.current) {
-          attachStreamToVideo(scannerVideoRef.current, stream);
-        }
-      });
-    } catch (e) {
-      console.warn("Failed to switch camera:", e);
-    }
-  };
-
-  const stopDocumentScanner = () => {
-    if (scannerStream) {
-      scannerStream.getTracks().forEach(track => track.stop());
-      setScannerStream(null);
-    }
-    setScannerActive(false);
-    setScannerSide(null);
-  };
-
-  const handleFallbackSystemCamera = (targetSide?: 'recto' | 'verso' | 'standard' | null) => {
-    const side = targetSide || scannerSide;
-    stopDocumentScanner();
-    setTimeout(() => {
-      if (side === 'recto') {
-        fileInputRectoRef.current?.click();
-      } else if (side === 'verso') {
-        fileInputVersoRef.current?.click();
-      } else if (side === 'standard') {
-        fileInputStandardRef.current?.click();
-      }
-    }, 150);
-  };
-
-  const captureDocumentPhoto = () => {
-    if (!scannerVideoRef.current || !scannerSide) return;
-    const video = scannerVideoRef.current;
-    
-    // Get actual display bounds of the video element
-    const videoRect = video.getBoundingClientRect();
-    
-    // Get actual display bounds of the golden frame
-    let frameRect = { left: 0, top: 0, width: 0, height: 0 };
-    if (scannerFrameRef.current) {
-      frameRect = scannerFrameRef.current.getBoundingClientRect();
-    } else {
-      // Fallback fallback if ref not mounted yet
-      const containerW = videoRect.width;
-      const containerH = videoRect.height;
-      const cropW = Math.min(containerW * 0.85, 400);
-      const cropH = cropW / 1.58;
-      frameRect = {
-        left: videoRect.left + (containerW - cropW) / 2,
-        top: videoRect.top + (containerH - cropH) / 2,
-        width: cropW,
-        height: cropH
-      };
-    }
-
-    const videoW = video.videoWidth || 1280;
-    const videoH = video.videoHeight || 720;
-    const displayW = videoRect.width || 640;
-    const displayH = videoRect.height || 480;
-
-    // Calculate how object-cover scales and centers the video inside its display bounds
-    const scale = Math.max(displayW / videoW, displayH / videoH);
-    const scaledW = videoW * scale;
-    const scaledH = videoH * scale;
-
-    const offsetX = (displayW - scaledW) / 2;
-    const offsetY = (displayH - scaledH) / 2;
-
-    // Position of frame relative to scaled video
-    const relativeFrameX = (frameRect.left - videoRect.left) - offsetX;
-    const relativeFrameY = (frameRect.top - videoRect.top) - offsetY;
-
-    // Map screen crop coordinates back to raw video resolution coordinates
-    const cropX = Math.round(relativeFrameX / scale);
-    const cropY = Math.round(relativeFrameY / scale);
-    const cropW = Math.round(frameRect.width / scale);
-    const cropH = Math.round(frameRect.height / scale);
-
-    // Clamp values to prevent out of bounds drawing errors
-    const finalCropX = Math.max(0, Math.min(videoW - 1, cropX));
-    const finalCropY = Math.max(0, Math.min(videoH - 1, cropY));
-    const finalCropW = Math.max(1, Math.min(videoW - finalCropX, cropW));
-    const finalCropH = Math.max(1, Math.min(videoH - finalCropY, cropH));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = finalCropW;
-    canvas.height = finalCropH;
-
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(video, finalCropX, finalCropY, finalCropW, finalCropH, 0, 0, finalCropW, finalCropH);
-
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = reader.result as string;
-
-            if (scannerSide === 'recto') {
-              setCniRectoBase64(base64);
-            } else if (scannerSide === 'verso') {
-              setCniVersoBase64(base64);
-            } else {
-              const activeDoc = documents.find(d => d.id === showFileUploadModal);
-              const nameParts = (activeDoc?.name || 'document').replace(/\s+/g, '_').toLowerCase();
-              const fileName = `${nameParts}_complet_${Date.now()}.jpg`;
-              const file = new File([blob], fileName, { type: 'image/jpeg' });
-              setSelectedFile(file);
-            }
-            stopDocumentScanner();
-          };
-          reader.readAsDataURL(blob);
-        }
-      }, 'image/jpeg', 0.85);
-    }
-  };
-
-  // Webcam capture functions
+  // Webcam capture functions for selfie
   const startWebcam = async () => {
     setSelfieError(null);
     setCapturedSelfieBase64(null);
 
-    // Stop any active streams first to release the camera hardware
-    if (scannerStream) {
-      scannerStream.getTracks().forEach(track => track.stop());
-      setScannerStream(null);
-    }
     if (webcamStream) {
       webcamStream.getTracks().forEach(track => track.stop());
       setWebcamStream(null);
@@ -2010,7 +1804,7 @@ export default function Dossier({
                                   <img src={cniRectoBase64} alt="CNI Recto" className="w-full h-full object-cover" />
                                   <button
                                     type="button"
-                                    onClick={() => startDocumentScanner('recto')}
+                                    onClick={() => fileInputRectoRef.current?.click()}
                                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white border-0 cursor-pointer rounded-xl"
                                   >
                                     <Camera className="w-4 h-4 text-accent" />
@@ -2020,7 +1814,7 @@ export default function Dossier({
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => startDocumentScanner('recto')}
+                                  onClick={() => fileInputRectoRef.current?.click()}
                                   className="border border-dashed border-primary/40 hover:border-primary rounded-xl aspect-[4/3] bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
                                 >
                                   <Camera className="w-5 h-5 text-primary group-hover:scale-105 transition-transform" />
@@ -2038,7 +1832,7 @@ export default function Dossier({
                                   <img src={cniVersoBase64} alt="CNI Verso" className="w-full h-full object-cover" />
                                   <button
                                     type="button"
-                                    onClick={() => startDocumentScanner('verso')}
+                                    onClick={() => fileInputVersoRef.current?.click()}
                                     className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white border-0 cursor-pointer rounded-xl"
                                   >
                                     <Camera className="w-4 h-4 text-accent" />
@@ -2048,7 +1842,7 @@ export default function Dossier({
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => startDocumentScanner('verso')}
+                                  onClick={() => fileInputVersoRef.current?.click()}
                                   className="border border-dashed border-primary/40 hover:border-primary rounded-xl aspect-[4/3] bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center group"
                                 >
                                   <Camera className="w-5 h-5 text-primary group-hover:scale-105 transition-transform" />
@@ -2109,7 +1903,7 @@ export default function Dossier({
                         <div className="flex flex-col gap-4">
                           <button
                             type="button"
-                            onClick={() => startDocumentScanner('standard')}
+                            onClick={() => fileInputStandardRef.current?.click()}
                             className="relative border border-primary/30 hover:border-primary rounded-xl p-5 bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center gap-2.5 cursor-pointer text-center group shadow-sm"
                           >
                             <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform border border-accent/20">
@@ -2210,138 +2004,6 @@ export default function Dossier({
           );
         })()}
       </AnimatePresence>
-
-      {/* HTML5 Document Scanner Overlay */}
-      {scannerActive && (
-        <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col justify-between p-6 select-none font-sans">
-          {/* Header */}
-          <div className="text-center pt-4 z-10">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest bg-primary/20 text-[#c5a368] px-3 py-1 rounded-full border border-primary/30">
-              Numérisation intelligente CNI / Passeport
-            </span>
-            <h4 className="text-white text-sm font-bold mt-2">
-              {scannerSide === 'recto' ? 'Cadrez le RECTO (Devant)' : scannerSide === 'verso' ? 'Cadrez le VERSO (Derrière)' : 'Cadrez le document'}
-            </h4>
-            {scannerVideoDevices.length > 1 && !scannerError && (
-              <button
-                type="button"
-                onClick={switchScannerCamera}
-                className="mt-2.5 px-3.5 py-1.5 bg-white/10 hover:bg-white/20 border border-white/25 text-white rounded-full text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 mx-auto shadow-sm backdrop-blur-md active:scale-95"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-[#c5a368]" />
-                <span>Changer de caméra 🔄</span>
-              </button>
-            )}
-          </div>
-
-          {/* Video viewport and Bounding Box */}
-          <div className="relative flex-1 flex items-center justify-center my-4 overflow-hidden rounded-2xl bg-neutral-950 border border-white/10">
-            {scannerError ? (
-              <div className="p-6 text-center text-xs text-rose-100 font-semibold max-w-xs flex flex-col gap-3 bg-rose-950/65 backdrop-blur-md rounded-2xl border border-rose-800/40 shadow-lg z-20">
-                <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 mx-auto animate-pulse">
-                  <AlertCircle className="w-6 h-6" />
-                </div>
-                <h4 className="text-white text-sm font-bold">Erreur d'accès à la caméra</h4>
-                <p className="text-rose-200/80 leading-relaxed font-sans font-medium">{scannerError}</p>
-                <button
-                  type="button"
-                  onClick={() => handleFallbackSystemCamera()}
-                  className="mt-2 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 border-0"
-                >
-                  <Camera className="w-4 h-4 text-white" />
-                  <span>Prendre la photo avec le téléphone 📱</span>
-                </button>
-              </div>
-            ) : (
-              <video
-                ref={scannerVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            )}
-
-            {/* Guide frame overlay */}
-            {!scannerError && (
-              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                {/* Masking overlay (top, bottom, sides) */}
-                <div className="bg-black/60 flex-1 w-full" />
-                <div className="flex w-full aspect-[1.58/1] max-w-[400px] mx-auto relative shrink-0">
-                  {/* Left mask */}
-                  <div className="bg-black/60 flex-1 h-full" />
-
-                  {/* The transparent window */}
-                  <div ref={scannerFrameRef} className="w-[85vw] max-w-[400px] aspect-[1.58/1] relative border-2 border-[#c5a368]/45 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] shrink-0">
-                    {/* Corner indicators */}
-                    <div className="absolute -top-[3px] -left-[3px] w-6 h-6 border-t-[4px] border-l-[4px] border-[#c5a368] rounded-tl-lg" />
-                    <div className="absolute -top-[3px] -right-[3px] w-6 h-6 border-t-[4px] border-r-[4px] border-[#c5a368] rounded-tr-lg" />
-                    <div className="absolute -bottom-[3px] -left-[3px] w-6 h-6 border-b-[4px] border-l-[4px] border-[#c5a368] rounded-bl-lg" />
-                    <div className="absolute -bottom-[3px] -right-[3px] w-6 h-6 border-b-[4px] border-r-[4px] border-[#c5a368] rounded-br-lg" />
-
-                    {/* Scanning line */}
-                    <div className="absolute left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#c5a368] to-transparent shadow-[0_0_8px_#c5a368]"
-                      style={{
-                        animation: 'scan 2.5s infinite linear',
-                        position: 'absolute',
-                        top: '0%'
-                      }}
-                    />
-                  </div>
-
-                  {/* Right mask */}
-                  <div className="bg-black/60 flex-1 h-full" />
-                </div>
-                <div className="bg-black/60 flex-1 w-full flex flex-col justify-center items-center p-3">
-                  <span className="text-[9px] text-[#c5a368] font-bold tracking-wider uppercase animate-pulse">Aligner les bords de la pièce avec le cadre doré</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Footer actions */}
-          <div className="flex flex-col gap-3 items-center z-10 font-sans w-full max-w-sm mx-auto">
-            <div className="flex flex-col sm:flex-row gap-2.5 w-full">
-              {!scannerError && (
-                <button
-                  type="button"
-                  onClick={captureDocumentPhoto}
-                  className="w-full sm:flex-1 py-3 px-5 bg-gradient-to-r from-[#c5a368] to-[#a0824b] text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
-                >
-                  <Camera className="w-4 h-4 text-accent" />
-                  <span>Prendre la photo 📸</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => handleFallbackSystemCamera()}
-                className="w-full sm:flex-1 py-3 px-4 bg-emerald-700/80 hover:bg-emerald-600 text-white rounded-xl font-sans text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-emerald-500/30 shadow-md"
-              >
-                <Camera className="w-4 h-4 text-white" />
-                <span>Caméra du téléphone 📱</span>
-              </button>
-              <button
-                type="button"
-                onClick={stopDocumentScanner}
-                className="w-full sm:w-auto py-3 px-5 border border-white/20 hover:bg-white/5 text-white/90 rounded-xl font-sans text-xs font-bold cursor-pointer transition-colors bg-transparent"
-              >
-                Annuler
-              </button>
-            </div>
-          </div>
-
-          {/* Inject keyframes dynamically */}
-          <style dangerouslySetInnerHTML={{
-            __html: `
-            @keyframes scan {
-              0% { top: 0%; opacity: 0.1; }
-              15% { opacity: 0.95; }
-              85% { opacity: 0.95; }
-              100% { top: 100%; opacity: 0.1; }
-            }
-          `}} />
-        </div>
-      )}
     </div>
   );
 }

@@ -338,7 +338,8 @@ export default function App() {
         toastMsg += `✉️ [E-mail] Envoyé à: ${e1} ${e2 ? '& ' + e2 : ''}. `;
       }
       if (toastMsg) {
-        triggerToast(`${toastMsg}\n"${message.slice(0, 70)}..."`);
+        const cleanMsg = (message || '').replace(/\[CODE:\s*\d+\]/gi, '[CODE: ******]').replace(/\b\d{6}\b/g, '******');
+        triggerToast(`${toastMsg}\n"${cleanMsg.slice(0, 70)}..."`);
       }
     };
     window.addEventListener('e_mariage_notif_sent', handleNotifSent);

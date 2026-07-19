@@ -826,6 +826,7 @@ export default function Dossier({
 
           const statusMap = {
             'VALIDER': 'verified' as const,
+            'ACCEPTER': 'verified' as const,
             'REJETER': 'rejected' as const,
             'VERIFIER_MANUELLEMENT': 'pending' as const
           };

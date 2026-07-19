@@ -2701,46 +2701,7 @@ Tout document daté de ${new Date().getFullYear()} ou avant est valide.`;
         .trim();
 
       const rawJson = JSON.parse(texteNettoye) as any;
-
-      const resultat: AiAnalysisResult = {
-        type_document: rawJson.type_document || "INCONNU",
-        est_lisible: typeof rawJson.est_lisible !== 'undefined' ? rawJson.est_lisible : true,
-        est_authentique: typeof rawJson.est_valide !== 'undefined' ? (rawJson.est_valide ? true : false) : (typeof rawJson.est_authentique !== 'undefined' ? rawJson.est_authentique : true),
-        confiance: typeof rawJson.confiance !== 'undefined' ? rawJson.confiance : 90,
-        infos_extraites: {
-          nom: rawJson.nom_extrait || (rawJson.infos_extraites?.nom || ""),
-          prenoms: rawJson.prenoms_extraits || (rawJson.infos_extraites?.prenoms || ""),
-          date_naissance: rawJson.date_naissance_extraite || (rawJson.infos_extraites?.date_naissance || ""),
-          lieu_naissance: rawJson.lieu_naissance_extrait || (rawJson.infos_extraites?.lieu_naissance || ""),
-          numero_document: rawJson.numero_piece_extrait || (rawJson.infos_extraites?.numero_document || ""),
-          date_expiration: rawJson.date_expiration_extraite || (rawJson.infos_extraites?.date_expiration || ""),
-          nationalite: rawJson.infos_extraites?.nationalite || (rawJson.ne_a_etranger ? "Étrangère" : "Ivoirienne")
-        },
-        anomalies: rawJson.anomalies || [],
-        action_recommandee: 'VERIFIER_MANUELLEMENT',
-        motif: rawJson.message_utilisateur || rawJson.motif || ""
-      };
-
-      const act = rawJson.action_recommandee || "";
-      if (act === 'ACCEPTER' || act === 'VALIDER') {
-        resultat.action_recommandee = 'VALIDER';
-      } else if (act === 'REJETER') {
-        resultat.action_recommandee = 'REJETER';
-      } else if (act === 'REUPLOADER') {
-        resultat.action_recommandee = 'REJETER';
-        (resultat as any)._raw_action = 'REUPLOADER';
-      } else if (act === 'VERIFIER_MANUELLEMENT') {
-        resultat.action_recommandee = 'VERIFIER_MANUELLEMENT';
-      } else {
-        resultat.action_recommandee = 'VERIFIER_MANUELLEMENT';
-      }
-
-      if (rawJson.date_delivrance_extraite) {
-        (resultat as any).date_delivrance = rawJson.date_delivrance_extraite;
-      }
-
-      // Ajouter des propriétés de diagnostic dans l'objet de retour
-      (resultat as any)._modele_utilise = modele;
+      const resultat = normaliserResultatIA(rawJson, modele);
       (resultat as any)._tentative = i + 1;
 
       console.log(`✅ Succès avec : ${modele}`);
@@ -2792,6 +2753,58 @@ export function safeString(val: any): string {
   return '';
 }
 
+export function normaliserResultatIA(rawJson: any, modele: string): AiAnalysisResult {
+  const safeMotif = safeString(rawJson.motif || rawJson.message_utilisateur || rawJson.raison || rawJson.explication);
+
+  // Normalize action_recommandee
+  let action: 'VALIDER' | 'REJETER' | 'VERIFIER_MANUELLEMENT' = 'VERIFIER_MANUELLEMENT';
+  const act = (rawJson.action_recommandee || rawJson.action || '').toUpperCase();
+  if (act === 'ACCEPTER' || act === 'VALIDER' || act === 'ACCEPT' || act === 'OK' || act === 'VALIDE') {
+    action = 'VALIDER';
+  } else if (act === 'REJETER' || act === 'REJECT' || act === 'REUPLOADER' || act === 'INVALIDE') {
+    action = 'REJETER';
+  } else {
+    action = 'VERIFIER_MANUELLEMENT';
+  }
+
+  // Extract date_delivrance or date_expiration safely
+  const dateDelivrance = rawJson.date_delivrance_extraite || rawJson.infos_extraites?.date_delivrance || '';
+
+  const infos_extraites = {
+    nom: safeString(rawJson.nom_extrait || rawJson.infos_extraites?.nom || rawJson.nom || ''),
+    prenoms: safeString(rawJson.prenoms_extraits || rawJson.infos_extraites?.prenoms || rawJson.prenoms || ''),
+    date_naissance: safeString(rawJson.date_naissance_extraite || rawJson.infos_extraites?.date_naissance || rawJson.date_naissance || ''),
+    lieu_naissance: safeString(rawJson.lieu_naissance_extrait || rawJson.infos_extraites?.lieu_naissance || rawJson.lieu_naissance || ''),
+    numero_document: safeString(rawJson.numero_piece_extrait || rawJson.infos_extraites?.numero_document || rawJson.numero_document || rawJson.numero_piece || ''),
+    date_expiration: safeString(rawJson.date_expiration_extraite || rawJson.infos_extraites?.date_expiration || rawJson.date_expiration || ''),
+    nationalite: safeString(rawJson.infos_extraites?.nationalite || rawJson.nationalite || (rawJson.ne_a_etranger ? "Étrangère" : "Ivoirienne"))
+  };
+
+  const anomalies = Array.isArray(rawJson.anomalies)
+    ? rawJson.anomalies.map((a: any) => safeString(a)).filter(Boolean)
+    : safeString(rawJson.anomalies)
+    ? [safeString(rawJson.anomalies)]
+    : [];
+
+  const res: AiAnalysisResult = {
+    type_document: safeString(rawJson.type_document) || "PIÈCE_IDENTITÉ",
+    est_lisible: typeof rawJson.est_lisible !== 'undefined' ? Boolean(rawJson.est_lisible) : true,
+    est_authentique: typeof rawJson.est_authentique !== 'undefined' ? Boolean(rawJson.est_authentique) : true,
+    confiance: typeof rawJson.confiance === 'number' ? rawJson.confiance : 90,
+    infos_extraites,
+    anomalies,
+    action_recommandee: action,
+    motif: safeMotif || (action === 'VALIDER' ? "Document d'identité vérifié et conforme." : "Vérification requise pour ce document."),
+    _modele_utilise: modele
+  };
+
+  if (dateDelivrance) {
+    (res as any).date_delivrance = dateDelivrance;
+  }
+
+  return res;
+}
+
 export async function appelMistralVision(prompt: string, base64Data: string, mimeType: string, config: AiConfig): Promise<AiAnalysisResult> {
   if (config.mistralKey) {
     try {
@@ -2826,10 +2839,7 @@ export async function appelMistralVision(prompt: string, base64Data: string, mim
           content = content.split('```')[1].split('```')[0].trim();
         }
         const parsed = JSON.parse(content);
-        return {
-          ...parsed,
-          _modele_utilise: 'Mistral-Pixtral-12B (Direct API)'
-        };
+        return normaliserResultatIA(parsed, 'Mistral-Pixtral-12B (Direct API)');
       }
     } catch (err) {
       console.warn("Direct Mistral Vision API call failed, falling back to OpenRouter Vision:", err);

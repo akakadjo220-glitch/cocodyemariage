@@ -619,7 +619,7 @@ export default function Dossier({
     } catch (err: any) {
       console.warn("Back camera environment constraint failed, trying generic constraints...", err);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         setScannerStream(stream);
         setTimeout(() => {
           if (scannerVideoRef.current) {
@@ -627,19 +627,19 @@ export default function Dossier({
           }
         }, 150);
       } catch (fallbackErr: any) {
-        console.error("Camera completely inaccessible:", fallbackErr);
-        setScannerError("Impossible d'accéder à la caméra arrière. Redirection vers le sélecteur d'appareil photo standard...");
-        // Fallback to standard input click after a small delay
-        setTimeout(() => {
-          setScannerActive(false);
-          if (side === 'recto') {
-            fileInputRectoRef.current?.click();
-          } else if (side === 'verso') {
-            fileInputVersoRef.current?.click();
-          } else {
-            fileInputStandardRef.current?.click();
-          }
-        }, 2500);
+        console.warn("Back camera environment completely failed, trying video: true...", fallbackErr);
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          setScannerStream(stream);
+          setTimeout(() => {
+            if (scannerVideoRef.current) {
+              scannerVideoRef.current.srcObject = stream;
+            }
+          }, 150);
+        } catch (finalErr: any) {
+          console.error("Camera completely inaccessible:", finalErr);
+          setScannerError("Impossible d'accéder à l'appareil photo de votre appareil. Veuillez autoriser l'accès ou utiliser l'appareil photo du système ci-dessous.");
+        }
       }
     }
   };
@@ -651,6 +651,18 @@ export default function Dossier({
     }
     setScannerActive(false);
     setScannerSide(null);
+  };
+
+  const handleFallbackSystemCamera = () => {
+    const side = scannerSide;
+    stopDocumentScanner();
+    if (side === 'recto') {
+      fileInputRectoRef.current?.click();
+    } else if (side === 'verso') {
+      fileInputVersoRef.current?.click();
+    } else if (side === 'standard') {
+      fileInputStandardRef.current?.click();
+    }
   };
 
   const captureDocumentPhoto = () => {
@@ -2081,9 +2093,12 @@ export default function Dossier({
           {/* Video viewport and Bounding Box */}
           <div className="relative flex-1 flex items-center justify-center my-4 overflow-hidden rounded-2xl bg-neutral-950 border border-white/10">
             {scannerError ? (
-              <div className="p-5 text-center text-xs text-rose-400 font-semibold max-w-xs flex flex-col gap-2">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-rose-500" />
-                <span>{scannerError}</span>
+              <div className="p-6 text-center text-xs text-rose-100 font-semibold max-w-xs flex flex-col gap-3 bg-rose-950/65 backdrop-blur-md rounded-2xl border border-rose-800/40 shadow-lg z-20">
+                <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 mx-auto animate-pulse">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <h4 className="text-white text-sm font-bold">Erreur d'accès à la caméra</h4>
+                <p className="text-rose-200/80 leading-relaxed font-sans font-medium">{scannerError}</p>
               </div>
             ) : (
               <video
@@ -2132,17 +2147,27 @@ export default function Dossier({
           </div>
 
           {/* Footer actions */}
-          <div className="flex flex-col gap-3 items-center z-10 font-sans">
-            <div className="flex gap-3 w-full max-w-sm">
-              <button
-                type="button"
-                onClick={captureDocumentPhoto}
-                disabled={!!scannerError}
-                className="flex-1 py-3 px-5 bg-gradient-to-r from-[#c5a368] to-[#a0824b] text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
-              >
-                <Camera className="w-4 h-4 text-accent" />
-                <span>Prendre la photo 📸</span>
-              </button>
+          <div className="flex flex-col gap-3 items-center z-10 font-sans w-full max-w-sm mx-auto">
+            <div className="flex gap-3 w-full">
+              {scannerError ? (
+                <button
+                  type="button"
+                  onClick={handleFallbackSystemCamera}
+                  className="flex-1 py-3 px-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                  <span>Caméra du système 📸</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={captureDocumentPhoto}
+                  className="flex-1 py-3 px-5 bg-gradient-to-r from-[#c5a368] to-[#a0824b] text-white rounded-xl font-sans text-xs font-bold shadow-lg hover:shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer border-0"
+                >
+                  <Camera className="w-4 h-4 text-accent" />
+                  <span>Prendre la photo 📸</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={stopDocumentScanner}
@@ -2152,18 +2177,15 @@ export default function Dossier({
               </button>
             </div>
             
-            <button
-              type="button"
-              onClick={() => {
-                stopDocumentScanner();
-                if (scannerSide === 'recto') fileInputRectoRef.current?.click();
-                else if (scannerSide === 'verso') fileInputVersoRef.current?.click();
-                else fileInputStandardRef.current?.click();
-              }}
-              className="text-[10px] text-slate-400 hover:text-slate-200 underline bg-transparent border-0 cursor-pointer py-1"
-            >
-              Problème de caméra ? Cliquer ici pour utiliser l'appareil photo par défaut du système
-            </button>
+            {!scannerError && (
+              <button
+                type="button"
+                onClick={handleFallbackSystemCamera}
+                className="text-[10px] text-slate-400 hover:text-slate-200 underline bg-transparent border-0 cursor-pointer py-1"
+              >
+                Problème de caméra ? Cliquer ici pour utiliser l'appareil photo par défaut du système
+              </button>
+            )}
           </div>
 
           {/* Inject keyframes dynamically */}

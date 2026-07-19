@@ -4061,8 +4061,19 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
         ? [finalRes.anomalies]
         : [];
 
-      finalRes.motif = safeMotifText || "Analyse du document effectuée.";
       finalRes.anomalies = safeAnomaliesList;
+
+      if (!safeMotifText || safeMotifText === "Analyse du document effectuée.") {
+        if (finalRes.action_recommandee === 'VALIDER') {
+          finalRes.motif = "Pièce d'identité valide et conforme.";
+        } else if (finalRes.action_recommandee === 'REJETER') {
+          finalRes.motif = safeAnomaliesList.join(' | ') || "Document non conforme ou illisible. Veuillez téléverser une photo plus nette.";
+        } else {
+          finalRes.motif = "Document reçu. En attente de vérification par l'officier d'état civil.";
+        }
+      } else {
+        finalRes.motif = safeMotifText;
+      }
 
       if (finalRes.infos_extraites) {
         const expStr = safeString(finalRes.infos_extraites.date_expiration);
@@ -4076,14 +4087,14 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
           if (expYear >= currentYear) {
             if (finalRes.action_recommandee === 'REJETER' && (hasExpirInMotif || hasExpirInAnomalies)) {
               console.log(`[AI Auto-Fix] Overriding false expiration rejection: Expiration year ${expYear} >= current year ${currentYear}`);
-              finalRes.action_recommandee = 'ACCEPTER';
+              finalRes.action_recommandee = 'VALIDER';
               finalRes.motif = `Pièce d'identité valide (Expire le ${expStr}).`;
               finalRes.anomalies = finalRes.anomalies.filter(a => !a.toLowerCase().includes('expir'));
             }
           }
         } else if (finalRes.action_recommandee === 'REJETER' && hasExpirInMotif) {
           console.log(`[AI Auto-Fix] Overriding unverified expiration rejection for valid ID card`);
-          finalRes.action_recommandee = 'ACCEPTER';
+          finalRes.action_recommandee = 'VALIDER';
           finalRes.motif = `Pièce d'identité validée avec succès.`;
           finalRes.anomalies = finalRes.anomalies.filter(a => !a.toLowerCase().includes('expir'));
         }
@@ -4091,7 +4102,7 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
     }
 
     // 3. Fast Groq LPU Cross-Validation (< 0.5s) if Groq API key is present
-    if (config.groqKey && finalRes && finalRes.action_recommandee === 'ACCEPTER') {
+    if (config.groqKey && finalRes && (finalRes.action_recommandee === 'VALIDER' || finalRes.action_recommandee === 'ACCEPTER')) {
       try {
         if (onStatusUpdate) onStatusUpdate("⚡ Contrôle de sécurité rapide par Groq LPU...");
         const groqCrossCheck = await croiserDonneesGroq(
@@ -4174,12 +4185,12 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
     const declaredWords = declaredNorm.split(/\s+/).filter(w => w.length > 1);
     const extractedWords = extractedNorm.split(/\s+/).filter(w => w.length > 1);
 
-    // Compute token match ratio for Names
+    // Compute token match ratio for Names only if text was extracted
     let nameMatches = true;
-    if (declaredWords.length > 0) {
+    if (declaredWords.length > 0 && extractedWords.length > 0) {
       const matches = declaredWords.filter(w => extractedWords.includes(w));
       const matchRatio = matches.length / declaredWords.length;
-      nameMatches = matchRatio >= 0.5; // At least 50% of declared words must match extracted
+      nameMatches = matchRatio >= 0.33; // At least 1 matching token
     }
 
     // Check birthdate match (compare with the other document's birthdate if available)
@@ -4227,9 +4238,9 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
       }
     }
 
-    // Check document number match (CNI/Passport only)
+    // Check document number match (CNI/Passport only if both are non-empty)
     let docNumMatches = true;
-    if (isIdentityDoc && declaredCni && extractedDocNum) {
+    if (isIdentityDoc && declaredCni && extractedDocNum && declaredCni.trim() !== '' && extractedDocNum.trim() !== '') {
       const cleanNum = (str: string) => str.replace(/[^A-Z0-9]/gi, '').toUpperCase();
       docNumMatches = cleanNum(declaredCni) === cleanNum(extractedDocNum);
     }
@@ -4242,14 +4253,14 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
       const sourceName = usingOtherDocForBirthdate ? "sur la pièce d'identité" : "déclarée";
       mismatchAnomalies.push(`Incohérence date de naissance : la date extraite "${extractedBirthdate}" ne correspond pas à celle ${sourceName} "${targetBirthdate}".`);
     }
-    if (isIdentityDoc && declaredCni && !docNumMatches) {
+    if (isIdentityDoc && declaredCni && extractedDocNum && !docNumMatches) {
       mismatchAnomalies.push(`Incohérence numéro de pièce : le numéro extrait "${extractedDocNum}" ne correspond pas au numéro déclaré "${declaredCni}".`);
     }
 
     if (mismatchAnomalies.length > 0) {
       finalResult.action_recommandee = 'REJETER';
       finalResult.anomalies = [...(finalResult.anomalies || []), ...mismatchAnomalies];
-      finalResult.motif = `Rejet automatique IA — Incohérence des informations déclarées : ${mismatchAnomalies.join(' | ')}`;
+      finalResult.motif = mismatchAnomalies.join(' | ');
     }
   }
   const rawAction = (finalResult as any)._raw_action || finalResult.action_recommandee;

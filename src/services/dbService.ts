@@ -3385,7 +3385,7 @@ export async function testerConnexionTavily(cleAPI: string): Promise<{ status: '
 }
 
 function getEffectiveUrl(url: string): string {
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+  if (typeof window !== 'undefined') {
     if (url.startsWith('https://paddleocr.aistudio-app.com')) {
       return url.replace('https://paddleocr.aistudio-app.com', '/paddleocr-api');
     }
@@ -3615,7 +3615,7 @@ async function submitPaddleOcrJob(
   const response = await fetch(effectiveUrl, {
     method: "POST",
     headers: {
-      "Authorization": `bearer ${token}`
+      "Authorization": `Bearer ${token}`
     },
     body: formData
   });
@@ -3647,7 +3647,7 @@ async function pollPaddleOcrJob(
     attempts++;
     const response = await fetch(checkUrl, {
       headers: {
-        "Authorization": `bearer ${token}`
+        "Authorization": `Bearer ${token}`
       }
     });
 

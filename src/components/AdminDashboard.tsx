@@ -144,6 +144,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
   // System parameters form state
   const [paramReservationPrice, setParamReservationPrice] = useState<number>(2500);
+  const [paramTimbrePrice, setParamTimbrePrice] = useState<number>(100000);
   const [paramRescheduleLimit, setParamRescheduleLimit] = useState<number>(3);
   const [paramDailyWeddingLimit, setParamDailyWeddingLimit] = useState<number>(15);
 
@@ -426,7 +427,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
     setBlockedSlotsList(dbCreneaux || []);
     if (dbParams) {
       setRoomsParams(dbParams);
-      setParamReservationPrice(dbParams.frais_reservation_montant);
+      setParamReservationPrice(dbParams.frais_reservation_montant || 2500);
+      setParamTimbrePrice(dbParams.frais_timbre_montant || 100000);
       setParamRescheduleLimit(dbParams.nombre_reprogrammations_limite);
       setParamDailyWeddingLimit(dbParams.quota_max_journalier || 15);
     }
@@ -1449,11 +1451,12 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
     e.preventDefault();
     const success = await updateSystemParameters({
       frais_reservation_montant: paramReservationPrice,
+      frais_timbre_montant: paramTimbrePrice,
       nombre_reprogrammations_limite: paramRescheduleLimit,
       quota_max_journalier: paramDailyWeddingLimit
     });
     if (success) {
-      addNotification("Paramètres de réservation enregistrés !", "success");
+      addNotification("Paramètres tarifaires et système enregistrés !", "success");
       loadData();
     } else {
       addNotification("Erreur lors de l'enregistrement des paramètres.", "warning");
@@ -1690,10 +1693,15 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       whatsappServerUrl: whatsappServerUrl
     };
 
-    const success = await savePaystackConfig(config);
-    if (success) {
-      addNotification("Configuration de paiement Paystack enregistrée avec succès !", "success");
-      logSystemAction(`Super Admin a mis à jour les clés API et paramètres Paystack (${paystackMode})`, 'admin');
+    const successPaystack = await savePaystackConfig(config);
+    const successSys = await updateSystemParameters({
+      frais_reservation_montant: paystackAmount,
+      frais_timbre_montant: paramTimbrePrice
+    });
+
+    if (successPaystack && successSys) {
+      addNotification(`Tarifs enregistrés : ${paystackAmount.toLocaleString('fr-FR')} FCFA (Plateforme) / ${paramTimbrePrice.toLocaleString('fr-FR')} FCFA (Caisse Mairie)`, "success");
+      logSystemAction(`Super Admin a mis à jour les tarifs système (Plateforme: ${paystackAmount} F, Caisse Mairie: ${paramTimbrePrice} F)`, 'admin');
       loadData();
     } else {
       addNotification("Erreur lors de l'enregistrement de la configuration de paiement.", "warning");
@@ -3414,9 +3422,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Plateforme (2 500 F)</span>
+                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Plateforme ({paystackAmount.toLocaleString('fr-FR')} F)</span>
                 <span className="font-serif text-xl font-bold text-emerald-700">
-                  {((dossiers.filter(d => d.payment_status === 'paid' || d.status !== 'draft').length) * (paystackAmount || 2500)).toLocaleString('fr-FR')} F
+                  {((dossiers.filter(d => d.payment_status === 'paid' || d.status !== 'draft').length) * paystackAmount).toLocaleString('fr-FR')} F
                 </span>
               </div>
             </div>
@@ -3426,9 +3434,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 <Award className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Caisse (100 000 F)</span>
+                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Caisse ({paramTimbrePrice.toLocaleString('fr-FR')} F)</span>
                 <span className="font-serif text-xl font-bold text-purple-700">
-                  {((dossiers.filter(d => d.physical_verified || d.status === 'approved' || d.status === 'celebrated').length) * 100000).toLocaleString('fr-FR')} F
+                  {((dossiers.filter(d => d.physical_verified || d.status === 'approved' || d.status === 'celebrated').length) * paramTimbrePrice).toLocaleString('fr-FR')} F
                 </span>
               </div>
             </div>
@@ -4642,31 +4650,61 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                   </div>
                 </div>
 
-                {/* Tax parameters */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5 text-left">
-                    <label className="font-semibold text-slate-700">Devise de Facturation</label>
-                    <select
-                      value={paystackCurrency}
-                      onChange={(e) => setPaystackCurrency(e.target.value)}
-                      className="border border-neutral-350 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none cursor-pointer font-medium"
-                    >
-                      <option value="XOF">XOF (Franc CFA de l'Afrique de l'Ouest)</option>
-                      <option value="EUR">EUR (Euro)</option>
-                      <option value="USD">USD (Dollar US)</option>
-                    </select>
-                  </div>
+                {/* Tax & Fee parameters */}
+                <div className="p-5 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col gap-4 text-left">
+                  <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5 font-serif">
+                    <Landmark className="w-4 h-4 text-primary" />
+                    Tarification des Frais &amp; Droit de Timbre (Réglables depuis l'Admin)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1.5 text-left">
+                      <label className="font-semibold text-slate-700 text-xs">Devise de Facturation</label>
+                      <select
+                        value={paystackCurrency}
+                        onChange={(e) => setPaystackCurrency(e.target.value)}
+                        className="border border-neutral-350 rounded-xl px-4 py-2.5 bg-white focus:border-primary focus:outline-none cursor-pointer font-medium text-xs"
+                      >
+                        <option value="XOF">XOF (Franc CFA de l'Afrique de l'Ouest)</option>
+                        <option value="EUR">EUR (Euro)</option>
+                        <option value="USD">USD (Dollar US)</option>
+                      </select>
+                    </div>
 
-                  <div className="flex flex-col gap-1.5 text-left">
-                    <label className="font-semibold text-slate-700">Montant du Droit de Timbre Fiscal</label>
-                    <input
-                      type="number"
-                      required
-                      value={paystackAmount}
-                      onChange={(e) => setPaystackAmount(parseInt(e.target.value) || 0)}
-                      placeholder="50000"
-                      className="border border-neutral-350 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none font-bold"
-                    />
+                    <div className="flex flex-col gap-1.5 text-left">
+                      <label className="font-semibold text-slate-700 text-xs">1. Frais Plateforme En Ligne (Citoyen)*</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          required
+                          value={paystackAmount}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            setPaystackAmount(val);
+                            setParamReservationPrice(val);
+                          }}
+                          placeholder="2500"
+                          className="w-full border border-neutral-350 rounded-xl pl-4 pr-12 py-2.5 bg-white focus:border-primary focus:outline-none font-bold text-emerald-700 text-xs shadow-sm"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">FCFA</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">Droits d'instruction réglés en ligne à l'Étape 8 (défaut : 2 500 FCFA)</p>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 text-left">
+                      <label className="font-semibold text-slate-700 text-xs">2. Droits Caisse Municipale (Physique)*</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          required
+                          value={paramTimbrePrice}
+                          onChange={(e) => setParamTimbrePrice(parseInt(e.target.value) || 0)}
+                          placeholder="100000"
+                          className="w-full border border-neutral-350 rounded-xl pl-4 pr-12 py-2.5 bg-white focus:border-primary focus:outline-none font-bold text-purple-700 text-xs shadow-sm"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">FCFA</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">Droits de célébration émis sur le Bulletin de Caisse à la Mairie (défaut : 100 000 FCFA)</p>
+                    </div>
                   </div>
                 </div>
 
@@ -5964,7 +6002,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                     const mairiePayments = allPayments.filter(p => p.mairieId === activeMairieId && p.status === 'success');
                     const caisseRecorded = mairiePayments.reduce((sum, p) => sum + p.amount, 0);
                     const physicalBulletinsCount = dossiers.filter(d => d.mairie_id === activeMairieId && (d.physical_verified || d.status === 'approved' || d.status === 'celebrated')).length;
-                    const caisseTotalEst = caisseRecorded > 0 ? caisseRecorded : physicalBulletinsCount * 100000;
+                    const caisseTotalEst = caisseRecorded > 0 ? caisseRecorded : physicalBulletinsCount * (paramTimbrePrice || 100000);
                     
                     const onlineDossiersCount = dossiers.filter(d => d.mairie_id === activeMairieId && (d.payment_status === 'paid' || d.status !== 'draft')).length;
                     const onlineTotalEst = onlineDossiersCount * (paystackAmount || 2500);
@@ -5976,7 +6014,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             <Landmark className="w-5 h-5" />
                           </div>
                           <div className="text-left font-sans">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Régie Caisse Municipale (100k F)</span>
+                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Régie Caisse Municipale (Physique)</span>
                             <span className="text-base font-bold text-amber-900">{caisseTotalEst.toLocaleString('fr-FR')} FCFA</span>
                           </div>
                         </div>
@@ -5986,7 +6024,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             <CheckCircle2 className="w-5 h-5" />
                           </div>
                           <div className="text-left font-sans">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Frais Plateforme En Ligne (2.5k F)</span>
+                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Frais Plateforme En Ligne</span>
                             <span className="text-base font-bold text-emerald-800">{onlineTotalEst.toLocaleString('fr-FR')} FCFA</span>
                           </div>
                         </div>
@@ -9513,14 +9551,14 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                   </div>
                   <div className="p-3 flex justify-between items-center border-b border-slate-200">
                     <div>
-                      <p className="font-bold text-slate-900">Droits de Célébration du Mariage & Timbres Municipaux d'État Civil</p>
-                      <p className="text-[10px] text-slate-500">Encaissement physique en caisse communale (Frais plateforme en ligne de 2 500 FCFA déjà acquittés)</p>
+                      <p className="font-bold text-slate-900">Droits de Célébration du Mariage &amp; Timbres Municipaux d'État Civil</p>
+                      <p className="text-[10px] text-slate-500">Encaissement physique en caisse communale (Frais plateforme en ligne de {paystackAmount.toLocaleString('fr-FR')} FCFA déjà acquittés)</p>
                     </div>
-                    <span className="font-mono font-bold text-slate-900 text-sm">100 000 FCFA</span>
+                    <span className="font-mono font-bold text-slate-900 text-sm">{paramTimbrePrice.toLocaleString('fr-FR')} FCFA</span>
                   </div>
                   <div className="p-3 bg-amber-50/60 flex justify-between items-center font-bold text-slate-900">
-                    <span>TOTAL À PAYER À LA CAISSE MUNICIPALE DE COCODY :</span>
-                    <span className="font-mono text-base text-amber-900">100 000 FCFA</span>
+                    <span>TOTAL À PAYER À LA CAISSE MUNICIPALE :</span>
+                    <span className="font-mono text-base text-amber-900">{paramTimbrePrice.toLocaleString('fr-FR')} FCFA</span>
                   </div>
                 </div>
 

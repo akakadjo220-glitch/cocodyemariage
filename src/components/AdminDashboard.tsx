@@ -2278,7 +2278,11 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       d.spouse1_name.toLowerCase().includes(mairieSearchText.toLowerCase()) ||
       d.spouse2_name.toLowerCase().includes(mairieSearchText.toLowerCase());
 
-    const matchesStatus = mairieStatusFilter === 'all' || d.status === mairieStatusFilter;
+    const matchesStatus = mairieStatusFilter === 'all'
+      ? true
+      : mairieStatusFilter === 'under_review'
+        ? (d.status !== 'approved' && d.status !== 'celebrated' && d.status !== 'rejected')
+        : d.status === mairieStatusFilter;
 
     const matchesDate = isDossierMatchingDateFilter(
       d.wedding_date,
@@ -2322,7 +2326,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
   // Mairie Metrics
   const mairieDossiersCount = filteredDossiers.length;
-  const pendingReviewCount = filteredDossiers.filter(d => d.status === 'under_review').length;
+  const pendingReviewCount = filteredDossiers.filter(d => d.status !== 'approved' && d.status !== 'celebrated' && d.status !== 'rejected').length;
   const approvedDossiersCount = filteredDossiers.filter(d => d.status === 'approved').length;
   const celebratedDossiersCount = filteredDossiers.filter(d => d.status === 'celebrated').length;
 
@@ -2334,7 +2338,11 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       d.spouse2_name.toLowerCase().includes(dossierSearchText.toLowerCase());
 
     const matchesMairie = dossierMairieFilter === 'all' || d.mairie_id === dossierMairieFilter;
-    const matchesStatus = dossierStatusFilter === 'all' || d.status === dossierStatusFilter;
+    const matchesStatus = dossierStatusFilter === 'all'
+      ? true
+      : dossierStatusFilter === 'under_review'
+        ? (d.status !== 'approved' && d.status !== 'celebrated' && d.status !== 'rejected')
+        : d.status === dossierStatusFilter;
 
     const matchesDate = isDossierMatchingDateFilter(
       d.wedding_date,
@@ -3396,7 +3404,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 <ClipboardList className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Dossiers Initiés</span>
+                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Total Dossiers Civils</span>
                 <span className="font-serif text-2xl font-bold text-slate-800">{dossiers.length}</span>
               </div>
             </div>
@@ -3406,18 +3414,22 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Mariages Célébrés</span>
-                <span className="font-serif text-2xl font-bold text-slate-800">{dossiers.filter(d => d.status === 'celebrated').length}</span>
+                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Plateforme (2 500 F)</span>
+                <span className="font-serif text-xl font-bold text-emerald-700">
+                  {((dossiers.filter(d => d.payment_status === 'paid' || d.status !== 'draft').length) * (paystackAmount || 2500)).toLocaleString('fr-FR')} F
+                </span>
               </div>
             </div>
 
             <div className="glass-card rounded-2xl p-6 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600">
-                <Activity className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                <Award className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Disponibilité Services</span>
-                <span className="font-serif text-2xl font-bold text-slate-800">100%</span>
+                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Caisse (100 000 F)</span>
+                <span className="font-serif text-xl font-bold text-purple-700">
+                  {((dossiers.filter(d => d.physical_verified || d.status === 'approved' || d.status === 'celebrated').length) * 100000).toLocaleString('fr-FR')} F
+                </span>
               </div>
             </div>
           </div>
@@ -5950,9 +5962,12 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                   {/* Financial Stats row */}
                   {(() => {
                     const mairiePayments = allPayments.filter(p => p.mairieId === activeMairieId && p.status === 'success');
-                    const totalCollected = mairiePayments.reduce((sum, p) => sum + p.amount, 0);
-                    const paidCount = mairiePayments.length;
-                    const pendingCount = dossiers.filter(d => d.mairie_id === activeMairieId && d.status === 'approved' && !mairiePayments.some(p => p.dossierId === d.id)).length;
+                    const caisseRecorded = mairiePayments.reduce((sum, p) => sum + p.amount, 0);
+                    const physicalBulletinsCount = dossiers.filter(d => d.mairie_id === activeMairieId && (d.physical_verified || d.status === 'approved' || d.status === 'celebrated')).length;
+                    const caisseTotalEst = caisseRecorded > 0 ? caisseRecorded : physicalBulletinsCount * 100000;
+                    
+                    const onlineDossiersCount = dossiers.filter(d => d.mairie_id === activeMairieId && (d.payment_status === 'paid' || d.status !== 'draft')).length;
+                    const onlineTotalEst = onlineDossiersCount * (paystackAmount || 2500);
 
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -5961,8 +5976,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             <Landmark className="w-5 h-5" />
                           </div>
                           <div className="text-left font-sans">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Recettes Communales</span>
-                            <span className="text-base font-bold text-slate-800">{totalCollected.toLocaleString()} XOF</span>
+                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Régie Caisse Municipale (100k F)</span>
+                            <span className="text-base font-bold text-amber-900">{caisseTotalEst.toLocaleString('fr-FR')} FCFA</span>
                           </div>
                         </div>
 
@@ -5971,8 +5986,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             <CheckCircle2 className="w-5 h-5" />
                           </div>
                           <div className="text-left font-sans">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Quittances Validées</span>
-                            <span className="text-base font-bold text-slate-800">{paidCount} Dossiers</span>
+                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Frais Plateforme En Ligne (2.5k F)</span>
+                            <span className="text-base font-bold text-emerald-800">{onlineTotalEst.toLocaleString('fr-FR')} FCFA</span>
                           </div>
                         </div>
 
@@ -5981,8 +5996,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             <Clock className="w-5 h-5" />
                           </div>
                           <div className="text-left font-sans">
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">En Attente de Paiement</span>
-                            <span className="text-base font-bold text-slate-800">{pendingCount} Dossiers</span>
+                            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Bulletins & Quittances Émis</span>
+                            <span className="text-base font-bold text-slate-800">{physicalBulletinsCount} Bulletins</span>
                           </div>
                         </div>
                       </div>

@@ -3059,11 +3059,11 @@ export function croiserDonneesScriptInterne(
     }
 
     // B. ALWAYS search declared number inside GLM-OCR / Vision AI raw OCR text!
-    // (Resolves cases where GLM-OCR extracted NNI "12011961101" instead of CNI "C012345678" or "CI12456789")
+    // (Must be exact full clean number OR stripped number of length >= 6)
     if (!isMatch) {
       if (
-        (decNumClean && decNumClean.length >= 4 && (rawOcrClean.includes(decNumClean) || rawOcrTextFull.includes(declaredRaw.toUpperCase()))) ||
-        (decStripped && decStripped.length >= 4 && rawOcrClean.includes(decStripped))
+        (decNumClean && decNumClean.length >= 6 && (rawOcrClean.includes(decNumClean) || rawOcrTextFull.includes(declaredRaw.toUpperCase()))) ||
+        (decStripped && decStripped.length >= 6 && rawOcrClean.includes(decStripped))
       ) {
         isMatch = true;
       }
@@ -4449,6 +4449,7 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
         finalRes.action_recommandee = 'REJETER';
         const mergedAnomalies = Array.from(new Set([...(finalRes.anomalies || []), ...(scriptCheck.anomalies || [])]));
         finalRes.anomalies = mergedAnomalies;
+        finalRes.motif = mergedAnomalies.join(' | ');
       }
     }
 
@@ -4581,8 +4582,8 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
       if (extClean && (extClean === decClean || (decStripped && extStripped && decStripped === extStripped))) {
         docNumMatches = true;
       } else if (
-        (decClean && decClean.length >= 4 && (rawTextClean.includes(decClean) || rawTextFull.includes(declaredRaw.toUpperCase()))) ||
-        (decStripped && decStripped.length >= 4 && rawTextClean.includes(decStripped))
+        (decClean && decClean.length >= 6 && (rawTextClean.includes(decClean) || rawTextFull.includes(declaredRaw.toUpperCase()))) ||
+        (decStripped && decStripped.length >= 6 && rawTextClean.includes(decStripped))
       ) {
         docNumMatches = true;
         if (finalResult.infos_extraites) {

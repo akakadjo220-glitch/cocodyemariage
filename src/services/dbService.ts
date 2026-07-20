@@ -3026,13 +3026,39 @@ export function croiserDonneesScriptInterne(
     const decNumClean = String(donneesDeclarees.numero_piece).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const rawExtNum = infosExtraites?.numero_document || infosExtraites?.numero_piece_extrait || '';
     const extNumClean = String(rawExtNum).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const rawClean = rawOcrNorm.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
     if (decNumClean.length >= 3) {
-      const foundInExtracted = extNumClean && (extNumClean === decNumClean || extNumClean.includes(decNumClean) || decNumClean.includes(extNumClean));
-      const foundInRaw = rawClean && rawClean.includes(decNumClean);
+      let isMatch = false;
 
-      if (!foundInExtracted && !foundInRaw) {
+      if (extNumClean) {
+        if (extNumClean === decNumClean) {
+          isMatch = true;
+        } else {
+          // Strip common country/type prefixes (CI, CNI, PA, C)
+          const decStripped = decNumClean.replace(/^(CI|CNI|PA|C0*)/g, '');
+          const extStripped = extNumClean.replace(/^(CI|CNI|PA|C0*)/g, '');
+          if (decStripped && extStripped && decStripped === extStripped) {
+            isMatch = true;
+          } else if (decNumClean.length >= 6 && extNumClean.length >= 6 && decNumClean.length === extNumClean.length) {
+            // Levenshtein / single digit OCR typo check
+            let diffs = 0;
+            for (let i = 0; i < decNumClean.length; i++) {
+              if (decNumClean[i] !== extNumClean[i]) diffs++;
+            }
+            if (diffs <= 1) {
+              isMatch = true;
+            }
+          }
+        }
+      } else {
+        // Fallback ONLY if no document number was extracted by Vision AI: check if exact full declared number is in raw text
+        const rawClean = rawOcrNorm.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        if (rawClean && decNumClean.length >= 6 && rawClean.includes(decNumClean)) {
+          isMatch = true;
+        }
+      }
+
+      if (!isMatch) {
         if (extNumClean && extNumClean !== decNumClean) {
           anomalies.push(`Incohérence du numéro de pièce : le numéro renseigné "${donneesDeclarees.numero_piece}" est différent de celui présent sur la pièce ("${rawExtNum}").`);
         } else {
@@ -3320,9 +3346,9 @@ export function formatUserFriendlyAnomaly(anom: string): string {
     return `👤 Identité non correspondante : le nom ${words ? words : ''} ne figure pas sur la pièce fournie.`;
   }
   if (t.includes("Incohérence du numéro de pièce") || t.includes("Numéro de pièce non correspondant") || t.includes("Incohérence numéro de pièce")) {
-    const mDiff = t.match(/numéro [a-z]+ "(.*?)" est différent de celui présent sur la pièce \("(.*?)"\)/i);
-    const mFig = t.match(/numéro [a-z]+ "(.*?)" ne figure pas sur/i);
-    const mLu = t.match(/Numéro (?:lu|extrait) "(.*?)" ne correspond pas au numéro [a-z]+ "(.*?)"/i);
+    const mDiff = t.match(/numéro \S+ "(.*?)" est différent de celui présent sur la pièce \("(.*?)"\)/i);
+    const mFig = t.match(/numéro \S+ "(.*?)" ne figure pas sur/i);
+    const mLu = t.match(/Numéro (?:lu|extrait) "(.*?)" ne correspond pas au numéro \S+ "(.*?)"/i);
 
     if (mDiff) {
       return `🔢 Numéro de pièce non correspondant : le numéro renseigné "${mDiff[1]}" est différent de celui présent sur la pièce ("${mDiff[2]}").`;

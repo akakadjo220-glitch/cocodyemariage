@@ -826,9 +826,17 @@ export default function Dossier({
         setIsAnalyzingAi(true);
         setAnalysisStatus(prev => ({ ...prev, [docId]: '🔍 Analyse par l\'IA en cours... (Authenticité & Identité)' }));
         try {
-          const aiResult = await runDocumentAiAnalysis(dossierId, docId, fileToUpload, dbFileName, (status) => {
-            setAnalysisStatus(prev => ({ ...prev, [docId]: status }));
-          });
+          const docNumOverride = docNum || (docId.includes('_f') ? spouse2Cni : spouse1Cni);
+          const aiResult = await runDocumentAiAnalysis(
+            dossierId,
+            docId,
+            fileToUpload,
+            dbFileName,
+            (status) => {
+              setAnalysisStatus(prev => ({ ...prev, [docId]: status }));
+            },
+            docNumOverride
+          );
 
           const statusMap = {
             'VALIDER': 'verified' as const,

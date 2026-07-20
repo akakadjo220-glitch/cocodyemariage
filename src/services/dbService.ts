@@ -4173,7 +4173,8 @@ export async function runDocumentAiAnalysis(
   docId: string,
   file: Blob,
   fileName: string,
-  onStatusUpdate?: (status: string) => void
+  onStatusUpdate?: (status: string) => void,
+  declaredCniOverride?: string
 ): Promise<AiAnalysisResult> {
   const config = getAiConfig();
   if (!config.geminiKey) {
@@ -4273,7 +4274,8 @@ export async function runDocumentAiAnalysis(
   const isSpouse2 = docId.includes('_f');
   const declaredFullName = isSpouse2 ? (dossier?.spouse2_name || '') : (dossier?.spouse1_name || '');
   const declaredBirthdate = isSpouse2 ? (dossier?.spouse2_birthdate || '') : (dossier?.spouse1_birthdate || '');
-  const declaredCni = isSpouse2 ? (dossier?.spouse2_cni || '') : (dossier?.spouse1_cni || '');
+  const declaredCniFromDb = isSpouse2 ? (dossier?.spouse2_cni || '') : (dossier?.spouse1_cni || '');
+  const declaredCni = (declaredCniOverride && declaredCniOverride.trim() !== '') ? declaredCniOverride.trim() : declaredCniFromDb;
   // Use the declared piece type from the dossier (set during registration), not the filename
   const typePiece: 'CNI' | 'PASSEPORT' = isSpouse2
     ? (dossier?.spouse2_cni_type || 'CNI')

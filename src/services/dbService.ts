@@ -3362,8 +3362,11 @@ export function formatUserFriendlyAnomaly(anom: string): string {
     const words = m ? m[1] : '';
     return `👤 Identité non correspondante : le nom ${words ? words : ''} ne figure pas sur la pièce fournie.`;
   }
+  if (t.startsWith("🔢 Numéro de pièce non correspondant")) {
+    return t;
+  }
   if (t.includes("Incohérence du numéro de pièce") || t.includes("Numéro de pièce non correspondant") || t.includes("Incohérence numéro de pièce")) {
-    const mDiff = t.match(/numéro \S+ "(.*?)" est différent de celui présent sur la pièce \("(.*?)"\)/i);
+    const mDiff = t.match(/numéro \S+ "(.*?)" est différent de celui présent sur la pièce (?:ou le passeport\s*)?\("?(.*?)"?\)/i);
     const mFig = t.match(/numéro \S+ "(.*?)" ne figure pas sur/i);
     const mLu = t.match(/Numéro (?:lu|extrait) "(.*?)" ne correspond pas au numéro \S+ "(.*?)"/i);
 
@@ -4613,8 +4616,14 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
       mismatchAnomalies.push(`Incohérence date de naissance : la date extraite "${extractedBirthdate}" ne correspond pas à celle ${sourceName} "${targetBirthdate}".`);
     }
     if (isIdentityDoc && declaredCni && !docNumMatches) {
-      const extDisplay = extractedDocNum && !/^\d{11}$/.test(extractedDocNum) ? ` ("${extractedDocNum}")` : '';
-      mismatchAnomalies.push(`🔢 Numéro de pièce non correspondant : le numéro renseigné "${declaredCni}" est différent de celui présent sur la pièce ou le passeport${extDisplay}.`);
+      const alreadyHasNumAnom = (finalResult.anomalies || []).some(a => a.includes('Numéro de pièce non correspondant') || a.includes('Incohérence du numéro de pièce'));
+      if (!alreadyHasNumAnom) {
+        if (extractedDocNum && !/^\d{11}$/.test(extractedDocNum)) {
+          mismatchAnomalies.push(`🔢 Numéro de pièce non correspondant : le numéro renseigné "${declaredCni}" est différent de celui présent sur la pièce ("${extractedDocNum}").`);
+        } else {
+          mismatchAnomalies.push(`🔢 Numéro de pièce non correspondant : le numéro renseigné "${declaredCni}" ne figure pas sur la pièce fournie.`);
+        }
+      }
     }
 
     if (mismatchAnomalies.length > 0) {

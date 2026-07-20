@@ -4433,32 +4433,6 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
         finalRes.action_recommandee = 'REJETER';
         const mergedAnomalies = Array.from(new Set([...(finalRes.anomalies || []), ...(scriptCheck.anomalies || [])]));
         finalRes.anomalies = mergedAnomalies;
-        finalRes.motif = mergedAnomalies.join(' | ') || scriptCheck.motif || "Incohérence des identités";
-      }
-
-      // Optional secondary Groq LPU fast check if configured
-      const fastEngine = config.fastCheckEngine || 'internal-script';
-      if (fastEngine === 'groq-lpu' && config.groqKey && (finalRes.action_recommandee === 'VALIDER' || finalRes.action_recommandee === 'ACCEPTER')) {
-        try {
-          if (onStatusUpdate) onStatusUpdate("⚡ Contrôle de sécurité rapide par Groq LPU...");
-          const groqCrossCheck = await croiserDonneesGroq(
-            finalRes.infos_extraites,
-            { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ },
-            config.groqKey
-          );
-          if (groqCrossCheck && groqCrossCheck.action === 'REJETER') {
-            finalRes.action_recommandee = 'REJETER';
-            finalRes.motif = safeString(groqCrossCheck.motif) || "Incohérence des identités";
-            if (groqCrossCheck.anomalies) {
-              const extraAnom = Array.isArray(groqCrossCheck.anomalies)
-                ? groqCrossCheck.anomalies.map(a => safeString(a)).filter(Boolean)
-                : [safeString(groqCrossCheck.anomalies)];
-              finalRes.anomalies = [...(finalRes.anomalies || []), ...extraAnom];
-            }
-          }
-        } catch (groqErr) {
-          console.warn("Groq LPU cross-check skipped:", groqErr);
-        }
       }
     }
 

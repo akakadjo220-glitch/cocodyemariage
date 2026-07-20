@@ -50,6 +50,7 @@ export interface AiAnalysisResult {
   tavilyVerification?: TavilyAnalysisResult | null;
   date_delivrance_detectee?: string | null;
   date_limite_calculee?: string | null;
+  _modele_utilise?: string | null;
 }
 
 export interface AiConfig {

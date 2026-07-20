@@ -9493,19 +9493,19 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 {/* Prestation Details */}
                 <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
                   <div className="bg-slate-200 px-3 py-2 font-bold text-slate-800 flex justify-between border-b border-slate-300">
-                    <span>NATURE DE LA PRESTATION À ENCAISSER</span>
+                    <span>NATURE DE LA PRESTATION À ENCAISSER (CAISSE MUNICIPALE)</span>
                     <span>MONTANT RÉGIE</span>
                   </div>
                   <div className="p-3 flex justify-between items-center border-b border-slate-200">
                     <div>
-                      <p className="font-bold text-slate-900">Droits de Célébration & Timbres Municipaux d'État Civil</p>
-                      <p className="text-[10px] text-slate-500">Paiement physique obligatoire aux guichets de la Caisse Municipale de Cocody</p>
+                      <p className="font-bold text-slate-900">Droits de Célébration du Mariage & Timbres Municipaux d'État Civil</p>
+                      <p className="text-[10px] text-slate-500">Encaissement physique en caisse communale (Frais plateforme en ligne de 2 500 FCFA déjà acquittés)</p>
                     </div>
-                    <span className="font-mono font-bold text-slate-900 text-sm">25 000 FCFA</span>
+                    <span className="font-mono font-bold text-slate-900 text-sm">100 000 FCFA</span>
                   </div>
-                  <div className="p-3 bg-amber-50/50 flex justify-between items-center font-bold text-slate-900">
-                    <span>TOTAL À PAYER À LA CAISSE MUNICIPALE :</span>
-                    <span className="font-mono text-base text-amber-900">25 000 FCFA</span>
+                  <div className="p-3 bg-amber-50/60 flex justify-between items-center font-bold text-slate-900">
+                    <span>TOTAL À PAYER À LA CAISSE MUNICIPALE DE COCODY :</span>
+                    <span className="font-mono text-base text-amber-900">100 000 FCFA</span>
                   </div>
                 </div>
 

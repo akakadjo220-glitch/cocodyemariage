@@ -2877,26 +2877,15 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     throw new Error("Échec de l'analyse GLM-OCR. Veuillez vérifier votre clé API Z.AI.");
   }
 
-  // ─── Parse raw OCR text into structured fields ───────────────────────────
+  // ─── Extract raw document fields via GLM-OCR ──────────────────────────────
   const t = rawOcrText;
 
-  // Detect document type
+  // Detect document type from raw OCR text
   const isPassport = /passeport|passport/i.test(t);
   const isCNI = /carte\s+nationale|CNI|IDCIV/i.test(t);
   const type_document = isPassport ? 'PASSEPORT' : isCNI ? 'CNI' : 'INCONNU';
 
-  // Extract from prompt context (declared data injected by caller)
-  // Prompt contains: "Nom déclaré : XXX", "Prénoms déclarés: YYY", etc.
-  const extractDeclared = (label: string) => {
-    const m = prompt.match(new RegExp(label + '\\s*:\\s*([^\\n]+)', 'i'));
-    return m ? m[1].trim() : '';
-  };
-  const nomDeclare = extractDeclared('Nom déclaré');
-  const prenomsDeclares = extractDeclared('Prénoms déclarés');
-  const typePieceDeclare = extractDeclared('Type pièce');
-  const numeroPieceDeclare = extractDeclared('Numéro pièce');
-
-  // Extract name — handles "Nom: BRIDA" and "Prénom(s): MAHI LANDRY" patterns
+  // Extract fields — handles "Nom: BRIDA", "Prénom(s): MAHI LANDRY", etc.
   const extractField = (patterns: RegExp[]): string => {
     for (const p of patterns) {
       const m = t.match(p);
@@ -2924,7 +2913,6 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     /[Vv]alid(?:e|ity)\s+until\s*[:\|]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i,
     /\bDate\s+d['']?exp[^\n]{0,10}(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i
   ]);
-  // Document number: CNI pattern CIxxxxxxxx or passport pattern
   const numeroDoc = extractField([
     /\bn[°o\.]\s*([A-Z]{1,3}\d{6,12})/i,
     /\bNNI\s*[:\|]\s*(\d{8,14})/i,
@@ -2938,84 +2926,20 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
   const nomFinal = nom || mrzNom.split(' ').slice(-1)[0] || '';
   const prenomsFinal = prenoms || mrzNom.split(' ').slice(0, -1).join(' ') || '';
 
-  // ─── Check document type mismatch ────────────────────────────────────────
-  const anomalies: string[] = [];
-  let action_recommandee: 'VALIDER' | 'REJETER' = 'VALIDER';
-  let motif = '';
-
-  if (typePieceDeclare && type_document !== 'INCONNU') {
-    if (typePieceDeclare === 'PASSEPORT' && type_document === 'CNI') {
-      anomalies.push(`Type de pièce incorrect : Un PASSEPORT est requis, mais une CNI a été soumise.`);
-    } else if (typePieceDeclare === 'CNI' && type_document === 'PASSEPORT') {
-      anomalies.push(`Type de pièce incorrect : Une CNI est requise, mais un PASSEPORT a été soumis.`);
-    }
-  }
-
-  // ─── Identity cross-check (strict word-by-word) ─────────────────────────
-  if (nomFinal && nomDeclare) {
-    const normFn = (s: string) => s.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-    const extractedFull = normFn(`${nomFinal} ${prenomsFinal}`);
-    const declaredFull = normFn(`${nomDeclare} ${prenomsDeclares}`);
-    const declaredWords = declaredFull.split(' ').filter(w => w.length > 1);
-    const extractedWords = extractedFull.split(' ').filter(w => w.length > 1);
-
-    if (declaredWords.length > 0 && extractedWords.length > 0) {
-      // Every declared word must appear exactly in the extracted name
-      const missingWords: string[] = [];
-      for (const dw of declaredWords) {
-        if (!extractedWords.includes(dw)) {
-          // Find the closest extracted word for a helpful error message
-          const closest = extractedWords.reduce((best, ew) => {
-            const common = [...dw].filter((c, i) => ew[i] === c).length;
-            return common > best.score ? { word: ew, score: common } : best;
-          }, { word: '', score: -1 });
-          missingWords.push(closest.word ? `"${dw}" (trouvé sur doc: "${closest.word}")` : `"${dw}"`);
-        }
-      }
-      if (missingWords.length > 0) {
-        anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré mais différent(s) sur le document.`);
-      }
-    }
-  }
-
-  // ─── Document number check ───────────────────────────────────────────────
-  if (numeroPieceDeclare && numeroDoc) {
-    const clean = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const decNum = clean(numeroPieceDeclare);
-    const extNum = clean(numeroDoc);
-    if (decNum.length >= 4 && extNum.length >= 4 && decNum !== extNum && !extNum.includes(decNum) && !decNum.includes(extNum)) {
-      anomalies.push(`Incohérence du numéro de pièce : Numéro lu "${numeroDoc}" ne correspond pas au numéro déclaré "${numeroPieceDeclare}".`);
-    }
-  }
-
-  // ─── Expiry check ────────────────────────────────────────────────────────
-  if (dateExpiration) {
-    const yearMatch = dateExpiration.match(/\b(20\d{2})\b/);
-    if (yearMatch && parseInt(yearMatch[1]) < new Date().getFullYear()) {
-      anomalies.push(`Pièce d'identité expirée : Date d'expiration "${dateExpiration}" est antérieure à l'année en cours.`);
-    }
-  }
-
-  if (anomalies.length > 0) {
-    action_recommandee = 'REJETER';
-    motif = anomalies[0];
-  } else {
-    motif = `Document ${type_document} analysé par GLM-OCR — identité conforme.`;
-  }
-
+  // GLM-OCR pure extraction (validation and cross-checking are delegated to croiserDonneesScriptInterne)
   return normaliserResultatIA({
     type_document,
     est_lisible: true,
-    est_authentique: anomalies.length === 0,
-    confiance: anomalies.length === 0 ? 95 : 10,
+    est_authentique: true,
+    confiance: 95,
     nom_extrait: nomFinal,
     prenoms_extraits: prenomsFinal,
     date_naissance_extraite: dateNaissance,
     numero_piece_extrait: numeroDoc,
     date_expiration_extraite: dateExpiration,
-    action_recommandee,
-    message_utilisateur: motif,
-    anomalies
+    action_recommandee: "VALIDER",
+    message_utilisateur: `Document ${type_document} extrait par GLM-OCR.`,
+    anomalies: []
   }, "GLM-OCR (Layout Parsing API)");
 }
 
@@ -3031,17 +2955,30 @@ function normaliserNomComplet(nom: string): string {
 
 export function croiserDonneesScriptInterne(
   infosExtraites: any,
-  donneesDeclarees: { nom: string; prenoms: string; date_naissance?: string; numero_piece?: string }
+  donneesDeclarees: { nom: string; prenoms: string; date_naissance?: string; numero_piece?: string; type_piece?: string },
+  typeDocumentExtrait?: string
 ): { action: 'VALIDER' | 'REJETER'; motif?: string; anomalies?: string[] } {
   const anomalies: string[] = [];
 
+  // 1. Check Document Type Mismatch (CNI vs PASSEPORT)
+  const declaredType = (donneesDeclarees.type_piece || '').toUpperCase();
+  const extractedType = (typeDocumentExtrait || infosExtraites?.type_document || '').toUpperCase();
+
+  if (declaredType && extractedType && extractedType !== 'INCONNU' && extractedType !== 'PIÈCE_IDENTITÉ') {
+    if (declaredType === 'PASSEPORT' && extractedType === 'CNI') {
+      anomalies.push(`Type de pièce incorrect : Un PASSEPORT est requis, mais une CNI a été soumise.`);
+    } else if (declaredType === 'CNI' && extractedType === 'PASSEPORT') {
+      anomalies.push(`Type de pièce incorrect : Une CNI est requise, mais un PASSEPORT a été soumis.`);
+    }
+  }
+
+  // 2. Strict Identity Check (Word-by-word exact matching)
   const declaredName = `${donneesDeclarees.nom || ''} ${donneesDeclarees.prenoms || ''}`.trim();
   const declaredNorm = normaliserNomComplet(declaredName);
-  
+
   const extractedName = `${infosExtraites?.nom || ''} ${infosExtraites?.prenoms || ''}`.trim();
   const extractedNorm = normaliserNomComplet(extractedName);
 
-  // 1. Identity — strict word-by-word exact match
   if (declaredNorm && extractedNorm) {
     const declaredWords = declaredNorm.split(' ').filter(w => w.length > 1);
     const extractedWords = extractedNorm.split(' ').filter(w => w.length > 1);
@@ -3050,7 +2987,7 @@ export function croiserDonneesScriptInterne(
       const missingWords: string[] = [];
       for (const dw of declaredWords) {
         if (!extractedWords.includes(dw)) {
-          // Find closest extracted word for error message
+          // Find closest extracted word for detailed error message
           const closest = extractedWords.reduce((best, ew) => {
             const common = [...dw].filter((c, i) => ew[i] === c).length;
             return common > best.score ? { word: ew, score: common } : best;
@@ -3059,12 +2996,12 @@ export function croiserDonneesScriptInterne(
         }
       }
       if (missingWords.length > 0) {
-        anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré "${declaredName}" mais différent(s) sur le document ("${extractedName}").`);
+        anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré ("${declaredName}") mais différent(s) sur le document ("${extractedName}").`);
       }
     }
   }
 
-  // 2. Document Expiration Year Check
+  // 3. Document Expiration Year Check
   if (infosExtraites?.date_expiration) {
     const matchYear = String(infosExtraites.date_expiration).match(/\b(20\d{2})\b/);
     if (matchYear) {
@@ -3076,7 +3013,7 @@ export function croiserDonneesScriptInterne(
     }
   }
 
-  // 3. Document Number Check
+  // 4. Document Number Check
   if (donneesDeclarees.numero_piece && infosExtraites?.numero_document) {
     const decNumClean = String(donneesDeclarees.numero_piece).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const extNumClean = String(infosExtraites.numero_document).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -4397,22 +4334,25 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
       }
     }
 
-    // 3. Fast Data Cross-Check (Configurable: Internal Script 0ms / Groq LPU / Disabled)
-    const fastEngine = config.fastCheckEngine || 'internal-script';
-    if (finalRes && (finalRes.action_recommandee === 'VALIDER' || finalRes.action_recommandee === 'ACCEPTER')) {
-      if (fastEngine === 'internal-script') {
-        const scriptCheck = croiserDonneesScriptInterne(
-          finalRes.infos_extraites,
-          { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ }
-        );
-        if (scriptCheck.action === 'REJETER') {
-          finalRes.action_recommandee = 'REJETER';
-          finalRes.motif = scriptCheck.motif || "Incohérence des identités";
-          if (scriptCheck.anomalies) {
-            finalRes.anomalies = Array.from(new Set([...(finalRes.anomalies || []), ...scriptCheck.anomalies]));
-          }
+    // 3. Fast Data Cross-Check & Deterministic Safety Rules
+    // ALWAYS run croiserDonneesScriptInterne to guarantee document type, strict identity, expiration date, and document number compliance
+    if (finalRes) {
+      const scriptCheck = croiserDonneesScriptInterne(
+        finalRes.infos_extraites,
+        { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ, type_piece: TYPE_PIECE },
+        finalRes.type_document
+      );
+      if (scriptCheck.action === 'REJETER') {
+        finalRes.action_recommandee = 'REJETER';
+        finalRes.motif = scriptCheck.motif || "Incohérence des identités";
+        if (scriptCheck.anomalies) {
+          finalRes.anomalies = Array.from(new Set([...(finalRes.anomalies || []), ...scriptCheck.anomalies]));
         }
-      } else if (fastEngine === 'groq-lpu' && config.groqKey) {
+      }
+
+      // Optional secondary Groq LPU fast check if configured
+      const fastEngine = config.fastCheckEngine || 'internal-script';
+      if (fastEngine === 'groq-lpu' && config.groqKey && (finalRes.action_recommandee === 'VALIDER' || finalRes.action_recommandee === 'ACCEPTER')) {
         try {
           if (onStatusUpdate) onStatusUpdate("⚡ Contrôle de sécurité rapide par Groq LPU...");
           const groqCrossCheck = await croiserDonneesGroq(

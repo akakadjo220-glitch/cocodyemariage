@@ -1514,6 +1514,66 @@ export default function Landing({
                         </div>
                       </div>
 
+                      {/* ── Mois de Célébration Souhaité & Verification Ouverture ── */}
+                      <div className="flex flex-col gap-2 p-3.5 bg-gradient-to-br from-amber-500/5 via-primary/5 to-emerald-500/5 border border-[#c5a368]/30 rounded-2xl text-left shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-[#c5a368]" />
+                          <label className="font-bold text-slate-800 text-xs font-sans">Mois de célébration souhaité *</label>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-sans">
+                          Sélectionnez le mois où vous souhaitez célébrer votre mariage à la Mairie de Cocody.
+                        </p>
+                        
+                        <select
+                          value={selectedMonthSim}
+                          onChange={e => setSelectedMonthSim(e.target.value)}
+                          className="w-full border border-neutral-300 rounded-xl px-3.5 py-2.5 bg-white font-semibold focus:border-primary focus:outline-none cursor-pointer text-xs transition-all shadow-sm font-sans"
+                        >
+                          {CALENDRIER_RESERVATIONS_2026.map(slot => (
+                            <option key={slot.id} value={slot.id}>
+                              {slot.moisCélébration} (Réservations : dès le {slot.debutReservation})
+                            </option>
+                          ))}
+                        </select>
+
+                        {/* Status Banner */}
+                        {(() => {
+                          const item = CALENDRIER_RESERVATIONS_2026.find(c => c.id === selectedMonthSim);
+                          if (!item) return null;
+                          const isOpened = checkIsOpened(item.ouvertureIso);
+                          const remaining = getDaysRemainingStr(item.ouvertureIso);
+
+                          return (
+                            <div className={`mt-2 p-3 rounded-xl border text-xs font-sans flex flex-col gap-1 ${
+                              isOpened
+                                ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+                                : 'bg-amber-50/90 border-amber-200 text-amber-900'
+                            }`}>
+                              <div className="flex items-center justify-between font-bold">
+                                <span className="flex items-center gap-1.5">
+                                  {isOpened ? '🟢 Réservations Ouvertes !' : `⏳ Réservations pas encore ouvertes`}
+                                </span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                                  isOpened ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                                }`}>
+                                  {isOpened ? 'Disponibles' : remaining || 'Bientôt'}
+                                </span>
+                              </div>
+                              
+                              <p className="text-[11px] font-medium leading-relaxed mt-0.5">
+                                {isOpened
+                                  ? `Les réservations pour ${item.moisCélébration} sont actuellement ouvertes à la Mairie. Vous pouvez constituer votre dossier.`
+                                  : `Les réservations pour ${item.moisCélébration} ouvriront officiellement le ${item.debutReservation}.`}
+                              </p>
+                              
+                              <p className="text-[10px] italic opacity-85 mt-0.5">
+                                💡 {item.conseil}
+                              </p>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
                       {erreurCroisement && (
                         <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
                           <AlertCircle className="w-4.5 h-4.5 text-rose-700 shrink-0 mt-0.5" />

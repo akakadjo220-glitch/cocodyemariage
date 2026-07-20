@@ -2951,7 +2951,7 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     }
   }
 
-  // ─── Identity cross-check ────────────────────────────────────────────────
+  // ─── Identity cross-check (strict word-by-word) ─────────────────────────
   if (nomFinal && nomDeclare) {
     const normFn = (s: string) => s.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
     const extractedFull = normFn(`${nomFinal} ${prenomsFinal}`);
@@ -2960,13 +2960,20 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     const extractedWords = extractedFull.split(' ').filter(w => w.length > 1);
 
     if (declaredWords.length > 0 && extractedWords.length > 0) {
-      let matches = 0;
-      for (const w of declaredWords) {
-        if (extractedWords.some(ew => ew === w || ew.includes(w) || w.includes(ew))) matches++;
+      // Every declared word must appear exactly in the extracted name
+      const missingWords: string[] = [];
+      for (const dw of declaredWords) {
+        if (!extractedWords.includes(dw)) {
+          // Find the closest extracted word for a helpful error message
+          const closest = extractedWords.reduce((best, ew) => {
+            const common = [...dw].filter((c, i) => ew[i] === c).length;
+            return common > best.score ? { word: ew, score: common } : best;
+          }, { word: '', score: -1 });
+          missingWords.push(closest.word ? `"${dw}" (trouvé sur doc: "${closest.word}")` : `"${dw}"`);
+        }
       }
-      const ratio = matches / declaredWords.length;
-      if (ratio < 0.33) {
-        anomalies.push(`Incohérence d'identité : Nom lu "${nomFinal} ${prenomsFinal}" ne correspond pas au nom déclaré "${nomDeclare} ${prenomsDeclares}".`);
+      if (missingWords.length > 0) {
+        anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré mais différent(s) sur le document.`);
       }
     }
   }
@@ -3034,21 +3041,25 @@ export function croiserDonneesScriptInterne(
   const extractedName = `${infosExtraites?.nom || ''} ${infosExtraites?.prenoms || ''}`.trim();
   const extractedNorm = normaliserNomComplet(extractedName);
 
-  // 1. Identity Token Similarity
+  // 1. Identity — strict word-by-word exact match
   if (declaredNorm && extractedNorm) {
     const declaredWords = declaredNorm.split(' ').filter(w => w.length > 1);
     const extractedWords = extractedNorm.split(' ').filter(w => w.length > 1);
 
     if (declaredWords.length > 0 && extractedWords.length > 0) {
-      let matches = 0;
-      for (const w of declaredWords) {
-        if (extractedWords.some(ew => ew === w || ew.includes(w) || w.includes(ew))) {
-          matches++;
+      const missingWords: string[] = [];
+      for (const dw of declaredWords) {
+        if (!extractedWords.includes(dw)) {
+          // Find closest extracted word for error message
+          const closest = extractedWords.reduce((best, ew) => {
+            const common = [...dw].filter((c, i) => ew[i] === c).length;
+            return common > best.score ? { word: ew, score: common } : best;
+          }, { word: '', score: -1 });
+          missingWords.push(closest.word ? `"${dw}" (trouvé sur doc: "${closest.word}")` : `"${dw}"`);
         }
       }
-      const matchRatio = matches / declaredWords.length;
-      if (matchRatio < 0.33) {
-        anomalies.push(`Incohérence d'identité : Nom lu "${extractedName}" ne correspond pas au nom déclaré "${declaredName}".`);
+      if (missingWords.length > 0) {
+        anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré "${declaredName}" mais différent(s) sur le document ("${extractedName}").`);
       }
     }
   }

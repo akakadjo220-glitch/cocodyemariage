@@ -3290,6 +3290,36 @@ export function basicEnglishToFrenchFallback(texte: string): string {
   return t;
 }
 
+export function formatUserFriendlyAnomaly(anom: string): string {
+  if (!anom) return "";
+  let t = basicEnglishToFrenchFallback(anom);
+
+  if (t.includes("Pièce d'identité expirée")) {
+    const m = t.match(/\((\d{2}\/\d{2}\/\d{4}|\d{4})\)/);
+    const dateStr = m ? m[1] : '';
+    return `📅 Document expiré${dateStr ? ' le ' + dateStr : ''} (veuillez fournir une pièce en cours de validité).`;
+  }
+  if (t.includes("Type de pièce incorrect")) {
+    if (t.includes("PASSEPORT est requis")) {
+      return `🪪 Mauvais type de document : un PASSEPORT est requis pour ce dossier (une CNI a été téléversée).`;
+    }
+    if (t.includes("CNI est requise")) {
+      return `🪪 Mauvais type de document : une CNI est requise pour ce dossier (un PASSEPORT a été téléversé).`;
+    }
+    return `🪪 Le type de document téléversé ne correspond pas au type déclaré.`;
+  }
+  if (t.includes("Incohérence d'identité")) {
+    const m = t.match(/Mot\(s\) (.*?) présent/);
+    const words = m ? m[1] : '';
+    return `👤 Identité non correspondante : le nom ${words ? words : ''} ne figure pas sur la pièce fournie.`;
+  }
+  if (t.includes("Incohérence du numéro de pièce")) {
+    return `🔢 Numéro de pièce non correspondant aux informations déclarées.`;
+  }
+
+  return t;
+}
+
 export async function traduireEnFrancaisSiAnglais(texte: string, cleAPI: string): Promise<string> {
   if (!texte || !cleAPI) return texte;
   if (!estProbablementAnglais(texte)) return texte;

@@ -42,6 +42,7 @@ import {
   getAiConfig,
   checkDuplicateSpouse,
   basicEnglishToFrenchFallback,
+  formatUserFriendlyAnomaly,
   getDossierById,
   updateDossierBiometrics,
   updateDossierFaceAttempts,
@@ -812,6 +813,7 @@ export default function Dossier({
       updateDocumentStatus(docId, 'uploading', dbFileName, docNum);
       await uploadDocumentFile(dossierId, docId, fileToUpload, dbFileName);
       setIsUploadingFile(false);
+      closeUploadModal(); // Close modal immediately so user sees live card progress!
 
       const AI_ANALYZED_DOCS = ['doc1', 'doc1_f', 'doc2', 'doc2_f'];
       const requiresAiAnalysis = AI_ANALYZED_DOCS.includes(docId);
@@ -819,6 +821,7 @@ export default function Dossier({
 
       if (requiresAiAnalysis && config.geminiKey) {
         setIsAnalyzingAi(true);
+        setAnalysisStatus(prev => ({ ...prev, [docId]: '🔍 Analyse par GLM-OCR / Z.AI en cours... (Authenticité & Identité)' }));
         try {
           const aiResult = await runDocumentAiAnalysis(dossierId, docId, fileToUpload, dbFileName, (status) => {
             setAnalysisStatus(prev => ({ ...prev, [docId]: status }));
@@ -1234,47 +1237,64 @@ export default function Dossier({
         )}
 
         {isUploading && (
-          <div className="flex items-center gap-2 text-xs italic text-amber-700 font-semibold p-2 bg-amber-50 rounded-xl">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>{analysisStatus[docId] || 'Analyse IA...'}</span>
+          <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/10 to-emerald-500/10 border border-primary/20 flex flex-col gap-2.5 animate-pulse shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="font-sans font-bold text-slate-700 text-xs truncate max-w-[75%]">
+                📄 {doc?.fileName || 'Document téléversé'}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-primary text-white tracking-wider animate-pulse">
+                ANALYSE IA
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+              <Loader2 className="w-4 h-4 animate-spin shrink-0 text-primary" />
+              <span>{analysisStatus[docId] || '🔍 Analyse par GLM-OCR / Z.AI en cours...'}</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-primary via-amber-500 to-emerald-500 animate-pulse w-full rounded-full"></div>
+            </div>
           </div>
         )}
 
         {isRejected && doc?.aiAnalysis && (
-          <div className="flex flex-col gap-2 p-3 bg-rose-50/90 border border-rose-200 rounded-xl text-left font-sans text-xs">
+          <div className="flex flex-col gap-2.5 p-3.5 bg-rose-50/95 border border-rose-200 rounded-xl text-left font-sans text-xs shadow-sm">
             <div className="flex items-center gap-1.5 text-rose-800 font-bold text-xs">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>Motif de rejet explicite :</span>
+              <span>
+                {doc.aiAnalysis.anomalies && doc.aiAnalysis.anomalies.length > 1
+                  ? `Document non conforme (${doc.aiAnalysis.anomalies.length} points à corriger) :`
+                  : `Document non conforme :`}
+              </span>
             </div>
-            
-            <p className="text-xs text-rose-900 font-semibold leading-relaxed">
-              {basicEnglishToFrenchFallback(doc.aiAnalysis.motif || "Document non conforme.")}
-            </p>
 
-            {/* Display specific anomalies list if present */}
-            {doc.aiAnalysis.anomalies && doc.aiAnalysis.anomalies.length > 0 && (
-              <div className="mt-1 pt-2 border-t border-rose-200/80 flex flex-col gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800">Détails des non-conformités :</span>
-                <ul className="list-disc pl-4 space-y-1 text-[11px] text-rose-900 font-medium">
-                  {doc.aiAnalysis.anomalies.map((anom, idx) => (
-                    <li key={idx}>{basicEnglishToFrenchFallback(anom)}</li>
-                  ))}
-                </ul>
-              </div>
+            {/* Display specific anomalies list with friendly formatting */}
+            {doc.aiAnalysis.anomalies && doc.aiAnalysis.anomalies.length > 0 ? (
+              <ul className="space-y-1.5 text-[11px] text-rose-900 font-medium pl-1">
+                {doc.aiAnalysis.anomalies.map((anom, idx) => (
+                  <li key={idx} className="flex items-start gap-1.5">
+                    <span className="text-rose-600 font-bold">•</span>
+                    <span>{formatUserFriendlyAnomaly(anom)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-rose-900 font-semibold leading-relaxed">
+                {formatUserFriendlyAnomaly(doc.aiAnalysis.motif || "Document non conforme. Veuillez téléverser une photo plus nette.")}
+              </p>
             )}
 
             {/* Display extracted vs declared summary if available */}
             {doc.aiAnalysis.infos_extraites && (doc.aiAnalysis.infos_extraites.nom || doc.aiAnalysis.infos_extraites.prenoms || doc.aiAnalysis.infos_extraites.numero_document) && (
-              <div className="mt-1 p-2.5 bg-white/90 rounded-lg border border-rose-200 text-[10px] space-y-1 text-slate-700 font-mono">
-                <span className="font-sans font-bold text-slate-800 block text-[10px] uppercase">Données Lues sur l'image par l'IA :</span>
+              <div className="mt-1 p-2 bg-white/90 rounded-lg border border-rose-200/80 text-[10px] space-y-1 text-slate-700 font-mono">
+                <span className="font-sans font-bold text-slate-800 block text-[9px] uppercase tracking-wider">Données lues par l'IA :</span>
                 {(doc.aiAnalysis.infos_extraites.nom || doc.aiAnalysis.infos_extraites.prenoms) && (
-                  <div>• Nom/Prénoms lus : <span className="font-bold text-rose-700">{doc.aiAnalysis.infos_extraites.prenoms} {doc.aiAnalysis.infos_extraites.nom}</span></div>
+                  <div>• Nom lu : <span className="font-bold text-rose-700">{doc.aiAnalysis.infos_extraites.prenoms} {doc.aiAnalysis.infos_extraites.nom}</span></div>
                 )}
                 {doc.aiAnalysis.infos_extraites.numero_document && (
                   <div>• N° Pièce lu : <span className="font-bold text-rose-700">{doc.aiAnalysis.infos_extraites.numero_document}</span></div>
                 )}
                 {doc.aiAnalysis.infos_extraites.date_expiration && (
-                  <div>• Date Expiration lue : <span className="font-bold text-rose-700">{doc.aiAnalysis.infos_extraites.date_expiration}</span></div>
+                  <div>• Expiration : <span className="font-bold text-rose-700">{doc.aiAnalysis.infos_extraites.date_expiration}</span></div>
                 )}
               </div>
             )}
@@ -1321,33 +1341,50 @@ export default function Dossier({
         )}
 
         {isUploading && (
-          <div className="flex items-center gap-2 text-xs italic text-amber-700 font-semibold p-2 bg-amber-50 rounded-xl">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>{analysisStatus[docId] || 'Analyse IA...'}</span>
+          <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/10 to-emerald-500/10 border border-primary/20 flex flex-col gap-2.5 animate-pulse shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="font-sans font-bold text-slate-700 text-xs truncate max-w-[75%]">
+                📄 {doc?.fileName || 'Document téléversé'}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-primary text-white tracking-wider animate-pulse">
+                ANALYSE IA
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+              <Loader2 className="w-4 h-4 animate-spin shrink-0 text-primary" />
+              <span>{analysisStatus[docId] || '🔍 Analyse par GLM-OCR / Z.AI en cours...'}</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-primary via-amber-500 to-emerald-500 animate-pulse w-full rounded-full"></div>
+            </div>
           </div>
         )}
 
         {isRejected && doc?.aiAnalysis && (
-          <div className="flex flex-col gap-2 p-3 bg-rose-50/90 border border-rose-200 rounded-xl text-left font-sans text-xs">
+          <div className="flex flex-col gap-2.5 p-3.5 bg-rose-50/95 border border-rose-200 rounded-xl text-left font-sans text-xs shadow-sm">
             <div className="flex items-center gap-1.5 text-rose-800 font-bold text-xs">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>Motif de rejet explicite :</span>
+              <span>
+                {doc.aiAnalysis.anomalies && doc.aiAnalysis.anomalies.length > 1
+                  ? `Document non conforme (${doc.aiAnalysis.anomalies.length} points à corriger) :`
+                  : `Document non conforme :`}
+              </span>
             </div>
-            
-            <p className="text-xs text-rose-900 font-semibold leading-relaxed">
-              {basicEnglishToFrenchFallback(doc.aiAnalysis.motif || "Document non conforme.")}
-            </p>
 
-            {/* Display specific anomalies list if present */}
-            {doc.aiAnalysis.anomalies && doc.aiAnalysis.anomalies.length > 0 && (
-              <div className="mt-1 pt-2 border-t border-rose-200/80 flex flex-col gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800">Détails des non-conformités :</span>
-                <ul className="list-disc pl-4 space-y-1 text-[11px] text-rose-900 font-medium">
-                  {doc.aiAnalysis.anomalies.map((anom, idx) => (
-                    <li key={idx}>{basicEnglishToFrenchFallback(anom)}</li>
-                  ))}
-                </ul>
-              </div>
+            {/* Display specific anomalies list with friendly formatting */}
+            {doc.aiAnalysis.anomalies && doc.aiAnalysis.anomalies.length > 0 ? (
+              <ul className="space-y-1.5 text-[11px] text-rose-900 font-medium pl-1">
+                {doc.aiAnalysis.anomalies.map((anom, idx) => (
+                  <li key={idx} className="flex items-start gap-1.5">
+                    <span className="text-rose-600 font-bold">•</span>
+                    <span>{formatUserFriendlyAnomaly(anom)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-rose-900 font-semibold leading-relaxed">
+                {formatUserFriendlyAnomaly(doc.aiAnalysis.motif || "Document non conforme. Veuillez téléverser une photo plus nette.")}
+              </p>
             )}
           </div>
         )}

@@ -821,7 +821,7 @@ export default function Dossier({
 
       if (requiresAiAnalysis && config.geminiKey) {
         setIsAnalyzingAi(true);
-        setAnalysisStatus(prev => ({ ...prev, [docId]: '🔍 Analyse par GLM-OCR / Z.AI en cours... (Authenticité & Identité)' }));
+        setAnalysisStatus(prev => ({ ...prev, [docId]: '🔍 Analyse par l\'IA en cours... (Authenticité & Identité)' }));
         try {
           const aiResult = await runDocumentAiAnalysis(dossierId, docId, fileToUpload, dbFileName, (status) => {
             setAnalysisStatus(prev => ({ ...prev, [docId]: status }));
@@ -1248,7 +1248,7 @@ export default function Dossier({
             </div>
             <div className="flex items-center gap-2 text-xs font-semibold text-primary">
               <Loader2 className="w-4 h-4 animate-spin shrink-0 text-primary" />
-              <span>{analysisStatus[docId] || '🔍 Analyse par GLM-OCR / Z.AI en cours...'}</span>
+              <span>{analysisStatus[docId] || '🔍 Analyse par l\'IA en cours...'}</span>
             </div>
             <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-primary via-amber-500 to-emerald-500 animate-pulse w-full rounded-full"></div>
@@ -1352,7 +1352,7 @@ export default function Dossier({
             </div>
             <div className="flex items-center gap-2 text-xs font-semibold text-primary">
               <Loader2 className="w-4 h-4 animate-spin shrink-0 text-primary" />
-              <span>{analysisStatus[docId] || '🔍 Analyse par GLM-OCR / Z.AI en cours...'}</span>
+              <span>{analysisStatus[docId] || '🔍 Analyse par l\'IA en cours...'}</span>
             </div>
             <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-primary via-amber-500 to-emerald-500 animate-pulse w-full rounded-full"></div>

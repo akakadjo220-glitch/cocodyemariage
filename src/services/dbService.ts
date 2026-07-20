@@ -2939,7 +2939,7 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     numero_piece_extrait: numeroDoc,
     date_expiration_extraite: dateExpiration,
     action_recommandee: "VALIDER",
-    message_utilisateur: `Document ${type_document} extrait par GLM-OCR.`,
+    message_utilisateur: `Document ${type_document} extrait par l'IA.`,
     anomalies: [],
     infos_extraites: {
       raw_ocr_text: rawOcrText
@@ -4306,8 +4306,7 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
   }
 
   if (onStatusUpdate) {
-    const primaryEngineName = config.primaryOcrEngine === 'mistral-vision' ? 'Mistral Vision' : config.primaryOcrEngine === 'openrouter-vision' ? 'OpenRouter Vision' : 'GLM-OCR';
-    onStatusUpdate(`🔍 Analyse HD par ${primaryEngineName} & Contrôle Rapide...`);
+    onStatusUpdate(`🔍 Analyse HD par l'IA en cours...`);
   }
 
   const safetyPromise = base64Images.length > 0

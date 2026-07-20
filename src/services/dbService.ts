@@ -2792,7 +2792,8 @@ export function normaliserResultatIA(rawJson: any, modele: string): AiAnalysisRe
     lieu_naissance: safeString(rawJson.lieu_naissance_extrait || rawJson.infos_extraites?.lieu_naissance || rawJson.lieu_naissance || ''),
     numero_document: safeString(rawJson.numero_piece_extrait || rawJson.infos_extraites?.numero_document || rawJson.numero_document || rawJson.numero_piece || ''),
     date_expiration: safeString(rawJson.date_expiration_extraite || rawJson.infos_extraites?.date_expiration || rawJson.date_expiration || ''),
-    nationalite: safeString(rawJson.infos_extraites?.nationalite || rawJson.nationalite || (rawJson.ne_a_etranger ? "Étrangère" : "Ivoirienne"))
+    nationalite: safeString(rawJson.infos_extraites?.nationalite || rawJson.nationalite || (rawJson.ne_a_etranger ? "Étrangère" : "Ivoirienne")),
+    raw_ocr_text: safeString(rawJson.infos_extraites?.raw_ocr_text || rawJson.raw_ocr_text || '')
   };
 
   const anomalies = Array.isArray(rawJson.anomalies)
@@ -2939,7 +2940,10 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     date_expiration_extraite: dateExpiration,
     action_recommandee: "VALIDER",
     message_utilisateur: `Document ${type_document} extrait par GLM-OCR.`,
-    anomalies: []
+    anomalies: [],
+    infos_extraites: {
+      raw_ocr_text: rawOcrText
+    }
   }, "GLM-OCR (Layout Parsing API)");
 }
 
@@ -2972,31 +2976,35 @@ export function croiserDonneesScriptInterne(
     }
   }
 
-  // 2. Strict Identity Check (Word-by-word exact matching)
+  // 2. Strict Identity Check (Word-by-word matching against extracted fields OR full raw OCR text)
   const declaredName = `${donneesDeclarees.nom || ''} ${donneesDeclarees.prenoms || ''}`.trim();
   const declaredNorm = normaliserNomComplet(declaredName);
 
   const extractedName = `${infosExtraites?.nom || ''} ${infosExtraites?.prenoms || ''}`.trim();
   const extractedNorm = normaliserNomComplet(extractedName);
+  const rawOcrNorm = infosExtraites?.raw_ocr_text ? normaliserNomComplet(infosExtraites.raw_ocr_text) : '';
 
-  if (declaredNorm && extractedNorm) {
+  // Combine extracted fields + full OCR document text
+  const fullTextToSearch = `${extractedNorm} ${rawOcrNorm}`.trim();
+
+  if (declaredNorm) {
     const declaredWords = declaredNorm.split(' ').filter(w => w.length > 1);
-    const extractedWords = extractedNorm.split(' ').filter(w => w.length > 1);
+    const searchableWords = fullTextToSearch.split(' ').filter(w => w.length > 1);
 
-    if (declaredWords.length > 0 && extractedWords.length > 0) {
+    if (declaredWords.length > 0 && searchableWords.length > 0) {
       const missingWords: string[] = [];
       for (const dw of declaredWords) {
-        if (!extractedWords.includes(dw)) {
-          // Find closest extracted word for detailed error message
-          const closest = extractedWords.reduce((best, ew) => {
+        if (!searchableWords.includes(dw)) {
+          // Find closest word in document text for detailed diff
+          const closest = searchableWords.reduce((best, ew) => {
             const common = [...dw].filter((c, i) => ew[i] === c).length;
             return common > best.score ? { word: ew, score: common } : best;
           }, { word: '', score: -1 });
-          missingWords.push(closest.word ? `"${dw}" (trouvé sur doc: "${closest.word}")` : `"${dw}"`);
+          missingWords.push(closest.score >= 3 ? `"${dw}" (sur doc: "${closest.word}")` : `"${dw}"`);
         }
       }
       if (missingWords.length > 0) {
-        anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré ("${declaredName}") mais différent(s) sur le document ("${extractedName}").`);
+        anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré ("${declaredName}") mais non trouvé(s) sur le document.`);
       }
     }
   }
@@ -3014,18 +3022,24 @@ export function croiserDonneesScriptInterne(
   }
 
   // 4. Document Number Check
-  if (donneesDeclarees.numero_piece && infosExtraites?.numero_document) {
+  if (donneesDeclarees.numero_piece) {
     const decNumClean = String(donneesDeclarees.numero_piece).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const extNumClean = String(infosExtraites.numero_document).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    if (decNumClean.length >= 4 && extNumClean.length >= 4 && decNumClean !== extNumClean && !extNumClean.includes(decNumClean) && !decNumClean.includes(extNumClean)) {
-      anomalies.push(`Incohérence du numéro de pièce : Numéro lu "${infosExtraites.numero_document}" ne correspond pas au numéro déclaré "${donneesDeclarees.numero_piece}".`);
+    const extNumClean = String(infosExtraites?.numero_document || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const rawClean = rawOcrNorm.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    if (decNumClean.length >= 4) {
+      const foundInExtracted = extNumClean && (extNumClean === decNumClean || extNumClean.includes(decNumClean) || decNumClean.includes(extNumClean));
+      const foundInRaw = rawClean && rawClean.includes(decNumClean);
+      if (!foundInExtracted && !foundInRaw && extNumClean) {
+        anomalies.push(`Incohérence du numéro de pièce : Numéro lu "${infosExtraites.numero_document}" ne correspond pas au numéro déclaré "${donneesDeclarees.numero_piece}".`);
+      }
     }
   }
 
   if (anomalies.length > 0) {
     return {
       action: 'REJETER',
-      motif: anomalies[0],
+      motif: anomalies.join(' | '),
       anomalies
     };
   }
@@ -4344,10 +4358,9 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
       );
       if (scriptCheck.action === 'REJETER') {
         finalRes.action_recommandee = 'REJETER';
-        finalRes.motif = scriptCheck.motif || "Incohérence des identités";
-        if (scriptCheck.anomalies) {
-          finalRes.anomalies = Array.from(new Set([...(finalRes.anomalies || []), ...scriptCheck.anomalies]));
-        }
+        const mergedAnomalies = Array.from(new Set([...(finalRes.anomalies || []), ...(scriptCheck.anomalies || [])]));
+        finalRes.anomalies = mergedAnomalies;
+        finalRes.motif = mergedAnomalies.join(' | ') || scriptCheck.motif || "Incohérence des identités";
       }
 
       // Optional secondary Groq LPU fast check if configured

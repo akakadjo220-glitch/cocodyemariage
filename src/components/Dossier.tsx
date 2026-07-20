@@ -826,7 +826,12 @@ export default function Dossier({
         setIsAnalyzingAi(true);
         setAnalysisStatus(prev => ({ ...prev, [docId]: '🔍 Analyse par l\'IA en cours... (Authenticité & Identité)' }));
         try {
-          const docNumOverride = docNum || (docId.includes('_f') ? spouse2Cni : spouse1Cni);
+          const isSpouse2 = docId.includes('_f');
+          const declaredCniInState = isSpouse2
+            ? (cni2 || dossierDetails?.spouse2_cni || spouse2Cni)
+            : (cni1 || dossierDetails?.spouse1_cni || spouse1Cni);
+          const docNumOverride = docNum || declaredCniInState || '';
+
           const aiResult = await runDocumentAiAnalysis(
             dossierId,
             docId,

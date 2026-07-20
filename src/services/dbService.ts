@@ -3058,12 +3058,10 @@ export function croiserDonneesScriptInterne(
       }
     }
 
-    // B. ALWAYS search declared number inside GLM-OCR / Vision AI raw OCR text!
-    // (Must be exact full clean number OR stripped number of length >= 6)
+    // B. Search declared number inside GLM-OCR / Vision AI raw OCR text ONLY IF exact clean number matches
     if (!isMatch) {
       if (
-        (decNumClean && decNumClean.length >= 6 && (rawOcrClean.includes(decNumClean) || rawOcrTextFull.includes(declaredRaw.toUpperCase()))) ||
-        (decStripped && decStripped.length >= 6 && rawOcrClean.includes(decStripped))
+        decNumClean && decNumClean.length >= 6 && (rawOcrClean.includes(decNumClean) || rawOcrTextFull.includes(declaredRaw.toUpperCase()))
       ) {
         isMatch = true;
       }
@@ -4494,7 +4492,8 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
   let finalResult: AiAnalysisResult = analysisResult;
 
   // --- PROGRAMMATIC COMPARISON VALIDATION ---
-  if (finalResult.action_recommandee === 'VALIDER' || finalResult.action_recommandee === 'VERIFIER_MANUELLEMENT') {
+  // ALWAYS execute programmatic validation (names, birthdates, document numbers) for all documents!
+  if (finalResult) {
     const extractedNom = (finalResult.infos_extraites?.nom || '').trim().toUpperCase();
     const extractedPrenoms = (finalResult.infos_extraites?.prenoms || '').trim().toUpperCase();
     const extractedBirthdate = (finalResult.infos_extraites?.date_naissance || '').trim();
@@ -4620,8 +4619,9 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
 
     if (mismatchAnomalies.length > 0) {
       finalResult.action_recommandee = 'REJETER';
-      finalResult.anomalies = [...(finalResult.anomalies || []), ...mismatchAnomalies];
-      finalResult.motif = mismatchAnomalies.join(' | ');
+      const allAnomalies = Array.from(new Set([...(finalResult.anomalies || []), ...mismatchAnomalies]));
+      finalResult.anomalies = allAnomalies;
+      finalResult.motif = allAnomalies.join(' | ');
     }
   }
   const rawAction = (finalResult as any)._raw_action || finalResult.action_recommandee;

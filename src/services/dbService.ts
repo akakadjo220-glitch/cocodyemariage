@@ -3024,14 +3024,20 @@ export function croiserDonneesScriptInterne(
   // 4. Document Number Check
   if (donneesDeclarees.numero_piece) {
     const decNumClean = String(donneesDeclarees.numero_piece).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const extNumClean = String(infosExtraites?.numero_document || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const rawExtNum = infosExtraites?.numero_document || infosExtraites?.numero_piece_extrait || '';
+    const extNumClean = String(rawExtNum).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const rawClean = rawOcrNorm.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
-    if (decNumClean.length >= 4) {
+    if (decNumClean.length >= 3) {
       const foundInExtracted = extNumClean && (extNumClean === decNumClean || extNumClean.includes(decNumClean) || decNumClean.includes(extNumClean));
       const foundInRaw = rawClean && rawClean.includes(decNumClean);
-      if (!foundInExtracted && !foundInRaw && extNumClean) {
-        anomalies.push(`Incohérence du numéro de pièce : Numéro lu "${infosExtraites.numero_document}" ne correspond pas au numéro déclaré "${donneesDeclarees.numero_piece}".`);
+
+      if (!foundInExtracted && !foundInRaw) {
+        if (extNumClean && extNumClean !== decNumClean) {
+          anomalies.push(`Incohérence du numéro de pièce : le numéro renseigné "${donneesDeclarees.numero_piece}" est différent de celui présent sur la pièce ("${rawExtNum}").`);
+        } else {
+          anomalies.push(`Incohérence du numéro de pièce : le numéro renseigné "${donneesDeclarees.numero_piece}" ne figure pas sur la pièce fournie.`);
+        }
       }
     }
   }
@@ -3313,8 +3319,19 @@ export function formatUserFriendlyAnomaly(anom: string): string {
     const words = m ? m[1] : '';
     return `👤 Identité non correspondante : le nom ${words ? words : ''} ne figure pas sur la pièce fournie.`;
   }
-  if (t.includes("Incohérence du numéro de pièce")) {
-    return `🔢 Numéro de pièce non correspondant aux informations déclarées.`;
+  if (t.includes("Incohérence du numéro de pièce") || t.includes("Numéro de pièce non correspondant") || t.includes("Incohérence numéro de pièce")) {
+    const mDiff = t.match(/numéro [a-z]+ "(.*?)" est différent de celui présent sur la pièce \("(.*?)"\)/i);
+    const mFig = t.match(/numéro [a-z]+ "(.*?)" ne figure pas sur/i);
+    const mLu = t.match(/Numéro (?:lu|extrait) "(.*?)" ne correspond pas au numéro [a-z]+ "(.*?)"/i);
+
+    if (mDiff) {
+      return `🔢 Numéro de pièce non correspondant : le numéro renseigné "${mDiff[1]}" est différent de celui présent sur la pièce ("${mDiff[2]}").`;
+    } else if (mFig) {
+      return `🔢 Numéro de pièce non correspondant : le numéro renseigné "${mFig[1]}" ne figure pas sur la pièce fournie.`;
+    } else if (mLu) {
+      return `🔢 Numéro de pièce non correspondant : le numéro renseigné "${mLu[2]}" est différent de celui présent sur la pièce ("${mLu[1]}").`;
+    }
+    return `🔢 Numéro de pièce non correspondant aux informations renseignées.`;
   }
 
   return t;

@@ -2915,10 +2915,12 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     /\bDate\s+d['']?exp[^\n]{0,10}(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i
   ]);
   const numeroDoc = extractField([
+    /\b(CI\d{7,12})/i,
+    /\b(C\d{8,12})/i,
     /\bn[°o\.]\s*([A-Z]{1,3}\d{6,12})/i,
-    /\bNNI\s*[:\|]\s*(\d{8,14})/i,
     /IDCIV([A-Z0-9]+)(?:<|$)/,
-    /No\.\s*([A-Z]{1,2}\d{6,10})/i
+    /No\.\s*([A-Z]{1,2}\d{6,10})/i,
+    /\bNNI\s*[:\|]\s*(\d{8,14})/i
   ]);
   // Also capture from MRZ line (BRIDA<<MAHI<LANDRY...)
   const mrzNomMatch = t.match(/([A-Z]{2,}(?:<[A-Z]+)+(?:<<))/);

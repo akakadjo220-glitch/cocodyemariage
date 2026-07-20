@@ -117,6 +117,12 @@ export default function App() {
   const [verifyDossierId, setVerifyDossierId] = useState<string | null>(null);
   const [dossierActiveStep, setDossierActiveStep] = useState<number>(1);
 
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(() => {
+    const localId = sessionStorage.getItem('e_mariage_dossier_id');
+    const demoIds = ['dossier_camille_marc', 'dossier_aicha_sekou', 'dossier_marie_pierre'];
+    return Boolean(localId && !demoIds.includes(localId));
+  });
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const verifyId = params.get('verify') || params.get('id');
@@ -153,6 +159,7 @@ export default function App() {
       }
       // If we don't have a valid dossier ID with names filled, we wait
       setDossierId('');
+      setIsInitialLoading(false);
     }
     initializeSession();
   }, []);
@@ -180,6 +187,7 @@ export default function App() {
       setDocuments(INITIAL_DOCUMENTS);
       setTimelineSteps(INITIAL_TIMELINE_STEPS);
       setNotifications(INITIAL_NOTIFICATIONS);
+      setIsInitialLoading(false);
       return;
     }
 
@@ -206,41 +214,45 @@ export default function App() {
     setNotifications([]);
 
     async function loadDossierData() {
-      const dossier = await getDossierById(dossierId);
-      if (dossier) {
-        setSpouse1Name(dossier.spouse1_name);
-        setSpouse2Name(dossier.spouse2_name);
-        setSpouse1Phone(dossier.spouse1_phone || '');
-        setSpouse2Phone(dossier.spouse2_phone || '');
-        setSpouse1Email(dossier.spouse1_email || '');
-        setSpouse2Email(dossier.spouse2_email || '');
-        setSpouse1Birthdate(dossier.spouse1_birthdate || '');
-        setSpouse2Birthdate(dossier.spouse2_birthdate || '');
-        setSpouse1Cni(dossier.spouse1_cni || '');
-        setSpouse2Cni(dossier.spouse2_cni || '');
-        setSpouse1CniType(dossier.spouse1_cni_type || 'CNI');
-        setSpouse2CniType(dossier.spouse2_cni_type || 'CNI');
-        setSelectedMairieId(dossier.mairie_id);
-        setDossierStatus(dossier.status);
-        setWeddingDate(dossier.wedding_date);
-        setAppointmentDate(dossier.appointment_date || null);
+      try {
+        const dossier = await getDossierById(dossierId);
+        if (dossier) {
+          setSpouse1Name(dossier.spouse1_name);
+          setSpouse2Name(dossier.spouse2_name);
+          setSpouse1Phone(dossier.spouse1_phone || '');
+          setSpouse2Phone(dossier.spouse2_phone || '');
+          setSpouse1Email(dossier.spouse1_email || '');
+          setSpouse2Email(dossier.spouse2_email || '');
+          setSpouse1Birthdate(dossier.spouse1_birthdate || '');
+          setSpouse2Birthdate(dossier.spouse2_birthdate || '');
+          setSpouse1Cni(dossier.spouse1_cni || '');
+          setSpouse2Cni(dossier.spouse2_cni || '');
+          setSpouse1CniType(dossier.spouse1_cni_type || 'CNI');
+          setSpouse2CniType(dossier.spouse2_cni_type || 'CNI');
+          setSelectedMairieId(dossier.mairie_id);
+          setDossierStatus(dossier.status);
+          setWeddingDate(dossier.wedding_date);
+          setAppointmentDate(dossier.appointment_date || null);
 
-        const mairiesList = await getMairies();
-        const activeMairie = mairiesList.find(m => m.id === dossier.mairie_id);
-        if (activeMairie) {
-          setSelectedMairieName(activeMairie.name);
+          const mairiesList = await getMairies();
+          const activeMairie = mairiesList.find(m => m.id === dossier.mairie_id);
+          if (activeMairie) {
+            setSelectedMairieName(activeMairie.name);
+          }
         }
-      }
 
-      // Fetch scoped assets
-      const [docs, steps, notifs] = await Promise.all([
-        getDocuments(dossierId),
-        getTimelineSteps(dossierId),
-        getNotifications(dossierId)
-      ]);
-      setDocuments(docs);
-      setTimelineSteps(steps);
-      setNotifications(notifs);
+        // Fetch scoped assets
+        const [docs, steps, notifs] = await Promise.all([
+          getDocuments(dossierId),
+          getTimelineSteps(dossierId),
+          getNotifications(dossierId)
+        ]);
+        setDocuments(docs);
+        setTimelineSteps(steps);
+        setNotifications(notifs);
+      } finally {
+        setIsInitialLoading(false);
+      }
     }
     loadDossierData();
   }, [dossierId]);
@@ -706,6 +718,7 @@ export default function App() {
                 onRetrieveDossier={handleRetrieveDossier}
                 dossierActiveStep={dossierActiveStep}
                 setDossierActiveStep={setDossierActiveStep}
+                isInitialLoading={isInitialLoading}
               />
             )}
 

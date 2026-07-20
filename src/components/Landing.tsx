@@ -70,6 +70,7 @@ interface LandingProps {
   onRetrieveDossier?: (id: string) => void;
   dossierActiveStep?: number;
   setDossierActiveStep?: (step: number) => void;
+  isInitialLoading?: boolean;
 }
 
 const STEPS_META = [
@@ -181,6 +182,7 @@ export default function Landing({
   onRetrieveDossier,
   dossierActiveStep,
   setDossierActiveStep,
+  isInitialLoading = false,
 }: LandingProps) {
   const [showParcours, setShowParcours] = useState(false);
   const [openDocSection, setOpenDocSection] = useState<'commun' | 'cas' | null>(null);
@@ -801,8 +803,21 @@ export default function Landing({
               Pas besoin de vous déplacer pour réserver ! Remplissez votre dossier en ligne en quelques minutes, déposez vos pièces d'identité et choisissez l'heure qui vous convient le mieux.
             </p>
 
-            {/* Bandeau dossier existant si détecté */}
-            {dossierId && spouse1Name && spouse2Name ? (
+            {/* Bandeau dossier existant si détecté ou Chargement en cours */}
+            {isInitialLoading ? (
+              <div className="bg-[#fdfbf7]/90 border border-[#c5a368]/35 rounded-2xl p-4 flex items-center justify-between shadow-sm max-w-xl backdrop-blur-sm animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-[#c5a368]/20 flex items-center justify-center text-base shrink-0 animate-spin">
+                    💍
+                  </div>
+                  <div className="space-y-1.5 text-left">
+                    <div className="h-3.5 w-44 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-2.5 w-28 bg-slate-200 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="h-8 w-24 bg-[#c5a368]/20 rounded-xl animate-pulse" />
+              </div>
+            ) : dossierId && spouse1Name && spouse2Name ? (
               <div className="bg-[#fdfbf7]/80 border border-[#c5a368]/35 rounded-2xl p-4 flex items-center justify-between shadow-sm max-w-xl backdrop-blur-sm">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center shrink-0 text-lg shadow-md border border-white/20">
@@ -823,41 +838,43 @@ export default function Landing({
             ) : null}
 
             {/* Primary Action Panel: Simplified choices */}
-            <div className="flex flex-col gap-3.5 max-w-lg mt-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {!isInitialLoading && !dossierId && (
+              <div className="flex flex-col gap-3.5 max-w-lg mt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  
+                  {/* Choice 1: Start new */}
+                  <button
+                    onClick={openParcours}
+                    className="bg-primary hover:bg-[#900042] text-white py-4 px-6 rounded-2xl font-bold uppercase text-[11px] tracking-wider transition-all shadow-[0_10px_35px_rgba(178,0,82,0.22)] hover:shadow-[0_12px_45px_rgba(178,0,82,0.35)] hover:-translate-y-0.5 border border-primary/30 flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer relative overflow-hidden group"
+                  >
+                    <div className="absolute top-0 right-0 w-8 h-8 bg-white/10 rounded-full translate-x-2 -translate-y-2 group-hover:scale-150 transition-transform duration-500" />
+                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                      <UserPlus className="w-4 h-4 text-accent animate-bounce" />
+                    </div>
+                    <span className="font-bold tracking-widest block">1. NOUVEAU DOSSIER</span>
+                    <span className="text-[9px] text-rose-100 font-normal normal-case block">Commencer ici (Gratuit)</span>
+                  </button>
+
+                  {/* Choice 2: Find existing */}
+                  <button
+                    onClick={() => setShowRetrieveModal(true)}
+                    className="bg-white border border-[#c5a368]/45 hover:border-[#c5a368] text-slate-800 py-4 px-6 rounded-2xl font-bold uppercase text-[11px] tracking-wider transition-all shadow-sm hover:shadow-[0_10px_30px_rgba(197,163,104,0.15)] hover:-translate-y-0.5 flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#fdfbf7] border border-[#c5a368]/20 flex items-center justify-center shrink-0">
+                      <Search className="w-4 h-4 text-slate-500" />
+                    </div>
+                    <span className="font-bold tracking-widest block text-slate-800">2. RETROUVER MON DOSSIER</span>
+                    <span className="text-[9px] text-slate-400 font-normal normal-case block">Pour modifier ou payer</span>
+                  </button>
+
+                </div>
                 
-                {/* Choice 1: Start new */}
-                <button
-                  onClick={openParcours}
-                  className="bg-primary hover:bg-[#900042] text-white py-4 px-6 rounded-2xl font-bold uppercase text-[11px] tracking-wider transition-all shadow-[0_10px_35px_rgba(178,0,82,0.22)] hover:shadow-[0_12px_45px_rgba(178,0,82,0.35)] hover:-translate-y-0.5 border border-primary/30 flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer relative overflow-hidden group"
-                >
-                  <div className="absolute top-0 right-0 w-8 h-8 bg-white/10 rounded-full translate-x-2 -translate-y-2 group-hover:scale-150 transition-transform duration-500" />
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                    <UserPlus className="w-4 h-4 text-accent animate-bounce" />
-                  </div>
-                  <span className="font-bold tracking-widest block">1. NOUVEAU DOSSIER</span>
-                  <span className="text-[9px] text-rose-100 font-normal normal-case block">Commencer ici (Gratuit)</span>
-                </button>
-
-                {/* Choice 2: Find existing */}
-                <button
-                  onClick={() => setShowRetrieveModal(true)}
-                  className="bg-white border border-[#c5a368]/45 hover:border-[#c5a368] text-slate-800 py-4 px-6 rounded-2xl font-bold uppercase text-[11px] tracking-wider transition-all shadow-sm hover:shadow-[0_10px_30px_rgba(197,163,104,0.15)] hover:-translate-y-0.5 flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer group"
-                >
-                  <div className="w-8 h-8 rounded-full bg-[#fdfbf7] border border-[#c5a368]/20 flex items-center justify-center shrink-0">
-                    <Search className="w-4 h-4 text-slate-500" />
-                  </div>
-                  <span className="font-bold tracking-widest block text-slate-800">2. RETROUVER MON DOSSIER</span>
-                  <span className="text-[9px] text-slate-400 font-normal normal-case block">Pour modifier ou payer</span>
-                </button>
-
+                <div className="flex items-center justify-center sm:justify-start gap-1 text-[10px] text-slate-400 font-medium">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Prend moins de 5 minutes · Accessible sur tous les téléphones</span>
+                </div>
               </div>
-              
-              <div className="flex items-center justify-center sm:justify-start gap-1 text-[10px] text-slate-400 font-medium">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Prend moins de 5 minutes · Accessible sur tous les téléphones</span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Right Column: Beautiful image illustration */}

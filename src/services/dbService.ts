@@ -2919,9 +2919,11 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     /\b(C\d{8,12})/i,
     /\bn[°o\.]\s*([A-Z]{1,3}\d{6,12})/i,
     /IDCIV([A-Z0-9]+)(?:<|$)/,
-    /No\.\s*([A-Z]{1,2}\d{6,10})/i,
-    /\bNNI\s*[:\|]\s*(\d{8,14})/i
+    /No\.\s*([A-Z]{1,2}\d{6,10})/i
   ]);
+  const mrzDocMatch = t.match(/(?:C<CIV|P<CIV|I<CIV|P<[A-Z]{3})([A-Z0-9]{7,12})/i) || t.match(/\b([A-Z]{1,2}\d{7,9})\b/);
+  const numeroDocFinal = (numeroDoc || (mrzDocMatch ? mrzDocMatch[1] : '')).toUpperCase();
+
   // Also capture from MRZ line (BRIDA<<MAHI<LANDRY...)
   const mrzNomMatch = t.match(/([A-Z]{2,}(?:<[A-Z]+)+(?:<<))/);
   const mrzNom = mrzNomMatch ? mrzNomMatch[0].split('<<')[0].replace(/<+/g, ' ').trim() : '';
@@ -2938,7 +2940,8 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
     nom_extrait: nomFinal,
     prenoms_extraits: prenomsFinal,
     date_naissance_extraite: dateNaissance,
-    numero_piece_extrait: numeroDoc,
+    lieu_naissance_extrait: '',
+    numero_piece_extrait: numeroDocFinal,
     date_expiration_extraite: dateExpiration,
     action_recommandee: "VALIDER",
     message_utilisateur: `Document ${type_document} extrait par l'IA.`,
@@ -3023,50 +3026,63 @@ export function croiserDonneesScriptInterne(
     }
   }
 
-  // 4. Document Number Check
-  if (donneesDeclarees.numero_piece) {
-    const decNumClean = String(donneesDeclarees.numero_piece).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const rawExtNum = infosExtraites?.numero_document || infosExtraites?.numero_piece_extrait || '';
-    const extNumClean = String(rawExtNum).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  // 4. Document Number Check (CNI / Passport)
+  if (donneesDeclarees.numero_piece && donneesDeclarees.numero_piece.trim() !== '') {
+    const declaredRaw = donneesDeclarees.numero_piece.trim();
+    const decNumClean = declaredRaw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    
+    // Common country / document prefixes (CEDEAO & International)
+    const prefixRegex = /^(CI|SN|ML|BF|BJ|TG|NE|GN|GH|NG|GM|GW|LR|SL|CV|CNI|PASSEPORT|PASSPORT|PA|PAS|P|ID|CARD|C0*)/gi;
+    const decStripped = decNumClean.replace(prefixRegex, '');
 
-    if (decNumClean.length >= 3) {
-      let isMatch = false;
+    const rawExtNum = safeString(infosExtraites?.numero_document || infosExtraites?.numero_piece_extrait || '').trim();
+    const extNumClean = rawExtNum.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const extStripped = extNumClean.replace(prefixRegex, '');
 
-      if (extNumClean) {
-        if (extNumClean === decNumClean) {
-          isMatch = true;
-        } else {
-          // Strip common country/type prefixes (CEDEAO: CI, SN, ML, BF, BJ, TG, NE, GN, GH, NG, GM, GW, LR, SL, CV + PA, P, CNI, ID)
-          const prefixRegex = /^(CI|SN|ML|BF|BJ|TG|NE|GN|GH|NG|GM|GW|LR|SL|CV|CNI|PASSEPORT|PASSPORT|PA|PAS|P|ID|CARD|C0*)/gi;
-          const decStripped = decNumClean.replace(prefixRegex, '');
-          const extStripped = extNumClean.replace(prefixRegex, '');
-          if (decStripped && extStripped && decStripped === extStripped) {
-            isMatch = true;
-          } else if (decNumClean.length >= 6 && extNumClean.length >= 6 && decNumClean.length === extNumClean.length) {
-            // Levenshtein / single digit OCR typo check
-            let diffs = 0;
-            for (let i = 0; i < decNumClean.length; i++) {
-              if (decNumClean[i] !== extNumClean[i]) diffs++;
-            }
-            if (diffs <= 1) {
-              isMatch = true;
-            }
-          }
+    const rawOcrTextFull = safeString(infosExtraites?.raw_ocr_text || '').toUpperCase();
+    const rawOcrClean = rawOcrTextFull.replace(/[^a-zA-Z0-9]/g, '');
+
+    let isMatch = false;
+
+    // A. Direct Comparison with extracted field
+    if (extNumClean) {
+      if (extNumClean === decNumClean || (decStripped && extStripped && decStripped === extStripped)) {
+        isMatch = true;
+      } else if (decNumClean.length >= 6 && extNumClean.length >= 6 && decNumClean.length === extNumClean.length) {
+        // Allow max 1 digit typo Levenshtein
+        let diffs = 0;
+        for (let i = 0; i < decNumClean.length; i++) {
+          if (decNumClean[i] !== extNumClean[i]) diffs++;
         }
-      } else {
-        // Fallback ONLY if no document number was extracted by Vision AI: check if exact full declared number is in raw text
-        const rawClean = rawOcrNorm.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        if (rawClean && decNumClean.length >= 6 && rawClean.includes(decNumClean)) {
-          isMatch = true;
-        }
+        if (diffs <= 1) isMatch = true;
       }
+    }
 
-      if (!isMatch) {
-        if (extNumClean && extNumClean !== decNumClean) {
-          anomalies.push(`Incohérence du numéro de pièce : le numéro renseigné "${donneesDeclarees.numero_piece}" est différent de celui présent sur la pièce ("${rawExtNum}").`);
-        } else {
-          anomalies.push(`Incohérence du numéro de pièce : le numéro renseigné "${donneesDeclarees.numero_piece}" ne figure pas sur la pièce fournie.`);
-        }
+    // B. ALWAYS search declared number inside GLM-OCR / Vision AI raw OCR text!
+    // (Resolves cases where GLM-OCR extracted NNI "12011961101" instead of CNI "C012345678" or "CI12456789")
+    if (!isMatch) {
+      if (
+        (decNumClean && decNumClean.length >= 4 && (rawOcrClean.includes(decNumClean) || rawOcrTextFull.includes(declaredRaw.toUpperCase()))) ||
+        (decStripped && decStripped.length >= 4 && rawOcrClean.includes(decStripped))
+      ) {
+        isMatch = true;
+      }
+    }
+
+    // C. Handle outcome & update infosExtraites.numero_document
+    if (isMatch) {
+      if (infosExtraites) {
+        // Ensure "N° Pièce lu par l'IA" displays the declared/matching CNI number instead of NNI 12011961101
+        infosExtraites.numero_document = declaredRaw.toUpperCase();
+      }
+    } else {
+      if (extNumClean && extNumClean !== decNumClean && !/^\d{11}$/.test(extNumClean)) {
+        anomalies.push(`🔢 Numéro de pièce non correspondant : le numéro renseigné "${declaredRaw}" est différent de celui présent sur la pièce ("${rawExtNum}").`);
+      } else {
+        anomalies.push(`🔢 Numéro de pièce non correspondant : le numéro renseigné "${declaredRaw}" ne figure pas sur la pièce ou le passeport fourni.`);
+      }
+      if (infosExtraites && /^\d{11}$/.test(extNumClean)) {
+        infosExtraites.numero_document = rawExtNum;
       }
     }
   }
@@ -4551,9 +4567,39 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
 
     // Check document number match (CNI/Passport only if both are non-empty)
     let docNumMatches = true;
-    if (isIdentityDoc && declaredCni && extractedDocNum && declaredCni.trim() !== '' && extractedDocNum.trim() !== '') {
-      const cleanNum = (str: string) => str.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      docNumMatches = cleanNum(declaredCni) === cleanNum(extractedDocNum);
+    if (isIdentityDoc && declaredCni && declaredCni.trim() !== '') {
+      const declaredRaw = declaredCni.trim();
+      const decClean = declaredRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      const extClean = (extractedDocNum || '').trim().replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      const rawTextFull = safeString(finalResult.infos_extraites?.raw_ocr_text || '').toUpperCase();
+      const rawTextClean = rawTextFull.replace(/[^A-Z0-9]/gi, '');
+
+      const prefixRegex = /^(CI|SN|ML|BF|BJ|TG|NE|GN|GH|NG|GM|GW|LR|SL|CV|CNI|PASSEPORT|PASSPORT|PA|PAS|P|ID|CARD|C0*)/gi;
+      const decStripped = decClean.replace(prefixRegex, '');
+      const extStripped = extClean.replace(prefixRegex, '');
+
+      if (extClean && (extClean === decClean || (decStripped && extStripped && decStripped === extStripped))) {
+        docNumMatches = true;
+      } else if (
+        (decClean && decClean.length >= 4 && (rawTextClean.includes(decClean) || rawTextFull.includes(declaredRaw.toUpperCase()))) ||
+        (decStripped && decStripped.length >= 4 && rawTextClean.includes(decStripped))
+      ) {
+        docNumMatches = true;
+        if (finalResult.infos_extraites) {
+          finalResult.infos_extraites.numero_document = declaredRaw.toUpperCase();
+        }
+      } else if (!extClean && !rawTextClean) {
+        // If no text was extracted at all, don't fail solely on doc number
+        docNumMatches = true;
+      } else {
+        docNumMatches = false;
+      }
+
+      if (docNumMatches && finalResult.infos_extraites) {
+        if (/^\d{11}$/.test(extClean) || extClean !== decClean) {
+          finalResult.infos_extraites.numero_document = declaredRaw.toUpperCase();
+        }
+      }
     }
 
     const mismatchAnomalies: string[] = [];
@@ -4564,8 +4610,9 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
       const sourceName = usingOtherDocForBirthdate ? "sur la pièce d'identité" : "déclarée";
       mismatchAnomalies.push(`Incohérence date de naissance : la date extraite "${extractedBirthdate}" ne correspond pas à celle ${sourceName} "${targetBirthdate}".`);
     }
-    if (isIdentityDoc && declaredCni && extractedDocNum && !docNumMatches) {
-      mismatchAnomalies.push(`Incohérence numéro de pièce : le numéro extrait "${extractedDocNum}" ne correspond pas au numéro déclaré "${declaredCni}".`);
+    if (isIdentityDoc && declaredCni && !docNumMatches) {
+      const extDisplay = extractedDocNum && !/^\d{11}$/.test(extractedDocNum) ? ` ("${extractedDocNum}")` : '';
+      mismatchAnomalies.push(`🔢 Numéro de pièce non correspondant : le numéro renseigné "${declaredCni}" est différent de celui présent sur la pièce ou le passeport${extDisplay}.`);
     }
 
     if (mismatchAnomalies.length > 0) {

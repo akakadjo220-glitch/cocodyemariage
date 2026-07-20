@@ -1700,8 +1700,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
     });
 
     if (successPaystack && successSys) {
-      addNotification(`Tarifs enregistrés : ${paystackAmount.toLocaleString('fr-FR')} FCFA (Plateforme) / ${paramTimbrePrice.toLocaleString('fr-FR')} FCFA (Caisse Mairie)`, "success");
-      logSystemAction(`Super Admin a mis à jour les tarifs système (Plateforme: ${paystackAmount} F, Caisse Mairie: ${paramTimbrePrice} F)`, 'admin');
+      addNotification(`Tarifs enregistrés : ${(paystackAmount || 2500).toLocaleString('fr-FR')} FCFA (Plateforme) / ${(paramTimbrePrice || 100000).toLocaleString('fr-FR')} FCFA (Caisse Mairie)`, "success");
+      logSystemAction(`Super Admin a mis à jour les tarifs système (Plateforme: ${paystackAmount || 2500} F, Caisse Mairie: ${paramTimbrePrice || 100000} F)`, 'admin');
       loadData();
     } else {
       addNotification("Erreur lors de l'enregistrement de la configuration de paiement.", "warning");
@@ -3422,9 +3422,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Plateforme ({paystackAmount.toLocaleString('fr-FR')} F)</span>
+                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Plateforme ({((paystackAmount || 2500)).toLocaleString('fr-FR')} F)</span>
                 <span className="font-serif text-xl font-bold text-emerald-700">
-                  {((dossiers.filter(d => d.payment_status === 'paid' || d.status !== 'draft').length) * paystackAmount).toLocaleString('fr-FR')} F
+                  {((dossiers.filter(d => d.payment_status === 'paid' || d.status !== 'draft').length) * (paystackAmount || 2500)).toLocaleString('fr-FR')} F
                 </span>
               </div>
             </div>
@@ -3434,9 +3434,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 <Award className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Caisse ({paramTimbrePrice.toLocaleString('fr-FR')} F)</span>
+                <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Caisse ({((paramTimbrePrice || 100000)).toLocaleString('fr-FR')} F)</span>
                 <span className="font-serif text-xl font-bold text-purple-700">
-                  {((dossiers.filter(d => d.physical_verified || d.status === 'approved' || d.status === 'celebrated').length) * paramTimbrePrice).toLocaleString('fr-FR')} F
+                  {((dossiers.filter(d => d.physical_verified || d.status === 'approved' || d.status === 'celebrated').length) * (paramTimbrePrice || 100000)).toLocaleString('fr-FR')} F
                 </span>
               </div>
             </div>
@@ -9552,13 +9552,13 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                   <div className="p-3 flex justify-between items-center border-b border-slate-200">
                     <div>
                       <p className="font-bold text-slate-900">Droits de Célébration du Mariage &amp; Timbres Municipaux d'État Civil</p>
-                      <p className="text-[10px] text-slate-500">Encaissement physique en caisse communale (Frais plateforme en ligne de {paystackAmount.toLocaleString('fr-FR')} FCFA déjà acquittés)</p>
+                      <p className="text-[10px] text-slate-500">Encaissement physique en caisse communale (Frais plateforme en ligne de {(paystackAmount || 2500).toLocaleString('fr-FR')} FCFA déjà acquittés)</p>
                     </div>
-                    <span className="font-mono font-bold text-slate-900 text-sm">{paramTimbrePrice.toLocaleString('fr-FR')} FCFA</span>
+                    <span className="font-mono font-bold text-slate-900 text-sm">{(paramTimbrePrice || 100000).toLocaleString('fr-FR')} FCFA</span>
                   </div>
                   <div className="p-3 bg-amber-50/60 flex justify-between items-center font-bold text-slate-900">
                     <span>TOTAL À PAYER À LA CAISSE MUNICIPALE :</span>
-                    <span className="font-mono text-base text-amber-900">{paramTimbrePrice.toLocaleString('fr-FR')} FCFA</span>
+                    <span className="font-mono text-base text-amber-900">{(paramTimbrePrice || 100000).toLocaleString('fr-FR')} FCFA</span>
                   </div>
                 </div>
 

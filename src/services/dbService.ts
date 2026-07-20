@@ -2919,8 +2919,10 @@ export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: 
   ]);
   const dateExpiration = extractField([
     /Date\s+d['']expiration\s*[:\|]?\s*(\d{2}\/\d{2}\/\d{4})/i,
-    /[Ee]xpiry\s*[:\|]\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/,
-    /[Vv]alable\s+jusqu['']au\s*[:\|]?\s*(\d{2}\/\d{2}\/\d{4})/
+    /[Ee]xpiry\s*[:\|]\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i,
+    /[Vv]ali(?:de|ble)\s+jusqu['']au\s*[:\|]?\s*(\d{2}\/\d{2}\/\d{4})/,   // "Valide jusqu'au" (CNI ivoirienne)
+    /[Vv]alid(?:e|ity)\s+until\s*[:\|]?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i,
+    /\bDate\s+d['']?exp[^\n]{0,10}(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i
   ]);
   // Document number: CNI pattern CIxxxxxxxx or passport pattern
   const numeroDoc = extractField([
@@ -4218,7 +4220,10 @@ export async function runDocumentAiAnalysis(
   const declaredFullName = isSpouse2 ? (dossier?.spouse2_name || '') : (dossier?.spouse1_name || '');
   const declaredBirthdate = isSpouse2 ? (dossier?.spouse2_birthdate || '') : (dossier?.spouse1_birthdate || '');
   const declaredCni = isSpouse2 ? (dossier?.spouse2_cni || '') : (dossier?.spouse1_cni || '');
-  const typePiece = fileName.toLowerCase().includes('pass') ? 'PASSEPORT' : 'CNI';
+  // Use the declared piece type from the dossier (set during registration), not the filename
+  const typePiece: 'CNI' | 'PASSEPORT' = isSpouse2
+    ? (dossier?.spouse2_cni_type || 'CNI')
+    : (dossier?.spouse1_cni_type || 'CNI');
 
   const nameParts = declaredFullName.trim().split(/\s+/);
   const NOM_DÉCLARÉ = nameParts[nameParts.length - 1] || '';
@@ -4374,10 +4379,9 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
             }
           }
         } else if (finalRes.action_recommandee === 'REJETER' && hasExpirInMotif) {
-          console.log(`[AI Auto-Fix] Overriding unverified expiration rejection for valid ID card`);
-          finalRes.action_recommandee = 'VALIDER';
-          finalRes.motif = `Pièce d'identité validée avec succès.`;
-          finalRes.anomalies = finalRes.anomalies.filter(a => !a.toLowerCase().includes('expir'));
+          // ⚠️ No year found in expiration date — do NOT override the rejection.
+          // Keep REJETER to be safe; the officer can manually review if needed.
+          console.log(`[AI Safety] Keeping REJETER: expiration date unparseable but motif contains 'expir'. Manual review required.`);
         }
       }
     }

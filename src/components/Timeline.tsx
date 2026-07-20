@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TimelineStep, PaystackConfig, PaymentInfo, DocumentInfo } from '../types';
 import { ensurePhonePrefix, handlePhoneChange } from './Landing';
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
+import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr } from '../utils/calendarReservationUtils';
 
 // Security helpers (same as Landing popup)
 const getBordureStyle = (statut: string | null) => {
@@ -157,6 +158,7 @@ export default function Timeline({
   const [editCni2, setEditCni2] = useState(spouse2Cni);
   const [editCniType1, setEditCniType1] = useState<'CNI' | 'PASSEPORT'>('CNI');
   const [editCniType2, setEditCniType2] = useState<'CNI' | 'PASSEPORT'>('CNI');
+  const [editTargetMonthId, setEditTargetMonthId] = useState<string>('07');
   const [dossierDuplicateError, setDossierDuplicateError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [erreurCroisement, setErreurCroisement] = useState<string | null>(null);
@@ -1059,6 +1061,66 @@ export default function Timeline({
                 </div>
               </div>
 
+              {/* ── Mois de Célébration Souhaité & Verification Ouverture ── */}
+              <div className="flex flex-col gap-2 p-4 bg-gradient-to-br from-amber-500/5 via-primary/5 to-emerald-500/5 border border-[#c5a368]/30 rounded-2xl text-left shadow-sm">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-[#c5a368]" />
+                  <label className="font-bold text-slate-800 text-xs font-sans">Mois de célébration souhaité *</label>
+                </div>
+                <p className="text-[11px] text-slate-500 font-sans">
+                  Sélectionnez le mois où vous souhaitez célébrer votre mariage à la Mairie de Cocody.
+                </p>
+                
+                <select
+                  value={editTargetMonthId}
+                  onChange={e => setEditTargetMonthId(e.target.value)}
+                  className="w-full border border-neutral-300 rounded-xl px-4 py-3 bg-white font-semibold focus:border-primary focus:outline-none cursor-pointer text-xs transition-all shadow-sm font-sans"
+                >
+                  {CALENDRIER_RESERVATIONS_2026.map(slot => (
+                    <option key={slot.id} value={slot.id}>
+                      {slot.moisCélébration} (Réservations : dès le {slot.debutReservation})
+                    </option>
+                  ))}
+                </select>
+
+                {/* Status Banner */}
+                {(() => {
+                  const item = CALENDRIER_RESERVATIONS_2026.find(c => c.id === editTargetMonthId);
+                  if (!item) return null;
+                  const isOpened = checkIsOpened(item.ouvertureIso);
+                  const remaining = getDaysRemainingStr(item.ouvertureIso);
+
+                  return (
+                    <div className={`mt-2 p-3 rounded-xl border text-xs font-sans flex flex-col gap-1 ${
+                      isOpened
+                        ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+                        : 'bg-amber-50/90 border-amber-200 text-amber-900'
+                    }`}>
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="flex items-center gap-1.5">
+                          {isOpened ? '🟢 Réservations Ouvertes !' : `⏳ Réservations pas encore ouvertes`}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                          isOpened ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                        }`}>
+                          {isOpened ? 'Disponibles' : remaining || 'Bientôt'}
+                        </span>
+                      </div>
+                      
+                      <p className="text-[11px] font-medium leading-relaxed mt-0.5">
+                        {isOpened
+                          ? `Les réservations pour ${item.moisCélébration} sont actuellement ouvertes à la Mairie. Vous pouvez constituer votre dossier.`
+                          : `Les réservations pour ${item.moisCélébration} ouvriront officiellement le ${item.debutReservation}.`}
+                      </p>
+                      
+                      <p className="text-[10px] italic opacity-85 mt-0.5">
+                        💡 {item.conseil}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
+
               {erreurCroisement && (
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
                   <AlertCircle className="w-4.5 h-4.5 text-rose-700 shrink-0 mt-0.5" />
@@ -1274,6 +1336,50 @@ export default function Timeline({
                 className="border border-neutral-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:border-primary text-xs font-medium"
               />
             </div>
+
+            {selectedDateVal && (() => {
+              const parts = selectedDateVal.split('-');
+              if (parts.length < 2) return null;
+              const mNum = parseInt(parts[1], 10);
+              let slotId = parts[1];
+              if (mNum === 2 || mNum === 3) slotId = "02_03";
+              else if (mNum === 4 || mNum === 5) slotId = "04_05";
+              else if (mNum < 10 && mNum !== 2 && mNum !== 3 && mNum !== 4 && mNum !== 5) {
+                slotId = `0${mNum}`;
+              }
+              const slotItem = CALENDRIER_RESERVATIONS_2026.find(s => s.id === slotId);
+              if (!slotItem) return null;
+              const isOpened = checkIsOpened(slotItem.ouvertureIso);
+              const remaining = getDaysRemainingStr(slotItem.ouvertureIso);
+
+              return (
+                <div className={`p-3.5 rounded-2xl border text-xs font-sans text-left flex items-start gap-3 ${
+                  isOpened
+                    ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
+                    : 'bg-amber-50/90 border-amber-200 text-amber-950'
+                }`}>
+                  <CalendarDays className={`w-5 h-5 shrink-0 mt-0.5 ${isOpened ? 'text-emerald-600' : 'text-amber-600'}`} />
+                  <div>
+                    <div className="flex items-center gap-2 font-bold">
+                      <span>{slotItem.moisCélébration}</span>
+                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black ${
+                        isOpened ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                      }`}>
+                        {isOpened ? '🟢 Ouvert aux réservations' : `⏳ ${remaining || 'Bientôt'}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-medium mt-1 leading-relaxed">
+                      {isOpened
+                        ? `Les réservations pour ce mois sont ouvertes. Vous pouvez choisir votre créneau ci-dessous.`
+                        : `Attention : Les réservations officielles pour ${slotItem.moisCélébration} ouvriront le ${slotItem.debutReservation} à la Mairie.`}
+                    </p>
+                    <p className="text-[10px] italic opacity-85 mt-1">
+                      💡 {slotItem.conseil}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
             {selectedDateVal && (
               <div className="flex flex-col gap-2.5 text-left animate-reveal-up mt-4">

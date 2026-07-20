@@ -641,12 +641,13 @@ export default function Landing({
     // Pré-remplir la date et l'heure
     const parsed = parseWeddingDate(weddingDate || '');
     setChosenDate(parsed.date);
-    setChosenTime(parsed.time);
-    setAllDone(false);
-
     // Initialiser étapes complétées et étape active selon avancement réel
     const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
     const startStep = getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+
+    if (dossierId) {
+      setPrecheckConfirmed(true);
+    }
 
     setCompletedSteps(done);
     setActiveStep(startStep);
@@ -813,10 +814,10 @@ export default function Landing({
                   </div>
                 </div>
                 <button
-                  onClick={() => setTab('timeline')}
+                  onClick={openParcours}
                   className="bg-primary hover:bg-primary-container text-white text-[10px] font-extrabold uppercase px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-1 shrink-0 cursor-pointer border border-primary/20"
                 >
-                  Ouvrir <ChevronRight className="w-3.5 h-3.5" />
+                  OUVRIR <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : null}

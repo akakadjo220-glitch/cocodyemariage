@@ -250,6 +250,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   const [mistralKey, setMistralKey] = useState('');
   const [groqKey, setGroqKey] = useState('');
   const [tavilyKey, setTavilyKey] = useState('');
+  const [glmKey, setGlmKey] = useState('');
+  const [primaryOcrEngine, setPrimaryOcrEngine] = useState<'glm-ocr' | 'mistral-vision' | 'openrouter-vision'>('glm-ocr');
+  const [fastCheckEngine, setFastCheckEngine] = useState<'internal-script' | 'groq-lpu' | 'disabled'>('internal-script');
   const [promptPrincipal, setPromptPrincipal] = useState('');
   const [promptAntiDoublon, setPromptAntiDoublon] = useState('');
   const [promptDoubleVerification, setPromptDoubleVerification] = useState('');
@@ -274,6 +277,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   // AI Diagnostics state
   const [isTestingAi, setIsTestingAi] = useState(false);
   const [aiTestResults, setAiTestResults] = useState<{
+    glm?: { status: 'idle' | 'testing' | 'success' | 'failed'; message?: string };
     openRouter: {
       status: 'idle' | 'testing' | 'success' | 'failed';
       models?: { modele: string; statut: string; icone: string; message?: string }[];
@@ -452,6 +456,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       setMistralKey(aiConfig.mistralKey || '');
       setGroqKey(aiConfig.groqKey || '');
       setTavilyKey(aiConfig.tavilyKey || '');
+      setGlmKey(aiConfig.glmKey || '');
+      setPrimaryOcrEngine(aiConfig.primaryOcrEngine || 'glm-ocr');
+      setFastCheckEngine(aiConfig.fastCheckEngine || 'internal-script');
       setPromptPrincipal(aiConfig.promptPrincipal || '');
       setPromptAntiDoublon(aiConfig.promptAntiDoublon || '');
       setPromptDoubleVerification(aiConfig.promptDoubleVerification || '');
@@ -1699,6 +1706,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       mistralKey: mistralKey.trim(),
       groqKey: groqKey.trim(),
       tavilyKey: tavilyKey.trim(),
+      glmKey: glmKey.trim(),
+      primaryOcrEngine: primaryOcrEngine,
+      fastCheckEngine: fastCheckEngine,
       promptNemotronSafety: promptNemotronSafety,
       promptPrincipal: promptPrincipal,
       promptAntiDoublon: promptAntiDoublon,
@@ -1722,14 +1732,15 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       deepFaceApiUrl: deepFaceApiUrl.trim()
     };
     saveAiConfig(config);
-    addNotification("Configuration de l'IA (OpenRouter, Mistral, Groq, Tavily, Nemotron) enregistrée avec succès !", "success");
-    logSystemAction("Super Admin a mis à jour les clés API et les prompts de l'Intelligence Artificielle", 'admin');
+    addNotification("Configuration de l'IA (GLM-OCR, Mistral, Script Interne, OpenRouter) enregistrée avec succès !", "success");
+    logSystemAction("Super Admin a mis à jour les clés API et les paramètres du moteur d'IA", 'admin');
     loadData();
   };
 
   const handleTestAiConnectivities = async () => {
     setIsTestingAi(true);
     setAiTestResults({
+      glm: { status: 'testing' },
       openRouter: { status: 'testing' },
       mistral: { status: 'testing' },
       groq: { status: 'testing' },
@@ -1739,6 +1750,65 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       paddleOcr: { status: 'testing' },
       deepFace: { status: 'testing' }
     });
+
+    // 0. Test GLM-OCR (Layout Parsing API: model "glm-ocr")
+    let glmStatus: 'success' | 'failed' = 'success';
+    let glmMsg = '';
+    if (!glmKey.trim()) {
+      glmStatus = 'failed';
+      glmMsg = "Clé API GLM-OCR / Z.AI manquante.";
+    } else {
+      // Minimal valid JPEG (1×1px white) that passes Z.AI format check
+      const sampleJpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AJQAB/9k=";
+      const endpoints = [
+        "https://api.z.ai/api/paas/v4/layout_parsing",
+        "https://open.bigmodel.cn/api/paas/v4/layout_parsing"
+      ];
+      let testOk = false;
+
+      for (const endpoint of endpoints) {
+        try {
+          const resp = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${glmKey.trim()}`
+            },
+            body: JSON.stringify({
+              model: "glm-ocr",
+              file: sampleJpeg
+            })
+          });
+
+          if (resp.ok) {
+            glmMsg = "Connexion GLM-OCR réussie ! (API layout_parsing : glm-ocr OK)";
+            glmStatus = 'success';
+            testOk = true;
+            break;
+          } else {
+            const errText = await resp.text();
+            // Error 1214 = format OK but image too small — API is reachable and key is valid
+            if (errText.includes("1214") || errText.includes("OCR仅支持")) {
+              glmMsg = "Clé GLM-OCR valide ✅ (API layout_parsing joignable — image de test trop petite, normal)";
+              glmStatus = 'success';
+              testOk = true;
+              break;
+            }
+            glmMsg = `Code ${resp.status} : ${errText.slice(0, 120)}`;
+          }
+        } catch (e: any) {
+          glmMsg = e.message || "Erreur réseau GLM-OCR.";
+        }
+      }
+
+      if (!testOk && glmStatus !== 'success') {
+        glmStatus = 'failed';
+      }
+    }
+    setAiTestResults(prev => ({
+      ...prev!,
+      glm: { status: glmStatus, message: glmMsg }
+    }));
 
     // 1. Test OpenRouter Models
     let openRouterStatus: 'success' | 'failed' = 'success';
@@ -4949,6 +5019,27 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                         </div>
                       </div>
 
+                      {/* GLM-OCR / Z.AI */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-semibold text-slate-700 text-xs">Clé API GLM-OCR / Z.AI (Vision &amp; OCR)</label>
+                        <div className="relative">
+                          <input
+                            type={showApiKeys.glm ? "text" : "password"}
+                            value={glmKey}
+                            onChange={(e) => setGlmKey(e.target.value)}
+                            placeholder="Clé API GLM / Z.AI..."
+                            className="w-full border border-neutral-300 rounded-xl pl-4 pr-10 py-2.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-mono text-xs shadow-sm transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleKeyVisibility('glm')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            {showApiKeys.glm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Tavily */}
                       <div className="flex flex-col gap-1.5">
                         <label className="font-semibold text-slate-700 text-xs">Clé API Tavily (Vérification Web Mairies)</label>
@@ -5128,35 +5219,51 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                       </div>
                     </div>
 
-                    {/* Unified Architecture: Mistral Vision + Groq LPU */}
+                    {/* Architecture Dynamique des Moteurs d'IA (Paramètres Système) */}
                     <div className="border-t border-slate-100 pt-5 mt-3 text-left">
                       <h5 className="font-bold text-slate-800 text-xs mb-3 flex items-center gap-2 font-serif">
                         <Cpu className="w-4 h-4 text-primary shrink-0" />
-                        Moteur IA Unifié : Mistral Vision (Image) + Groq LPU (Contrôle)
+                        Sélection des Moteurs IA &amp; Contrôle (Paramétrage Système)
                       </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50/40 border border-slate-200/60 rounded-xl">
-                        <div className="flex items-start gap-3 p-3.5 bg-white rounded-xl border border-slate-200/60 shadow-sm">
-                          <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-base shrink-0">
-                            👁️
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800 text-xs">Mistral Vision (Pixtral 12B)</span>
-                            <span className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
-                              Lecture HD des pièces, contrôle d'originalité, détection de falsification/Photoshop et extraction des données d'état civil.
-                            </span>
-                          </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50/50 border border-slate-200/80 rounded-2xl">
+                        {/* Vision Engine Selector */}
+                        <div className="flex flex-col gap-2 p-4 bg-white rounded-xl border border-slate-200/70 shadow-sm">
+                          <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <span className="text-base">👁️</span>
+                            <span>Moteur OCR Vision Principal (CNI / Passeport / Extrait)</span>
+                          </label>
+                          <select
+                            value={primaryOcrEngine}
+                            onChange={(e) => setPrimaryOcrEngine(e.target.value as any)}
+                            className="w-full border border-neutral-300 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white focus:border-[#c5a368] focus:outline-none text-xs font-semibold text-slate-800"
+                          >
+                            <option value="glm-ocr">🏆 GLM-OCR (Z.AI - Layout Parsing API)</option>
+                            <option value="mistral-vision">🇫🇷 Mistral Vision (Pixtral Large &amp; 12B Direct API)</option>
+                            <option value="openrouter-vision">🌐 OpenRouter Vision (Rotations Gemini / Qwen / Llama)</option>
+                          </select>
+                          <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
+                            Lit et extrait automatiquement les pièces d'identité HD, le nom, les prénoms, la date d'expiration et détecte l'originalité.
+                          </p>
                         </div>
 
-                        <div className="flex items-start gap-3 p-3.5 bg-white rounded-xl border border-slate-200/60 shadow-sm">
-                          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-base shrink-0">
-                            ⚡
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800 text-xs">Groq LPU (Llama 3.3 70B)</span>
-                            <span className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
-                              Vérification ultra-rapide des correspondances d'identité (nom, prénoms, dates, CNI) et détection des anomalies en &lt; 0,5 sec.
-                            </span>
-                          </div>
+                        {/* Fast Check Engine Selector */}
+                        <div className="flex flex-col gap-2 p-4 bg-white rounded-xl border border-slate-200/70 shadow-sm">
+                          <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <span className="text-base">⚡</span>
+                            <span>Moteur de Contrôle Rapide (Double-Check Identité)</span>
+                          </label>
+                          <select
+                            value={fastCheckEngine}
+                            onChange={(e) => setFastCheckEngine(e.target.value as any)}
+                            className="w-full border border-neutral-300 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white focus:border-[#c5a368] focus:outline-none text-xs font-semibold text-slate-800"
+                          >
+                            <option value="internal-script">⚙️ Script Interne Programme (Instantatif 0ms, 0$ - Recommandé)</option>
+                            <option value="groq-lpu">⚡ Groq LPU (Llama 3.3 70B - &lt; 0.5s via API Groq)</option>
+                            <option value="disabled">❌ Désactivé (Confiance 100% au moteur Vision)</option>
+                          </select>
+                          <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
+                            Effectue une validation croisée instantanée entre les informations lues sur le document et la déclaration du citoyen.
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -5195,7 +5302,41 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                     </div>
 
                     {aiTestResults ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-1 font-sans text-xs">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mt-1 font-sans text-xs">
+                        {/* GLM-OCR / Z.AI Result */}
+                        {aiTestResults.glm && (
+                          <div className={`p-3.5 rounded-xl border flex flex-col gap-1.5 ${
+                            aiTestResults.glm.status === 'testing'
+                              ? 'bg-amber-50/30 border-amber-200/50'
+                              : aiTestResults.glm.status === 'success'
+                              ? 'bg-emerald-50/30 border-emerald-250/50'
+                              : 'bg-rose-50/30 border-rose-250/50'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-800">GLM-OCR / Z.AI</span>
+                              {aiTestResults.glm.status === 'testing' ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                              ) : aiTestResults.glm.status === 'success' ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              ) : (
+                                <AlertTriangle className="w-4 h-4 text-rose-600" />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-secondary/80 font-medium">
+                              Rôle : Moteur OCR Vision HD &amp; extraction
+                            </p>
+                            {aiTestResults.glm.message && (
+                              <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
+                                aiTestResults.glm.status === 'success'
+                                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-800'
+                                  : 'bg-rose-500/10 border-rose-500/20 text-rose-800'
+                              }`}>
+                                {aiTestResults.glm.message}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Mistral Vision Result */}
                         <div className={`p-3.5 rounded-xl border flex flex-col gap-1.5 ${
                           aiTestResults.mistral.status === 'testing'
@@ -5215,7 +5356,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             )}
                           </div>
                           <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Lecture HD, originalité &amp; extraction d'état civil
+                            Rôle : Vision HD &amp; originalité
                           </p>
                           {aiTestResults.mistral.message && (
                             <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
@@ -5247,7 +5388,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                             )}
                           </div>
                           <p className="text-[10px] text-secondary/80 font-medium">
-                            Rôle : Contrôle rapide &amp; assistant virtuel Clara
+                            Rôle : Contrôle rapide &amp; Clara
                           </p>
                           {aiTestResults.groq.message && (
                             <div className={`text-[10px] font-mono p-1.5 rounded-lg border mt-1 leading-relaxed break-all ${
@@ -5341,7 +5482,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                     </h4>
                     <div className="flex flex-col gap-4">
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-semibold text-slate-700">1. Prompt Principal - Extraction &amp; Analyse CNI/Actes (Gemma 4 31B via OpenRouter)</label>
+                        <label className="font-semibold text-slate-700">
+                          1. Prompt Principal - Extraction &amp; Analyse CNI/Actes ({primaryOcrEngine === 'glm-ocr' ? 'GLM-OCR / Z.AI' : primaryOcrEngine === 'mistral-vision' ? 'Mistral Vision' : 'OpenRouter Vision'})
+                        </label>
                         <textarea
                           rows={6}
                           value={promptPrincipal}
@@ -5351,7 +5494,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                       </div>
                       
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-semibold text-slate-700">2. Prompt Anti-Doublon - Comparaison de documents (Gemma 4 31B via OpenRouter)</label>
+                        <label className="font-semibold text-slate-700">
+                          2. Prompt Anti-Doublon - Comparaison de documents ({primaryOcrEngine === 'glm-ocr' ? 'GLM-OCR / Z.AI' : primaryOcrEngine === 'mistral-vision' ? 'Mistral Vision' : 'OpenRouter Vision'})
+                        </label>
                         <textarea
                           rows={6}
                           value={promptAntiDoublon}
@@ -5361,7 +5506,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                       </div>
 
                       <div className="flex flex-col gap-1.5">
-                        <label className="font-semibold text-slate-700">3. Prompt Double-Vérification - Cohérence d'identité (Mistral Small)</label>
+                        <label className="font-semibold text-slate-700">
+                          3. Prompt Double-Vérification - Cohérence d'identité ({fastCheckEngine === 'internal-script' ? 'Script Interne Programme 0ms' : fastCheckEngine === 'groq-lpu' ? 'Groq LPU (LLaMA 3.3)' : 'Désactivé'})
+                        </label>
                         <textarea
                           rows={6}
                           value={promptDoubleVerification}

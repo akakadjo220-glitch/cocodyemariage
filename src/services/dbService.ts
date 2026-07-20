@@ -146,14 +146,14 @@ function getSession<T>(key: string, defaultValue: T): T {
   try {
     const val = typeof window !== 'undefined' ? sessionStorage.getItem(key) : null;
     if (!val) return defaultValue;
-    
+
     let decrypted = val;
     try {
       decrypted = deobfuscateString(val);
     } catch (err) {
       decrypted = val;
     }
-    
+
     try {
       return JSON.parse(decrypted);
     } catch (err) {
@@ -195,7 +195,7 @@ export async function getMairies(): Promise<MairieInfo[]> {
       .order('name', { ascending: true });
 
     if (error) throw error;
-    
+
     // Auto-migration check: If old mairies are detected, replace them in Supabase
     if (data && data.some(m => m.id === 'mairie_cocody' || m.id === 'mairie_paris6')) {
       console.log("Migration: Old mairies detected in database. Migrating to Cocody rooms...");
@@ -212,7 +212,7 @@ export async function getMairies(): Promise<MairieInfo[]> {
           officer_name: m.officer_name || null
         }));
         await supabase.from('mairies').insert(newRows);
-        
+
         // Refetch clean data
         const { data: refetched } = await supabase
           .from('mairies')
@@ -532,7 +532,7 @@ export async function createDossier(dossier: DossierInfo): Promise<boolean> {
     console.warn("Supabase: Failed to create dossier.", err);
     return false;
   }
-  
+
   if (dossier.spouse1_name && dossier.spouse2_name) {
     await sauvegarderVecteurProfilDossier(
       dossier.id,
@@ -703,7 +703,7 @@ export async function updateDossierWeddingDate(id: string, date: string | null):
   try {
     const { error } = await supabase
       .from('dossiers')
-      .update({ 
+      .update({
         wedding_date: date,
         slot_reserved_at: reservedAt,
         whatsapp_reminders_sent: []
@@ -1063,12 +1063,12 @@ export async function getDocuments(dossierId: string): Promise<DocumentInfo[]> {
     if (data && data.length > 0) {
       result = data.map(item => {
         const id = item.id.startsWith(dossierId + '_') ? item.id.substring(dossierId.length + 1) : item.id;
-        
+
         let docNumber = undefined;
         let aiAnalysis = null;
         let cleanFileName = item.file_name || undefined;
         let rejectionReason = undefined;
-        
+
         if (cleanFileName && cleanFileName.includes('|||')) {
           const parts = cleanFileName.split('|||');
           if (parts.length >= 4) {
@@ -1146,7 +1146,7 @@ export async function updateDocumentInDb(
     const finalDocNumber = docNumber !== undefined ? docNumber : (doc.docNumber || null);
     const finalAiAnalysis = aiAnalysis !== undefined ? aiAnalysis : (doc.aiAnalysis || null);
     const finalRejectionReason = status === 'rejected' ? rejectionReason : (rejectionReason !== undefined ? rejectionReason : (doc.rejectionReason || null));
-    
+
     let serializedFileName = cleanFileName;
     if (finalDocNumber || finalAiAnalysis || finalRejectionReason) {
       const serializedAi = finalAiAnalysis ? JSON.stringify(finalAiAnalysis) : '';
@@ -1274,7 +1274,7 @@ export async function checkDuplicateSpouse(
             time: "À l'instant",
             type: 'warning'
           }, d.id);
-          
+
           return {
             exists: true,
             message: `Un dossier actif existe déjà avec ce numéro de pièce d'identité. Veuillez contacter la mairie.`
@@ -1323,14 +1323,14 @@ export async function checkDuplicateSpouse(
   Pièce: ${cni2}
 `;
       const vecteur = await versVecteur(texteIdentite, config.mistralKey);
-      
+
       const { data: similaires, error: vectorError } = await supabase
         .rpc('chercher_documents_similaires', {
           vecteur_query: vecteur,
           seuil_similarite: 0.95,
           limite: 1
         });
-        
+
       if (!vectorError && similaires && similaires.length > 0) {
         const similaire = similaires[0];
         if (similaire.dossier_id) {
@@ -1500,16 +1500,16 @@ export async function getPaystackConfig(): Promise<PaystackConfig> {
 
 export async function savePaystackConfig(config: PaystackConfig): Promise<boolean> {
   setLocal('e_mariage_paystack_config', config);
-  
+
   // Merge with existing AI config from local storage
   const aiConfig = getAiConfig();
   const merged = { ...aiConfig, ...config };
-  
+
   try {
     const { error } = await supabase
       .from('system_configs')
       .upsert({ id: 'default', config: merged as any, updated_at: new Date().toISOString() });
-      
+
     if (error) {
       console.warn("Supabase: Failed to sync Paystack/WhatsApp config.", error);
       return false;
@@ -2144,15 +2144,15 @@ export async function getOppositions(dossierId?: string): Promise<OppositionInfo
       query = query.eq('dossier_id', dossierId);
     }
     const { data, error } = await query.order('created_at', { ascending: false });
-    
+
     if (error) throw error;
-    
+
     const localOpp = getLocal<OppositionInfo[]>('e_mariage_oppositions', []);
-    
+
     if (!data || data.length === 0) {
       return dossierId ? localOpp.filter(o => o.dossierId === dossierId) : localOpp;
     }
-    
+
     const mapped: OppositionInfo[] = data.map(item => ({
       id: item.id,
       dossierId: item.dossier_id,
@@ -2164,12 +2164,12 @@ export async function getOppositions(dossierId?: string): Promise<OppositionInfo
       status: item.status as any,
       createdAt: item.created_at
     }));
-    
+
     // Sync local storage
     const allLocal = getLocal<OppositionInfo[]>('e_mariage_oppositions', []);
     const updatedLocal = [...allLocal.filter(l => !mapped.some(m => m.id === l.id)), ...mapped];
     setLocal('e_mariage_oppositions', updatedLocal);
-    
+
     return mapped;
   } catch (err) {
     console.warn("Supabase: Failed to fetch oppositions. Using local fallback.", err);
@@ -2184,9 +2184,9 @@ export async function createOpposition(
 ): Promise<boolean> {
   const oppId = 'opp_' + Math.random().toString(36).substring(2, 11);
   const nowStr = new Date().toISOString();
-  
+
   let fileName = file ? file.name : undefined;
-  
+
   // If a file is uploaded
   if (file && fileName) {
     try {
@@ -2195,7 +2195,7 @@ export async function createOpposition(
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(filePath, file, { upsert: true });
-        
+
       if (uploadError) {
         console.error("Failed to upload opposition file to Supabase:", uploadError);
       } else {
@@ -2205,7 +2205,7 @@ export async function createOpposition(
       console.error("Error in opposition file upload:", err);
     }
   }
-  
+
   try {
     const { error } = await supabase.from('oppositions').insert({
       id: oppId,
@@ -2219,12 +2219,12 @@ export async function createOpposition(
       status: 'pending',
       created_at: nowStr
     });
-    
+
     if (error) throw error;
   } catch (err) {
     console.warn("Supabase: Failed to insert opposition. Using local storage.", err);
   }
-  
+
   // Always update LocalStorage
   const localOpp = getLocal<OppositionInfo[]>('e_mariage_oppositions', []);
   const newOpp: OppositionInfo = {
@@ -2240,7 +2240,7 @@ export async function createOpposition(
     createdAt: nowStr
   };
   setLocal('e_mariage_oppositions', [newOpp, ...localOpp]);
-  
+
   // Suspend marriage automatically (reset dossier status to under_review)
   await updateDossierStatus(opp.dossierId, 'under_review');
 
@@ -2264,7 +2264,7 @@ export async function createOpposition(
   } catch (e) {
     // Ignore
   }
-  
+
   return true;
 }
 
@@ -2273,24 +2273,24 @@ export async function updateOppositionStatus(
   status: 'pending' | 'validated' | 'dismissed'
 ): Promise<boolean> {
   let dossierId = '';
-  
+
   try {
     // Get dossier ID first
     const { data: fetchOpp } = await supabase.from('oppositions').select('dossier_id').eq('id', oppId);
     if (fetchOpp && fetchOpp.length > 0) {
       dossierId = fetchOpp[0].dossier_id;
     }
-    
+
     const { error } = await supabase
       .from('oppositions')
       .update({ status })
       .eq('id', oppId);
-      
+
     if (error) throw error;
   } catch (err) {
     console.warn("Supabase: Failed to update opposition status. Using local fallback.", err);
   }
-  
+
   // Always update LocalStorage
   const localOpp = getLocal<OppositionInfo[]>('e_mariage_oppositions', []);
   const target = localOpp.find(o => o.id === oppId);
@@ -2299,15 +2299,15 @@ export async function updateOppositionStatus(
     dossierId = target.dossierId;
     setLocal('e_mariage_oppositions', [...localOpp]);
   }
-  
+
   if (dossierId) {
     if (status === 'dismissed') {
       // Restore marriage status to approved
       await updateDossierStatus(dossierId, 'approved');
-      
+
       // Notify the couple
       await triggerSpouseNotifications(dossierId, 'opposition_dismissed');
-      
+
       await addNotificationToDb({
         id: Math.random().toString(),
         text: "Félicitations, l'opposition civile a été rejetée et levée par la mairie. Votre mariage est rétabli.",
@@ -2317,10 +2317,10 @@ export async function updateOppositionStatus(
     } else if (status === 'validated') {
       // Cancel marriage (rejected)
       await updateDossierStatus(dossierId, 'rejected');
-      
+
       // Notify the couple
       await triggerSpouseNotifications(dossierId, 'opposition_validated');
-      
+
       await addNotificationToDb({
         id: Math.random().toString(),
         text: "Alerte : Votre mariage a été annulé par l'officier civil suite à la confirmation d'une opposition civile fondée. Le couple est convoqué.",
@@ -2338,7 +2338,7 @@ export async function updateOppositionStatus(
       // Ignore
     }
   }
-  
+
   return true;
 }
 
@@ -2347,6 +2347,9 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
   mistralKey: '',
   groqKey: '',
   tavilyKey: '',
+  glmKey: '',
+  primaryOcrEngine: 'glm-ocr',
+  fastCheckEngine: 'internal-script',
   promptNemotronSafety: `Classifie comme UNSAFE si :
 - L\'image n\'est pas un document administratif
 - Le document semble falsifié ou retouché
@@ -2484,6 +2487,18 @@ export function getAiConfig(): AiConfig {
   const config = getLocal<AiConfig>('e_mariage_ai_config', DEFAULT_AI_CONFIG);
   let updated = false;
   if (config) {
+    if (typeof config.glmKey === 'undefined') {
+      config.glmKey = DEFAULT_AI_CONFIG.glmKey;
+      updated = true;
+    }
+    if (!config.primaryOcrEngine) {
+      config.primaryOcrEngine = DEFAULT_AI_CONFIG.primaryOcrEngine;
+      updated = true;
+    }
+    if (!config.fastCheckEngine) {
+      config.fastCheckEngine = DEFAULT_AI_CONFIG.fastCheckEngine;
+      updated = true;
+    }
     if (!config.promptPrincipal || !config.promptPrincipal.includes("extrait de naissance propre, lisible")) {
       config.promptPrincipal = DEFAULT_AI_CONFIG.promptPrincipal;
       config.promptAntiDoublon = DEFAULT_AI_CONFIG.promptAntiDoublon;
@@ -2555,7 +2570,7 @@ export async function syncAiConfigFromDb(): Promise<void> {
       .from('system_configs')
       .select('config')
       .eq('id', 'default');
-      
+
     if (!error && data && data.length > 0) {
       const dbConfig = data[0].config;
       if (dbConfig) {
@@ -2570,11 +2585,11 @@ export async function syncAiConfigFromDb(): Promise<void> {
 
 export function saveAiConfig(config: AiConfig): void {
   setLocal('e_mariage_ai_config', config);
-  
+
   // Merge with existing paystack config from local storage
   const paystackConfig = getLocal<PaystackConfig>('e_mariage_paystack_config', DEFAULT_PAYSTACK_CONFIG);
   const merged = { ...paystackConfig, ...config };
-  
+
   // Asynchronously save to Supabase
   supabase
     .from('system_configs')
@@ -2640,7 +2655,7 @@ Tout document daté de ${new Date().getFullYear()} ou avant est valide.`;
       const messageContent: any[] = [
         { type: "text", text: currentDateCtx + prompt }
       ];
-      
+
       if (base64Data) {
         messageContent.push({
           type: "image_url",
@@ -2783,8 +2798,8 @@ export function normaliserResultatIA(rawJson: any, modele: string): AiAnalysisRe
   const anomalies = Array.isArray(rawJson.anomalies)
     ? rawJson.anomalies.map((a: any) => safeString(a)).filter(Boolean)
     : safeString(rawJson.anomalies)
-    ? [safeString(rawJson.anomalies)]
-    : [];
+      ? [safeString(rawJson.anomalies)]
+      : [];
 
   const res: AiAnalysisResult = {
     type_document: safeString(rawJson.type_document) || "PIÈCE_IDENTITÉ",
@@ -2803,6 +2818,269 @@ export function normaliserResultatIA(rawJson: any, modele: string): AiAnalysisRe
   }
 
   return res;
+}
+
+export async function appelGlmOcr(prompt: string, base64Data: string, mimeType: string, config: AiConfig): Promise<AiAnalysisResult> {
+  const apiKey = config.glmKey?.trim();
+  if (!apiKey) {
+    throw new Error("Clé API GLM-OCR / Z.AI manquante.");
+  }
+
+  const endpoints = [
+    "https://api.z.ai/api/paas/v4/layout_parsing",
+    "https://open.bigmodel.cn/api/paas/v4/layout_parsing"
+  ];
+
+  const filePayload = `data:${mimeType};base64,${base64Data}`;
+  let rawOcrText = "";
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "glm-ocr",
+          file: filePayload
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Layout Parsing API returns: { result: { markdown: "...", ... } }
+        const rawResult = data.result || data.data || data;
+        if (typeof rawResult === 'string') {
+          rawOcrText = rawResult;
+        } else if (rawResult.markdown) {
+          rawOcrText = rawResult.markdown;
+        } else if (rawResult.text) {
+          rawOcrText = rawResult.text;
+        } else if (data.choices?.[0]?.message?.content) {
+          rawOcrText = data.choices[0].message.content;
+        } else {
+          rawOcrText = JSON.stringify(rawResult);
+        }
+        break;
+      } else {
+        const errText = await response.text();
+        console.warn(`GLM-OCR (${endpoint}) HTTP ${response.status}:`, errText);
+      }
+    } catch (err) {
+      console.warn(`GLM-OCR (${endpoint}) network error:`, err);
+    }
+  }
+
+  if (!rawOcrText) {
+    throw new Error("Échec de l'analyse GLM-OCR. Veuillez vérifier votre clé API Z.AI.");
+  }
+
+  // ─── Parse raw OCR text into structured fields ───────────────────────────
+  const t = rawOcrText;
+
+  // Detect document type
+  const isPassport = /passeport|passport/i.test(t);
+  const isCNI = /carte\s+nationale|CNI|IDCIV/i.test(t);
+  const type_document = isPassport ? 'PASSEPORT' : isCNI ? 'CNI' : 'INCONNU';
+
+  // Extract from prompt context (declared data injected by caller)
+  // Prompt contains: "Nom déclaré : XXX", "Prénoms déclarés: YYY", etc.
+  const extractDeclared = (label: string) => {
+    const m = prompt.match(new RegExp(label + '\\s*:\\s*([^\\n]+)', 'i'));
+    return m ? m[1].trim() : '';
+  };
+  const nomDeclare = extractDeclared('Nom déclaré');
+  const prenomsDeclares = extractDeclared('Prénoms déclarés');
+  const typePieceDeclare = extractDeclared('Type pièce');
+  const numeroPieceDeclare = extractDeclared('Numéro pièce');
+
+  // Extract name — handles "Nom: BRIDA" and "Prénom(s): MAHI LANDRY" patterns
+  const extractField = (patterns: RegExp[]): string => {
+    for (const p of patterns) {
+      const m = t.match(p);
+      if (m?.[1]) return m[1].replace(/[*_#]/g, '').trim();
+    }
+    return '';
+  };
+
+  const nom = extractField([
+    /\bNom\s*[:\|]\s*([A-ZÉÈÊËÀÂÎÏÔÙÛÜ\-\s]+?)(?:\n|Date|Sexe|Taille|Prénom|$)/i,
+    /\bLast\s*Name\s*[:\|]\s*([A-ZÉÈÊËÀÂÎÏÔÙÛÜ\-\s]+?)(?:\n|$)/i
+  ]);
+  const prenoms = extractField([
+    /Pr[eé]nom\(?s?\)?\s*[:\|]\s*([A-ZÉÈÊËÀÂÎÏÔÙÛÜ\-\s]+?)(?:\n|Nom|Date|$)/i,
+    /\bFirst\s*Name\s*[:\|]\s*([A-ZÉÈÊËÀÂÎÏÔÙÛÜ\-\s]+?)(?:\n|$)/i
+  ]);
+  const dateNaissance = extractField([
+    /Date\s+de\s+[Nn]aissance\s*[:\|]?\s*(\d{2}\/\d{2}\/\d{4})/,
+    /\bDOB\b\s*[:\|]\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/
+  ]);
+  const dateExpiration = extractField([
+    /Date\s+d['']expiration\s*[:\|]?\s*(\d{2}\/\d{2}\/\d{4})/i,
+    /[Ee]xpiry\s*[:\|]\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})/,
+    /[Vv]alable\s+jusqu['']au\s*[:\|]?\s*(\d{2}\/\d{2}\/\d{4})/
+  ]);
+  // Document number: CNI pattern CIxxxxxxxx or passport pattern
+  const numeroDoc = extractField([
+    /\bn[°o\.]\s*([A-Z]{1,3}\d{6,12})/i,
+    /\bNNI\s*[:\|]\s*(\d{8,14})/i,
+    /IDCIV([A-Z0-9]+)(?:<|$)/,
+    /No\.\s*([A-Z]{1,2}\d{6,10})/i
+  ]);
+  // Also capture from MRZ line (BRIDA<<MAHI<LANDRY...)
+  const mrzNomMatch = t.match(/([A-Z]{2,}(?:<[A-Z]+)+(?:<<))/);
+  const mrzNom = mrzNomMatch ? mrzNomMatch[0].split('<<')[0].replace(/<+/g, ' ').trim() : '';
+
+  const nomFinal = nom || mrzNom.split(' ').slice(-1)[0] || '';
+  const prenomsFinal = prenoms || mrzNom.split(' ').slice(0, -1).join(' ') || '';
+
+  // ─── Check document type mismatch ────────────────────────────────────────
+  const anomalies: string[] = [];
+  let action_recommandee: 'VALIDER' | 'REJETER' = 'VALIDER';
+  let motif = '';
+
+  if (typePieceDeclare && type_document !== 'INCONNU') {
+    if (typePieceDeclare === 'PASSEPORT' && type_document === 'CNI') {
+      anomalies.push(`Type de pièce incorrect : Un PASSEPORT est requis, mais une CNI a été soumise.`);
+    } else if (typePieceDeclare === 'CNI' && type_document === 'PASSEPORT') {
+      anomalies.push(`Type de pièce incorrect : Une CNI est requise, mais un PASSEPORT a été soumis.`);
+    }
+  }
+
+  // ─── Identity cross-check ────────────────────────────────────────────────
+  if (nomFinal && nomDeclare) {
+    const normFn = (s: string) => s.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+    const extractedFull = normFn(`${nomFinal} ${prenomsFinal}`);
+    const declaredFull = normFn(`${nomDeclare} ${prenomsDeclares}`);
+    const declaredWords = declaredFull.split(' ').filter(w => w.length > 1);
+    const extractedWords = extractedFull.split(' ').filter(w => w.length > 1);
+
+    if (declaredWords.length > 0 && extractedWords.length > 0) {
+      let matches = 0;
+      for (const w of declaredWords) {
+        if (extractedWords.some(ew => ew === w || ew.includes(w) || w.includes(ew))) matches++;
+      }
+      const ratio = matches / declaredWords.length;
+      if (ratio < 0.33) {
+        anomalies.push(`Incohérence d'identité : Nom lu "${nomFinal} ${prenomsFinal}" ne correspond pas au nom déclaré "${nomDeclare} ${prenomsDeclares}".`);
+      }
+    }
+  }
+
+  // ─── Document number check ───────────────────────────────────────────────
+  if (numeroPieceDeclare && numeroDoc) {
+    const clean = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const decNum = clean(numeroPieceDeclare);
+    const extNum = clean(numeroDoc);
+    if (decNum.length >= 4 && extNum.length >= 4 && decNum !== extNum && !extNum.includes(decNum) && !decNum.includes(extNum)) {
+      anomalies.push(`Incohérence du numéro de pièce : Numéro lu "${numeroDoc}" ne correspond pas au numéro déclaré "${numeroPieceDeclare}".`);
+    }
+  }
+
+  // ─── Expiry check ────────────────────────────────────────────────────────
+  if (dateExpiration) {
+    const yearMatch = dateExpiration.match(/\b(20\d{2})\b/);
+    if (yearMatch && parseInt(yearMatch[1]) < new Date().getFullYear()) {
+      anomalies.push(`Pièce d'identité expirée : Date d'expiration "${dateExpiration}" est antérieure à l'année en cours.`);
+    }
+  }
+
+  if (anomalies.length > 0) {
+    action_recommandee = 'REJETER';
+    motif = anomalies[0];
+  } else {
+    motif = `Document ${type_document} analysé par GLM-OCR — identité conforme.`;
+  }
+
+  return normaliserResultatIA({
+    type_document,
+    est_lisible: true,
+    est_authentique: anomalies.length === 0,
+    confiance: anomalies.length === 0 ? 95 : 10,
+    nom_extrait: nomFinal,
+    prenoms_extraits: prenomsFinal,
+    date_naissance_extraite: dateNaissance,
+    numero_piece_extrait: numeroDoc,
+    date_expiration_extraite: dateExpiration,
+    action_recommandee,
+    message_utilisateur: motif,
+    anomalies
+  }, "GLM-OCR (Layout Parsing API)");
+}
+
+function normaliserNomComplet(nom: string): string {
+  return nom
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip accents
+    .replace(/[^A-Z0-9 ]/g, " ")     // keep only alphanumeric + spaces
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function croiserDonneesScriptInterne(
+  infosExtraites: any,
+  donneesDeclarees: { nom: string; prenoms: string; date_naissance?: string; numero_piece?: string }
+): { action: 'VALIDER' | 'REJETER'; motif?: string; anomalies?: string[] } {
+  const anomalies: string[] = [];
+
+  const declaredName = `${donneesDeclarees.nom || ''} ${donneesDeclarees.prenoms || ''}`.trim();
+  const declaredNorm = normaliserNomComplet(declaredName);
+  
+  const extractedName = `${infosExtraites?.nom || ''} ${infosExtraites?.prenoms || ''}`.trim();
+  const extractedNorm = normaliserNomComplet(extractedName);
+
+  // 1. Identity Token Similarity
+  if (declaredNorm && extractedNorm) {
+    const declaredWords = declaredNorm.split(' ').filter(w => w.length > 1);
+    const extractedWords = extractedNorm.split(' ').filter(w => w.length > 1);
+
+    if (declaredWords.length > 0 && extractedWords.length > 0) {
+      let matches = 0;
+      for (const w of declaredWords) {
+        if (extractedWords.some(ew => ew === w || ew.includes(w) || w.includes(ew))) {
+          matches++;
+        }
+      }
+      const matchRatio = matches / declaredWords.length;
+      if (matchRatio < 0.33) {
+        anomalies.push(`Incohérence d'identité : Nom lu "${extractedName}" ne correspond pas au nom déclaré "${declaredName}".`);
+      }
+    }
+  }
+
+  // 2. Document Expiration Year Check
+  if (infosExtraites?.date_expiration) {
+    const matchYear = String(infosExtraites.date_expiration).match(/\b(20\d{2})\b/);
+    if (matchYear) {
+      const expYear = parseInt(matchYear[1], 10);
+      const currentYear = new Date().getFullYear();
+      if (expYear < currentYear) {
+        anomalies.push(`Pièce d'identité expirée : La date d'expiration (${infosExtraites.date_expiration}) est antérieure à l'année en cours (${currentYear}).`);
+      }
+    }
+  }
+
+  // 3. Document Number Check
+  if (donneesDeclarees.numero_piece && infosExtraites?.numero_document) {
+    const decNumClean = String(donneesDeclarees.numero_piece).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const extNumClean = String(infosExtraites.numero_document).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (decNumClean.length >= 4 && extNumClean.length >= 4 && decNumClean !== extNumClean && !extNumClean.includes(decNumClean) && !decNumClean.includes(extNumClean)) {
+      anomalies.push(`Incohérence du numéro de pièce : Numéro lu "${infosExtraites.numero_document}" ne correspond pas au numéro déclaré "${donneesDeclarees.numero_piece}".`);
+    }
+  }
+
+  if (anomalies.length > 0) {
+    return {
+      action: 'REJETER',
+      motif: anomalies[0],
+      anomalies
+    };
+  }
+
+  return { action: 'VALIDER' };
 }
 
 export async function appelMistralVision(prompt: string, base64Data: string, mimeType: string, config: AiConfig): Promise<AiAnalysisResult> {
@@ -2948,7 +3226,7 @@ function fusionnerResultats(results: AiAnalysisResult[]): AiAnalysisResult {
 
   const type_document = results.find(r => r.type_document && r.type_document !== "INCONNU")?.type_document || results[0].type_document;
   const est_lisible = results.every(r => r.est_lisible);
-  
+
   let est_authentique: boolean | 'INCERTAIN' = true;
   if (results.some(r => r.est_authentique === false)) {
     est_authentique = false;
@@ -3016,7 +3294,7 @@ export function estProbablementAnglais(texte: string): boolean {
 export function basicEnglishToFrenchFallback(texte: string): string {
   if (!texte) return texte;
   let t = texte.trim();
-  
+
   const lowerText = t.toLowerCase();
   if (lowerText.includes("real estate") && lowerText.includes("license")) {
     return "Le document fourni est un profil ou une capture d'écran d'une agence immobilière, contenant des numéros de licence professionnelle (Agrément Agent, Promoteur Agréé), et ne comporte pas de données d'identification personnelles.";
@@ -3036,7 +3314,7 @@ export function basicEnglishToFrenchFallback(texte: string): string {
     }
     return "Votre document est expiré ou périmé. Veuillez fournir un document en cours de validité.";
   }
-  
+
   // Sentence-level word replacements for general cases if it has English components
   t = t.replace(/\bDocument is a\b/gi, "Le document est un");
   t = t.replace(/\bnot personal identification data\b/gi, "non des données d'identification personnelle");
@@ -3044,23 +3322,23 @@ export function basicEnglishToFrenchFallback(texte: string): string {
   t = t.replace(/\bplease upload a valid\b/gi, "veuillez téléverser un document valide");
   t = t.replace(/\bexpiration date\b/gi, "date d'expiration");
   t = t.replace(/\bnot detected\b/gi, "non détectée");
-  
+
   return t;
 }
 
 export async function traduireEnFrancaisSiAnglais(texte: string, cleAPI: string): Promise<string> {
   if (!texte || !cleAPI) return texte;
   if (!estProbablementAnglais(texte)) return texte;
-  
+
   const models = getOpenRouterModels();
   for (let i = 0; i < models.length; i++) {
     const model = models[i];
-    
+
     if (quotaModeles[model] && quotaModeles[model] > Date.now()) {
       console.log(`⏸️ ${model} en cooldown pour traduction, passage au suivant...`);
       continue;
     }
-    
+
     try {
       const prompt = `Translate the following text into clear, user-friendly French for a citizen applying for a marriage dossier. Do not include any other text, only the French translation:
 "${texte}"`;
@@ -3105,7 +3383,7 @@ export async function traduireEnFrancaisSiAnglais(texte: string, cleAPI: string)
       console.warn(`Translation with ${model} failed:`, err);
     }
   }
-  
+
   // Fallback to basic translation if all APIs failed
   return basicEnglishToFrenchFallback(texte);
 }
@@ -3145,7 +3423,7 @@ export async function verifierNemotronSafety(
   cleAPI: string
 ): Promise<{ safe: boolean; reason?: string; bypass?: boolean }> {
   const config = getAiConfig();
-  
+
   // Decide which API, Key, and Model to use for safety check
   let apiURL = "https://openrouter.ai/api/v1/chat/completions";
   let apiKey = cleAPI;
@@ -3515,16 +3793,16 @@ export async function testerConnexionDeepFace(apiUrl: string): Promise<{ status:
 
 function parseFrenchDate(dateStr: string): Date | null {
   if (!dateStr || typeof dateStr !== 'string') return null;
-  
+
   let cleanStr = dateStr.toLowerCase().trim();
-  
+
   const leIndex = cleanStr.indexOf('le ');
   if (leIndex !== -1) {
     cleanStr = cleanStr.substring(leIndex + 3).trim();
   }
-  
+
   cleanStr = cleanStr.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
-  
+
   const standardPattern = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/;
   const matchStandard = cleanStr.match(standardPattern);
   if (matchStandard) {
@@ -3534,88 +3812,88 @@ function parseFrenchDate(dateStr: string): Date | null {
     const date = new Date(year, month, day);
     if (!isNaN(date.getTime())) return date;
   }
-  
+
   const frenchMonthToNumber: { [key: string]: number } = {
     'janvier': 0, 'février': 1, 'fevrier': 1, 'mars': 2, 'avril': 3, 'mai': 4, 'juin': 5,
     'juillet': 6, 'août': 7, 'aout': 7, 'septembre': 8, 'octobre': 9, 'novembre': 10, 'décembre': 11, 'decembre': 11
   };
-  
+
   const textPattern = /(\d{1,2})\s+([a-zéûôâñçàèìòùäëïöüÿ]+)\s+(\d{4})/i;
   const matchText = cleanStr.match(textPattern);
   if (matchText) {
     const day = parseInt(matchText[1], 10);
     const monthStr = matchText[2].toLowerCase();
     const year = parseInt(matchText[3], 10);
-    
+
     if (monthStr in frenchMonthToNumber) {
       const month = frenchMonthToNumber[monthStr];
       const date = new Date(year, month, day);
       if (!isNaN(date.getTime())) return date;
     }
   }
-  
+
   const fallbackTime = Date.parse(dateStr);
   if (!isNaN(fallbackTime)) {
     return new Date(fallbackTime);
   }
-  
+
   return null;
 }
 
 function estIvoirienOuNeeEnCI(lieu: string, nat: string): boolean {
   const l = (lieu || '').toLowerCase();
   const n = (nat || '').toLowerCase();
-  return l.includes('ci') || 
-         l.includes('ivoir') || 
-         l.includes('abidjan') || 
-         l.includes('yopougon') || 
-         l.includes('cocody') || 
-         l.includes('koumassi') || 
-         l.includes('treichville') || 
-         l.includes('plateau') || 
-         l.includes('adjame') || 
-         l.includes('marcory') || 
-         l.includes('port-bouet') || 
-         l.includes('abobo') ||
-         l.includes('bingerville') ||
-         l.includes('anyama') ||
-         l.includes('songon') ||
-         n.includes('ivoir') || 
-         n.includes('ci');
+  return l.includes('ci') ||
+    l.includes('ivoir') ||
+    l.includes('abidjan') ||
+    l.includes('yopougon') ||
+    l.includes('cocody') ||
+    l.includes('koumassi') ||
+    l.includes('treichville') ||
+    l.includes('plateau') ||
+    l.includes('adjame') ||
+    l.includes('marcory') ||
+    l.includes('port-bouet') ||
+    l.includes('abobo') ||
+    l.includes('bingerville') ||
+    l.includes('anyama') ||
+    l.includes('songon') ||
+    n.includes('ivoir') ||
+    n.includes('ci');
 }
 function namesMatch(extractedNom: string, extractedPrenom: string, declaredFullName: string): boolean {
   if (!declaredFullName) return true;
-  
+
   const cleanExtractedNom = (extractedNom || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").trim();
   const cleanExtractedPrenom = (extractedPrenom || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").trim();
   const cleanDeclared = declaredFullName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").trim();
-  
+
   const declaredParts = cleanDeclared.split(/\s+/).filter(Boolean);
   const extractedParts = [...cleanExtractedNom.split(/\s+/), ...cleanExtractedPrenom.split(/\s+/)].filter(Boolean);
-  
+
   if (extractedParts.length === 0) return false;
-  
+
   let matches = 0;
   for (const part of extractedParts) {
     if (declaredParts.includes(part) || cleanDeclared.includes(part)) {
       matches++;
     }
   }
-  
+
   return matches >= Math.max(1, Math.min(2, extractedParts.length));
 }
 
 function datesMatch(extractedDateStr: string, declaredDateStr: string): boolean {
   if (!declaredDateStr || !extractedDateStr) return true;
-  
+
   const parsedExtracted = parseFrenchDate(extractedDateStr);
   const parsedDeclared = parseFrenchDate(declaredDateStr);
-  
+
   if (!parsedExtracted || !parsedDeclared) return true;
-  
+
   return parsedExtracted.getFullYear() === parsedDeclared.getFullYear() &&
-         parsedExtracted.getMonth() === parsedDeclared.getMonth() &&
-         parsedExtracted.getDate() === parsedDeclared.getDate();
+    parsedExtracted.getMonth() === parsedDeclared.getMonth() &&
+    parsedExtracted.getDate() === parsedDeclared.getDate();
 }
 
 export async function getNombreTentatives(dossierId: string, docId: string): Promise<number> {
@@ -3652,7 +3930,7 @@ export async function incrementNombreTentatives(dossierId: string, docId: string
         nombre_tentatives: newVal,
         updated_at: new Date().toISOString()
       }, { onConflict: 'dossier_id,doc_id' });
-      
+
     if (error) {
       const { error: updError } = await supabase
         .from('documents_dossiers')
@@ -3667,9 +3945,9 @@ export async function incrementNombreTentatives(dossierId: string, docId: string
 }
 
 async function submitPaddleOcrJob(
-  file: Blob, 
-  token: string, 
-  model: string, 
+  file: Blob,
+  token: string,
+  model: string,
   jobUrl: string
 ): Promise<string> {
   const formData = new FormData();
@@ -3703,9 +3981,9 @@ async function submitPaddleOcrJob(
 }
 
 async function pollPaddleOcrJob(
-  jobId: string, 
-  token: string, 
-  jobUrl: string, 
+  jobId: string,
+  token: string,
+  jobUrl: string,
   onStatusUpdate?: (status: string) => void
 ): Promise<string> {
   const effectiveUrl = getEffectiveUrl(jobUrl);
@@ -3880,7 +4158,7 @@ export async function runDocumentAiAnalysis(
     }
   } else if (
     typeFichier === 'image/jpeg' ||
-    typeFichier === 'image/png'  ||
+    typeFichier === 'image/png' ||
     typeFichier === 'image/webp' ||
     typeFichier.startsWith('image/')
   ) {
@@ -4030,18 +4308,27 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
 `;
   }
 
-  if (onStatusUpdate) onStatusUpdate("🔍 Analyse HD par Mistral Vision & Vérification en cours...");
+  if (onStatusUpdate) {
+    const primaryEngineName = config.primaryOcrEngine === 'mistral-vision' ? 'Mistral Vision' : config.primaryOcrEngine === 'openrouter-vision' ? 'OpenRouter Vision' : 'GLM-OCR';
+    onStatusUpdate(`🔍 Analyse HD par ${primaryEngineName} & Contrôle Rapide...`);
+  }
 
   const safetyPromise = base64Images.length > 0
     ? verifierNemotronSafety(base64Images[0], isPdf ? 'image/jpeg' : typeFichier, config.geminiKey)
     : Promise.resolve({ safe: true, reason: undefined as string | undefined });
 
   const analysisPromise = (async (): Promise<AiAnalysisResult> => {
-    // 1. Mistral Vision Analysis (HD Image OCR + Authenticity Check)
+    // 1. Primary Vision OCR Analysis (Configurable via System Settings: GLM-OCR / Mistral / OpenRouter)
+    const primaryEngine = config.primaryOcrEngine || 'glm-ocr';
     const pageResults = await Promise.all(
       base64Images.map((pageBase64) => {
         const mimeType = isPdf ? 'image/jpeg' : typeFichier;
-        return appelMistralVision(promptAEnvoyer, pageBase64, mimeType, config);
+        if (primaryEngine === 'mistral-vision') {
+          return appelMistralVision(promptAEnvoyer, pageBase64, mimeType, config);
+        } else if (primaryEngine === 'openrouter-vision') {
+          return appelOpenRouter(promptAEnvoyer, pageBase64, mimeType, config.geminiKey);
+        }
+        return appelGlmOcr(promptAEnvoyer, pageBase64, mimeType, config);
       })
     );
     const finalRes = fusionnerResultats(pageResults);
@@ -4052,8 +4339,8 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
       const safeAnomaliesList = Array.isArray(finalRes.anomalies)
         ? finalRes.anomalies.map(a => safeString(a)).filter(Boolean)
         : typeof finalRes.anomalies === 'string'
-        ? [finalRes.anomalies]
-        : [];
+          ? [finalRes.anomalies]
+          : [];
 
       finalRes.anomalies = safeAnomaliesList;
 
@@ -4095,27 +4382,42 @@ Examine attentivement l'image pour vérifier son authenticité et son originalit
       }
     }
 
-    // 3. Fast Groq LPU Cross-Validation (< 0.5s) if Groq API key is present
-    if (config.groqKey && finalRes && (finalRes.action_recommandee === 'VALIDER' || finalRes.action_recommandee === 'ACCEPTER')) {
-      try {
-        if (onStatusUpdate) onStatusUpdate("⚡ Contrôle de sécurité rapide par Groq LPU...");
-        const groqCrossCheck = await croiserDonneesGroq(
+    // 3. Fast Data Cross-Check (Configurable: Internal Script 0ms / Groq LPU / Disabled)
+    const fastEngine = config.fastCheckEngine || 'internal-script';
+    if (finalRes && (finalRes.action_recommandee === 'VALIDER' || finalRes.action_recommandee === 'ACCEPTER')) {
+      if (fastEngine === 'internal-script') {
+        const scriptCheck = croiserDonneesScriptInterne(
           finalRes.infos_extraites,
-          { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ },
-          config.groqKey
+          { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ }
         );
-        if (groqCrossCheck && groqCrossCheck.action === 'REJETER') {
+        if (scriptCheck.action === 'REJETER') {
           finalRes.action_recommandee = 'REJETER';
-          finalRes.motif = safeString(groqCrossCheck.motif) || "Incohérence des identités";
-          if (groqCrossCheck.anomalies) {
-            const extraAnom = Array.isArray(groqCrossCheck.anomalies)
-              ? groqCrossCheck.anomalies.map(a => safeString(a)).filter(Boolean)
-              : [safeString(groqCrossCheck.anomalies)];
-            finalRes.anomalies = [...(finalRes.anomalies || []), ...extraAnom];
+          finalRes.motif = scriptCheck.motif || "Incohérence des identités";
+          if (scriptCheck.anomalies) {
+            finalRes.anomalies = Array.from(new Set([...(finalRes.anomalies || []), ...scriptCheck.anomalies]));
           }
         }
-      } catch (groqErr) {
-        console.warn("Groq LPU cross-check skipped:", groqErr);
+      } else if (fastEngine === 'groq-lpu' && config.groqKey) {
+        try {
+          if (onStatusUpdate) onStatusUpdate("⚡ Contrôle de sécurité rapide par Groq LPU...");
+          const groqCrossCheck = await croiserDonneesGroq(
+            finalRes.infos_extraites,
+            { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ },
+            config.groqKey
+          );
+          if (groqCrossCheck && groqCrossCheck.action === 'REJETER') {
+            finalRes.action_recommandee = 'REJETER';
+            finalRes.motif = safeString(groqCrossCheck.motif) || "Incohérence des identités";
+            if (groqCrossCheck.anomalies) {
+              const extraAnom = Array.isArray(groqCrossCheck.anomalies)
+                ? groqCrossCheck.anomalies.map(a => safeString(a)).filter(Boolean)
+                : [safeString(groqCrossCheck.anomalies)];
+              finalRes.anomalies = [...(finalRes.anomalies || []), ...extraAnom];
+            }
+          }
+        } catch (groqErr) {
+          console.warn("Groq LPU cross-check skipped:", groqErr);
+        }
       }
     }
 
@@ -4499,9 +4801,9 @@ Tout document daté de ${new Date().getFullYear()} ou avant est valide.`;
 export async function checkAndAutoApproveDossier(dossierId: string): Promise<boolean> {
   const documents = await getDocuments(dossierId);
   const requiredDocs = documents.filter(d => d.category === 'spouses' || d.category === 'witnesses');
-  
+
   const allVerified = requiredDocs.length > 0 && requiredDocs.every(d => d.status === 'verified');
-  
+
   if (allVerified) {
     const dossier = await getDossierById(dossierId);
     if (dossier && (dossier.status === 'under_review' || dossier.status === 'rejected')) {
@@ -4542,7 +4844,7 @@ export async function checkAndProcessExpiredSlots(dossierId: string): Promise<vo
 
     if (diffDaysToWedding <= 10) {
       const originalDate = dossier.wedding_date;
-      
+
       try {
         await supabase
           .from('dossiers')
@@ -4561,8 +4863,8 @@ export async function checkAndProcessExpiredSlots(dossierId: string): Promise<vo
         console.warn("Supabase J-10 release error:", err);
       }
 
-      const updated = dossiers.map(d => d.id === dossierId ? { 
-        ...d, 
+      const updated = dossiers.map(d => d.id === dossierId ? {
+        ...d,
         wedding_date: null,
         date_mariage: null,
         heure_mariage: null,
@@ -4591,16 +4893,16 @@ export async function checkAndProcessExpiredSlots(dossierId: string): Promise<vo
     reminders.push('J3');
     const updated = dossiers.map(d => d.id === dossierId ? { ...d, whatsapp_reminders_sent: reminders } : d);
     setLocal('e_mariage_dossiers', updated);
-    
+
     await addNotificationToDb({
       id: `notif_rem_j3_${Date.now()}`,
       text: `Rappel Civil (J+3) : Votre créneau du ${dossier.wedding_date} est réservé. Il vous reste 4 jours pour vous présenter à la mairie pour la confirmation physique et le paiement.`,
       time: "À l'instant",
       type: 'warning'
     }, dossierId);
-    
+
     await triggerSpouseNotifications(dossierId, 'slot_reminder_j3', { weddingDate: dossier.wedding_date });
-  } 
+  }
   // J+5 Reminder
   else if (diffDays >= 5 && diffDays < 7 && !reminders.includes('J5')) {
     reminders.push('J5');
@@ -4615,12 +4917,12 @@ export async function checkAndProcessExpiredSlots(dossierId: string): Promise<vo
     }, dossierId);
 
     await triggerSpouseNotifications(dossierId, 'slot_reminder_j5', { weddingDate: dossier.wedding_date });
-  } 
+  }
   // J+7 Expiry
   else if (diffDays >= 7) {
     const originalDate = dossier.wedding_date;
-    const updated = dossiers.map(d => d.id === dossierId ? { 
-      ...d, 
+    const updated = dossiers.map(d => d.id === dossierId ? {
+      ...d,
       wedding_date: null,
       slot_reserved_at: null,
       whatsapp_reminders_sent: []
@@ -4657,10 +4959,10 @@ export async function simulateTimePassage(dossierId: string, daysToAdd: number):
 
   const currentReserved = new Date(dossier.slot_reserved_at);
   currentReserved.setDate(currentReserved.getDate() - daysToAdd);
-  
-  const updated = dossiers.map(d => d.id === dossierId ? { 
-    ...d, 
-    slot_reserved_at: currentReserved.toISOString() 
+
+  const updated = dossiers.map(d => d.id === dossierId ? {
+    ...d,
+    slot_reserved_at: currentReserved.toISOString()
   } : d);
   setLocal('e_mariage_dossiers', updated);
 
@@ -4840,7 +5142,7 @@ export async function updateSystemParameters(params: Partial<SystemParameters>):
   try {
     const current = await getSystemParameters();
     const updated = { ...current, ...params };
-    
+
     const { error } = await supabase
       .from('dossiers')
       .upsert({
@@ -4899,7 +5201,7 @@ export async function genererPlanningJour(dateStr: string): Promise<SlotPlanning
   for (const salle of activeSalles) {
     const [startHour, startMin] = salle.heure_ouverture.split(':').map(Number);
     const [endHour, endMin] = salle.heure_fermeture.split(':').map(Number);
-    
+
     let current = new Date(dateStr);
     current.setHours(startHour, startMin + salle.decalage_minutes, 0, 0);
 
@@ -4908,7 +5210,7 @@ export async function genererPlanningJour(dateStr: string): Promise<SlotPlanning
 
     while (current.getTime() < endLimit.getTime()) {
       const startStr = current.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false });
-      
+
       const next = new Date(current.getTime() + salle.duree_creneau_minutes * 60 * 1000);
       const endStr = next.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -4986,16 +5288,16 @@ export async function confirmPaystackReservationPayment(
   try {
     const now = new Date().toISOString();
     const qrCodeVerificationUrl = `https://e-mariage.ci/verify-receipt/${dossierId}`;
-    
+
     const dossier = await getDossierById(dossierId);
     if (!dossier) return false;
-    
+
     const params = await getSystemParameters();
     const delayDays = params.rdv_delai_defaut || 15;
-    
+
     let appointmentDateStr: string | null = null;
     let appointmentTimeStr = "09:00";
-    
+
     if (dossier.wedding_date) {
       appointmentDateStr = computeRdvFromWeddingDate(dossier.wedding_date, delayDays);
     }
@@ -5019,7 +5321,7 @@ export async function confirmPaystackReservationPayment(
 
     const config = await getPaystackConfig();
     const textMsg = `Votre paiement de réservation de 2500 FCFA a été confirmé. Reçu QR Code : ${qrCodeVerificationUrl}. Votre rendez-vous physique en mairie est fixé au ${appointmentDateStr} à ${appointmentTimeStr}.`;
-    
+
     if (dossier.spouse1_phone) {
       await sendOpenwaWhatsapp(config, dossier.spouse1_phone, textMsg);
     }
@@ -5159,7 +5461,7 @@ export async function sauvegarderVecteurProfilDossier(
 ): Promise<void> {
   const config = getAiConfig();
   if (!config.mistralKey) return;
-  
+
   try {
     const texteIdentite = `
   Epoux: ${name1}
@@ -5170,7 +5472,7 @@ export async function sauvegarderVecteurProfilDossier(
   Pièce: ${cni2}
 `;
     const vecteur = await versVecteur(texteIdentite, config.mistralKey);
-    
+
     // Supprimer l'ancien profil de dossier s'il existe déjà
     await supabase
       .from('memoire_documents')
@@ -5188,7 +5490,7 @@ export async function sauvegarderVecteurProfilDossier(
         embedding: vecteur,
         valide_par_agent: true
       });
-      
+
     if (error) throw error;
   } catch (err) {
     console.warn(`pgvector: Échec de la sauvegarde vectorielle du profil dossier ${dossierId}.`, err);
@@ -5453,11 +5755,11 @@ export async function logDuplicateAttempt(
             targetPhone = mairieData.phone;
           }
         }
-        
+
         const config = await getPaystackConfig();
         const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         const messageText = `⚠️ Tentatives suspectes détectées depuis IP [${resolvedIp}] à [${timeStr}]. Vérifiez les logs.`;
-        
+
         if (config.enableWhatsappNotifs && targetPhone) {
           await sendOpenwaWhatsapp(config, targetPhone, messageText);
         }

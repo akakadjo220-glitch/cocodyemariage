@@ -57,6 +57,9 @@ export interface AiConfig {
   mistralKey: string;
   groqKey: string;
   tavilyKey?: string;
+  glmKey?: string; // Clé API GLM-OCR / Z.AI / Zhipu AI
+  primaryOcrEngine?: 'glm-ocr' | 'mistral-vision' | 'openrouter-vision';
+  fastCheckEngine?: 'internal-script' | 'groq-lpu' | 'disabled';
   promptPrincipal: string;
   promptAntiDoublon: string;
   promptDoubleVerification: string;

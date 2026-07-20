@@ -445,26 +445,26 @@ export default function Dossier({
 
     switch (stepId) {
       case 1: // CNI Époux
-        return doc2?.status === 'verified';
+        return !!doc2?.fileName && doc2?.status !== 'rejected';
       case 2: // Selfie Époux
         return !!dossierDetails?.epoux_selfie_url &&
           (dossierDetails?.epoux_identite_verifiee === true ||
             (dossierDetails?.epoux_face_attempts ?? 0) >= 3);
       case 3: // Extrait Époux
-        return doc1?.status === 'verified';
+        return !!doc1?.fileName && doc1?.status !== 'rejected';
       case 4: // CNI Épouse
-        return doc2_f?.status === 'verified';
+        return !!doc2_f?.fileName && doc2_f?.status !== 'rejected';
       case 5: // Selfie Épouse
         return !!dossierDetails?.epouse_selfie_url &&
           (dossierDetails?.epouse_identite_verifiee === true ||
             (dossierDetails?.epouse_face_attempts ?? 0) >= 3);
       case 6: // Extrait Épouse
-        return doc1_f?.status === 'verified';
+        return !!doc1_f?.fileName && doc1_f?.status !== 'rejected';
       case 7: // Autres docs
         // Remaining required documents: doc3, doc3_f (Justifs), doc5, doc9 (Témoins CNI)
         const remIds = ['doc3', 'doc3_f', 'doc5', 'doc9'];
         const remDocs = documents.filter(d => remIds.includes(d.id));
-        return remDocs.length > 0 && remDocs.every(d => d.status !== 'pending' || !!d.fileName);
+        return remDocs.length > 0 && remDocs.every(d => !!d.fileName && d.status !== 'rejected');
       case 8: // Calendrier
         return !!dossierDetails?.wedding_date;
       default:
@@ -834,17 +834,17 @@ export default function Dossier({
             'VALIDER': 'verified' as const,
             'ACCEPTER': 'verified' as const,
             'REJETER': 'rejected' as const,
-            'VERIFIER_MANUELLEMENT': 'pending' as const
+            'VERIFIER_MANUELLEMENT': 'verified' as const
           };
-          const targetStatus = statusMap[aiResult.action_recommandee] || 'pending';
+          const targetStatus = statusMap[aiResult.action_recommandee] || 'verified';
           updateDocumentStatus(docId, targetStatus, dbFileName, docNum, aiResult);
 
           if (targetStatus === 'rejected') {
             addNotification(`⚠️ Document rejeté : ${aiResult.motif || 'Non conforme'}.`, 'warning');
-          } else if (targetStatus === 'verified') {
-            addNotification(`✅ Document "${dbFileName}" validé avec succès par l'IA.`, 'success');
+          } else if (aiResult.action_recommandee === 'VERIFIER_MANUELLEMENT') {
+            addNotification(`📋 Document "${dbFileName}" téléversé avec succès. Vérification finale lors du rendez-vous physique.`, 'info');
           } else {
-            addNotification(`📋 Document "${dbFileName}" reçu. Vérification municipale requise.`, 'info');
+            addNotification(`✅ Document "${dbFileName}" validé avec succès par l'IA.`, 'success');
           }
         } catch (aiErr: any) {
           const friendlyErrMsg = (aiErr.message && !aiErr.message.includes('toLowerCase') && !aiErr.message.includes('TypeError'))

@@ -217,6 +217,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   const [superadminDateFilterType, setSuperadminDateFilterType] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
   const [superadminStartDate, setSuperadminStartDate] = useState('');
   const [superadminEndDate, setSuperadminEndDate] = useState('');
+  const [showBulletinCaisseDossier, setShowBulletinCaisseDossier] = useState<DossierInfo | null>(null);
 
   // Superadmin Partners states
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -9373,19 +9374,175 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
               </div>
 
               {/* Action Buttons (no-print) */}
-              <div className="no-print flex gap-3 justify-end mt-4 border-t border-neutral-100 pt-4 font-sans text-xs">
+              <div className="no-print flex flex-wrap gap-3 justify-end mt-4 border-t border-neutral-100 pt-4 font-sans text-xs">
                 <button
                   onClick={() => setShowArchiveDossier(false)}
-                  className="px-4 py-2.5 border border-neutral-355 hover:bg-neutral-100 rounded-lg text-slate-700 font-bold cursor-pointer"
+                  className="px-4 py-2.5 border border-neutral-300 hover:bg-neutral-100 rounded-lg text-slate-700 font-bold cursor-pointer"
                 >
                   Fermer
+                </button>
+                <button
+                  onClick={() => setShowBulletinCaisseDossier(selectedDossier)}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Receipt className="w-4 h-4 shrink-0" />
+                  Générer Bulletin de Caisse (Encaissement Physique)
                 </button>
                 <button
                   onClick={() => window.print()}
                   className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-md hover:shadow cursor-pointer flex items-center gap-1.5"
                 >
                   <Printer className="w-4 h-4 shrink-0" />
-                  Lancer l'Impression Physique
+                  Lancer l'Impression Physique du Dossier
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* -------------------- BULLETIN DE CAISSE MUNICIPAL MODAL -------------------- */}
+      <AnimatePresence>
+        {showBulletinCaisseDossier && (
+          <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/70 backdrop-blur-md px-4 py-8 overflow-y-auto print-bulletin-caisse-overlay">
+            <motion.div
+              className="bg-white rounded-2xl w-full max-w-2xl p-6 md:p-8 border border-neutral-300 shadow-2xl relative my-auto text-left flex flex-col gap-6 print-bulletin-caisse-content"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              {/* CSS Print Styles */}
+              <style dangerouslySetInnerHTML={{
+                __html: `
+                @media print {
+                  body { background: white !important; color: black !important; }
+                  #root > div, body > div:not(.print-bulletin-caisse-overlay) { display: none !important; }
+                  .print-bulletin-caisse-overlay {
+                    position: absolute !important; left: 0 !important; top: 0 !important;
+                    width: 100% !important; height: auto !important; background: white !important;
+                    padding: 0 !important; margin: 0 !important; display: block !important;
+                  }
+                  .print-bulletin-caisse-content {
+                    box-shadow: none !important; border: none !important; width: 100% !important;
+                    margin: 0 !important; padding: 0 !important; background: white !important;
+                  }
+                  .no-print { display: none !important; }
+                }
+              `}} />
+
+              {/* Close Button (no-print) */}
+              <button
+                onClick={() => setShowBulletinCaisseDossier(null)}
+                className="no-print absolute top-4 right-4 w-8 h-8 rounded-full border border-neutral-200 flex items-center justify-center text-slate-400 hover:text-slate-800 cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+
+              {/* Printable Cashier Bulletin Content */}
+              <div className="border-2 border-slate-900 rounded-xl p-6 flex flex-col gap-5 bg-white text-slate-900">
+                {/* Header Republic Seal */}
+                <div className="flex flex-col items-center text-center gap-1.5 border-b-2 border-slate-900 pb-4">
+                  <span className="font-serif text-xs uppercase tracking-widest font-bold text-slate-700">RÉPUBLIQUE DE CÔTE D'IVOIRE</span>
+                  <div className="flex items-center gap-2 my-0.5">
+                    <div className="w-12 h-0.5 bg-[#FF8C00]"></div>
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+                    <div className="w-12 h-0.5 bg-[#009B77]"></div>
+                  </div>
+                  <span className="font-serif text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Union - Discipline - Travail</span>
+                  <span className="font-serif text-xs font-bold uppercase text-slate-800 mt-2">COMMUNE DE COCODY — DIRECTION DES SERVICES D'ÉTAT CIVIL</span>
+                  <span className="text-[10px] text-slate-500 font-mono">RÉGIE RECETTES DE L'ÉTAT CIVIL & CAISSE MUNICIPALE</span>
+                </div>
+
+                {/* Title */}
+                <div className="text-center bg-slate-900 text-white p-3 rounded-lg shadow-sm">
+                  <h2 className="font-serif text-lg font-bold uppercase tracking-wide">BULLETIN D'ENCAISSEMENT EN CAISSE MUNICIPALE</h2>
+                  <p className="font-mono text-[10px] uppercase text-amber-400 tracking-wider mt-0.5">
+                    RÉFÉRENCE TRACABILITÉ : BC-COCODY-{(showBulletinCaisseDossier.id || '').toUpperCase()}-{Date.now().toString().slice(-6)}
+                  </p>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-4 text-xs border border-slate-200 p-4 rounded-lg bg-slate-50">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">N° Dossier Civil :</span>
+                    <span className="font-mono font-bold text-slate-900 text-sm">{showBulletinCaisseDossier.id.toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Date d'Émission :</span>
+                    <span className="font-bold text-slate-800">{new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Époux (Conjoint) :</span>
+                    <span className="font-bold text-slate-900">{showBulletinCaisseDossier.spouse1_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Épouse (Conjointe) :</span>
+                    <span className="font-bold text-slate-900">{showBulletinCaisseDossier.spouse2_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Date du Rendez-vous Civil :</span>
+                    <span className="font-bold text-emerald-800">{showBulletinCaisseDossier.wedding_date || showBulletinCaisseDossier.appointment_date || 'Fixée au guichet'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">Statut Dossier :</span>
+                    <span className="font-bold text-amber-700 uppercase">En cours d'instruction (Rendez-vous)</span>
+                  </div>
+                </div>
+
+                {/* Prestation Details */}
+                <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
+                  <div className="bg-slate-200 px-3 py-2 font-bold text-slate-800 flex justify-between border-b border-slate-300">
+                    <span>NATURE DE LA PRESTATION À ENCAISSER</span>
+                    <span>MONTANT RÉGIE</span>
+                  </div>
+                  <div className="p-3 flex justify-between items-center border-b border-slate-200">
+                    <div>
+                      <p className="font-bold text-slate-900">Droits de Célébration & Timbres Municipaux d'État Civil</p>
+                      <p className="text-[10px] text-slate-500">Paiement physique obligatoire aux guichets de la Caisse Municipale de Cocody</p>
+                    </div>
+                    <span className="font-mono font-bold text-slate-900 text-sm">25 000 FCFA</span>
+                  </div>
+                  <div className="p-3 bg-amber-50/50 flex justify-between items-center font-bold text-slate-900">
+                    <span>TOTAL À PAYER À LA CAISSE MUNICIPALE :</span>
+                    <span className="font-mono text-base text-amber-900">25 000 FCFA</span>
+                  </div>
+                </div>
+
+                {/* Note for Cashier & Agent Stamp */}
+                <div className="grid grid-cols-2 gap-4 text-[10px] pt-2 border-t border-slate-200 text-slate-600">
+                  <div>
+                    <p className="font-bold text-slate-800 uppercase">Instruction à l'Usager :</p>
+                    <p className="mt-0.5 leading-relaxed">
+                      L'usager doit se présenter muni de ce bulletin physiquement à la Caisse Municipale pour s'acquitter des droits de célébration avant la célébration du mariage.
+                    </p>
+                  </div>
+                  <div className="text-right flex flex-col justify-between">
+                    <div>
+                      <p className="font-bold text-slate-800 uppercase">Visat Agent d'État Civil :</p>
+                      <p className="italic text-slate-500 mt-0.5">Certifié conforme au dossier physique</p>
+                    </div>
+                    <div className="mt-8 border-t border-dashed border-slate-400 pt-1 font-mono text-[9px] text-slate-400">
+                      Cachet & Signature réservés
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons (no-print) */}
+              <div className="no-print flex gap-3 justify-end border-t border-neutral-100 pt-4 font-sans text-xs">
+                <button
+                  onClick={() => setShowBulletinCaisseDossier(null)}
+                  className="px-4 py-2 border border-neutral-300 hover:bg-neutral-100 rounded-lg text-slate-700 font-bold cursor-pointer"
+                >
+                  Fermer
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-md hover:shadow cursor-pointer flex items-center gap-1.5"
+                >
+                  <Printer className="w-4 h-4 shrink-0" />
+                  Imprimer le Bulletin de Caisse (Physique)
                 </button>
               </div>
 

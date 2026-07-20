@@ -3036,9 +3036,10 @@ export function croiserDonneesScriptInterne(
         if (extNumClean === decNumClean) {
           isMatch = true;
         } else {
-          // Strip common country/type prefixes (CI, CNI, PA, C)
-          const decStripped = decNumClean.replace(/^(CI|CNI|PA|C0*)/g, '');
-          const extStripped = extNumClean.replace(/^(CI|CNI|PA|C0*)/g, '');
+          // Strip common country/type prefixes (CEDEAO: CI, SN, ML, BF, BJ, TG, NE, GN, GH, NG, GM, GW, LR, SL, CV + PA, P, CNI, ID)
+          const prefixRegex = /^(CI|SN|ML|BF|BJ|TG|NE|GN|GH|NG|GM|GW|LR|SL|CV|CNI|PASSEPORT|PASSPORT|PA|PAS|P|ID|CARD|C0*)/gi;
+          const decStripped = decNumClean.replace(prefixRegex, '');
+          const extStripped = extNumClean.replace(prefixRegex, '');
           if (decStripped && extStripped && decStripped === extStripped) {
             isMatch = true;
           } else if (decNumClean.length >= 6 && extNumClean.length >= 6 && decNumClean.length === extNumClean.length) {
@@ -4315,22 +4316,20 @@ Numéro pièce    : ${NUMERO_PIECE_DÉCLARÉ}
 Type pièce      : ${TYPE_PIECE}
 
 [TA MISSION]
-Analyse cette pièce d'identité (CNI, Passeport, Attestation) et réponds UNIQUEMENT en JSON valide.
+Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International / Reste du Monde) et réponds UNIQUEMENT en JSON valide.
 
-[DÉTECTION D'AUTHENTICITÉ ET D'ORIGINALITÉ DU DOCUMENT]
-Examine attentivement l'image pour vérifier son authenticité et son originalité :
-1. ANALYSE DE LA PIÈCE D'IDENTITÉ OU ACTE D'ÉTAT CIVIL :
-   - Vérifie la netteté des polices administratives officielles, les armoiries, les sceaux et tampons républicains.
-   - Détecte les signes de falsification numérique : typographie décalée, zones de texte retouchées, artefacts de découpage.
-   - N'indique PAS qu'une photo de document physique est une falsification sauf si des altérations grossières sont visibles.
-
-2. RÈGLES STRICTES DE VALIDATION :
-   - Compare la date d'expiration figurant sur la pièce avec la Date actuelle (${dateActuelle}). Si la date d'expiration est dans le futur (ex: 2026, 2027, 2028, 2030, etc.), LE DOCUMENT EST VALIDE !
-   - Compare le Nom, les Prénoms et le Numéro de pièce figurant sur le document avec les DONNÉES DÉCLARÉES.
-   - Si les informations correspondent ou sont très proches : "action_recommandee": "ACCEPTER".
-
-3. EXIGENCE DE PRÉCISION EN CAS DE REJET OU ANOMALIE :
-   Si le document est rejeté ou présente des incohérences, tu DOIS obligatoirement indiquer la raison EXACTE dans "message_utilisateur" et lister les détails précis dans "anomalies" (Exemples : "Nom extrait 'KADJO' ne correspond pas au nom déclaré 'KONÉ'", "Numéro de pièce 'PA12345' ne correspond pas au numéro déclaré 'C009876'", "Document expiré le 12/05/2022"). Ne donne JAMAIS de réponse vague sans donner les valeurs précises !
+[EXTRACTION UNIVERSELLE PASSEPORT & CNI]
+1. EXTRACTION DU NUMÉRO DE DOCUMENT :
+   - Extrais le numéro de Passeport ou le numéro de Carte d'Identité Nationale (ex: CI..., SN..., BF..., NG..., PA..., P...). Ne prends pas le NNI à 11 chiffres sauf si c'est l'unique identifiant.
+   - S'il y a une bande MRZ (2 ou 3 lignes en bas du passeport/CNI), extrais le numéro exact depuis la bande MRZ.
+2. DÉTECTION D'AUTHENTICITÉ ET ORIGINALITÉ DU DOCUMENT :
+   - Vérifie la netteté des polices administratives officielles, armoiries, sceaux et filigranes.
+   - N'indique PAS qu'une photo prise avec un smartphone est une falsification.
+3. RÈGLES STRICTES DE VALIDATION :
+   - Compare la date d'expiration figurant sur la pièce avec la Date actuelle (${dateActuelle}). Si la date d'expiration est dans le futur, le document est valide !
+   - Compare le Nom, les Prénoms et le Numéro de pièce figurant sur le document avec les DONNÉES DÉCLARÉES (${NUMERO_PIECE_DÉCLARÉ}).
+4. EXIGENCE DE PRÉCISION EN CAS DE REJET OU ANOMALIE :
+   - Indique la raison EXACTE dans "message_utilisateur" et lisez les détails dans "anomalies". Si le numéro ne correspond pas, affiche : "Incohérence du numéro de pièce : le numéro renseigné '${NUMERO_PIECE_DÉCLARÉ}' est différent de celui présent sur la pièce ('[Numéro Extrait]')".
 
 [STRUCTURE JSON]
 {

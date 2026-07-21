@@ -48,6 +48,7 @@ import {
   updateDossierBiometrics,
   updateDossierFaceAttempts,
   comparerVisages,
+  convertBlobToImageBase64,
   verifierNemotronSafety,
   downloadDocumentFile,
   DossierInfo,
@@ -723,7 +724,7 @@ export default function Dossier({
         throw new Error("Impossible de télécharger la pièce d'identité pour la comparaison.");
       }
 
-      const cniBase64 = await convertFileToBase64(cniBlob);
+      const cniBase64 = await convertBlobToImageBase64(cniBlob);
 
       // 3. Biometric Facial Comparison
       const engineName = config.useDeepFace ? "DeepFace & Liveness" : "Face++";

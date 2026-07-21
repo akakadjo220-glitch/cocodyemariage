@@ -5652,6 +5652,51 @@ export async function testerConnexionMistralEmbed(cleAPI: string): Promise<{ sta
   }
 }
 
+/**
+ * Convertit un Blob (Image OU Fichier PDF) en image JPEG Base64 propre.
+ * Si le Blob est un PDF, restitue la 1ère page du document sous forme d'image HD via Canvas.
+ */
+export async function convertBlobToImageBase64(blob: Blob): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+
+  // Vérification de la signature du fichier PDF (%PDF -> 0x25, 0x50, 0x44, 0x46)
+  const isPdf = bytes.length >= 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+
+  if (isPdf) {
+    try {
+      const loadingTask = pdfjsLib.getDocument({ data: bytes });
+      const pdfDoc = await loadingTask.promise;
+      const page = await pdfDoc.getPage(1);
+
+      const viewport = page.getViewport({ scale: 2.0 }); // Résolution élevée (HD)
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      if (context) {
+        await page.render({ canvasContext: context, viewport }).promise;
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        return dataUrl.split(',')[1] || dataUrl;
+      }
+    } catch (err) {
+      console.warn("Échec du rendu PDF vers image pour la biométrie :", err);
+    }
+  }
+
+  // Conversion classique Blob Image -> Base64
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1] || result);
+    };
+    reader.onerror = err => reject(err);
+  });
+}
+
 export async function comparerVisages(
   imageCNIBase64: string,
   selfieBase64: string,

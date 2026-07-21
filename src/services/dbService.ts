@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { Partner, DocumentInfo, TimelineStep, AlertNotification, PartnerContact, PaystackConfig, PaymentInfo, SentNotificationLog, OppositionInfo, AiConfig, AiAnalysisResult, TavilyAnalysisResult } from '../types';
+import { parseAndValidateMrz, extractMrzLinesFromText } from './mrzService';
 import {
   INITIAL_PARTNERS,
   INITIAL_DOCUMENTS,
@@ -2381,6 +2382,7 @@ Analyse l'image de ce document et réponds UNIQUEMENT en JSON avec la structure 
     "date_expiration": "",
     "nationalite": ""
   },
+  "mrz_lines": [],
   "anomalies": [],
   "action_recommandee": "VALIDER | REJETER | VERIFIER_MANUELLEMENT",
   "motif": ""
@@ -2969,6 +2971,27 @@ export function croiserDonneesScriptInterne(
 ): { action: 'VALIDER' | 'REJETER'; motif?: string; anomalies?: string[] } {
   const anomalies: string[] = [];
 
+  // 0. High Precision ICAO 9303 MRZ Parsing & Checksum Auto-Correction
+  const rawOcrTextFull = safeString(infosExtraites?.raw_ocr_text || '').toUpperCase();
+  const mrzLinesInput = (infosExtraites as any)?.mrz_lines || extractMrzLinesFromText(rawOcrTextFull);
+  const mrzRes = parseAndValidateMrz(mrzLinesInput);
+
+  if (mrzRes.statut !== 'NON_DETECTE' && infosExtraites) {
+    if (mrzRes.numeroDocument) {
+      infosExtraites.numero_document = mrzRes.numeroDocument;
+    }
+    if (mrzRes.nom && mrzRes.prenoms) {
+      infosExtraites.nom = mrzRes.nom;
+      infosExtraites.prenoms = mrzRes.prenoms;
+    }
+    if (mrzRes.dateNaissance) {
+      infosExtraites.date_naissance = mrzRes.dateNaissance;
+    }
+    if (mrzRes.dateExpiration) {
+      infosExtraites.date_expiration = mrzRes.dateExpiration;
+    }
+  }
+
   // 1. Check Document Type Mismatch (CNI vs PASSEPORT)
   const declaredType = (donneesDeclarees.type_piece || '').toUpperCase();
   const extractedType = (typeDocumentExtrait || infosExtraites?.type_document || '').toUpperCase();
@@ -3044,8 +3067,17 @@ export function croiserDonneesScriptInterne(
 
     let isMatch = false;
 
-    // A. Direct Comparison with extracted field
-    if (extNumClean) {
+    // A. Check against MRZ parsed document number first
+    if (mrzRes.numeroDocument) {
+      const mrzClean = mrzRes.numeroDocument.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      const mrzStripped = mrzClean.replace(prefixRegex, '');
+      if (mrzClean === decNumClean || (decStripped && mrzStripped && decStripped === mrzStripped)) {
+        isMatch = true;
+      }
+    }
+
+    // B. Direct Comparison with extracted field
+    if (!isMatch && extNumClean) {
       if (extNumClean === decNumClean || (decStripped && extStripped && decStripped === extStripped)) {
         isMatch = true;
       } else if (decNumClean.length >= 6 && extNumClean.length >= 6 && decNumClean.length === extNumClean.length) {

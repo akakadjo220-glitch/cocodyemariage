@@ -5759,20 +5759,18 @@ export async function comparerVisages(
         }
       }
 
-      return {
-        score: typeof data.score === 'number' ? data.score : 0,
-        valide: !!data.valide,
-        decision: data.decision || (data.valide ? 'VALIDER' : 'REJETER'),
-        message: data.message || (data.valide ? 'Identité et vivacité confirmées ✅' : 'Vérification biométrique échouée.')
-      };
+      if (data && data.valide) {
+        return {
+          score: typeof data.score === 'number' ? data.score : 85,
+          valide: true,
+          decision: 'VALIDER',
+          message: data.message || 'Identité et vivacité confirmées ✅ (DeepFace & Liveness)'
+        };
+      } else {
+        console.warn("DeepFace biométrie a retourné invalide, bascule automatique sur le moteur secondaire Face++ / Vision AI...", data?.message);
+      }
     } catch (err: any) {
-      console.error("DeepFace verification error:", err);
-      return {
-        score: 0,
-        valide: false,
-        decision: 'REJETER',
-        message: `Erreur d'analyse biométrique locale (DeepFace) : ${err.message || 'Problème de connexion'}. Veuillez réessayer.`
-      };
+      console.warn("DeepFace verification error, bascule automatique sur le moteur secondaire Face++ / Vision AI:", err);
     }
   }
 

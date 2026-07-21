@@ -3063,8 +3063,60 @@ export function croiserDonneesScriptInterne(
     }
   }
 
-  // 4. Document Number Check (CNI / Passport)
-  if (donneesDeclarees.numero_piece && donneesDeclarees.numero_piece.trim() !== '') {
+  // 4. Extrait de Naissance Freshness Check OR CNI/Passport Document Number Check
+  const extractedTypeUpper = (typeDocumentExtrait || infosExtraites?.type_document || '').toUpperCase();
+  const declaredTypeUpper = (donneesDeclarees.type_piece || '').toUpperCase();
+  const isExtraitNaissance = extractedTypeUpper.includes('EXTRAIT') || extractedTypeUpper.includes('NAISSANCE') || declaredTypeUpper.includes('EXTRAIT') || declaredTypeUpper.includes('NAISSANCE');
+
+  if (isExtraitNaissance) {
+    // For Birth Certificate (Extrait de Naissance): Do NOT check CNI document number.
+    // Instead, verify Issuance Date (Fraîcheur): Must be <= 3 months (90 days) for local, or <= 6 months (180 days) if delivered abroad.
+    const rawOcrTextFull = safeString(infosExtraites?.raw_ocr_text || '').toUpperCase();
+    const delivranceStr = safeString(infosExtraites?.date_delivrance || (infosExtraites as any)?.date_delivrance_extraite || '');
+
+    let dateDelivranceObj: Date | null = null;
+    if (delivranceStr) {
+      const m = delivranceStr.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+      if (m) {
+        dateDelivranceObj = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+      }
+    }
+    if (!dateDelivranceObj && rawOcrTextFull) {
+      const matchDelivre = rawOcrTextFull.match(/(?:DÉLIVRÉ|FAIT|ÉTABLI|LE)\s*(?:À|AU)?\s*[\w\s\.]*?\s*LE\s*(\d{1,2})\s*([\w]+|\d{1,2})\s*(\d{4})/i)
+                        || rawOcrTextFull.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](202[0-9])/);
+      if (matchDelivre && matchDelivre[1] && matchDelivre[2] && matchDelivre[3]) {
+        const d = parseInt(matchDelivre[1], 10);
+        const y = parseInt(matchDelivre[3], 10);
+        let m = 0;
+        const months = ["JANVIER","FEVRIER","MARS","AVRIL","MAI","JUIN","JUILLET","AOUT","SEPTEMBRE","OCTOBRE","NOVEMBRE","DECEMBRE"];
+        const monthIdx = months.findIndex(mn => matchDelivre[2].toUpperCase().includes(mn));
+        if (monthIdx !== -1) {
+          m = monthIdx;
+        } else {
+          m = parseInt(matchDelivre[2], 10) - 1;
+        }
+        if (y >= 2020 && m >= 0 && m <= 11 && d >= 1 && d <= 31) {
+          dateDelivranceObj = new Date(y, m, d);
+        }
+      }
+    }
+
+    if (dateDelivranceObj) {
+      const now = new Date();
+      const diffTime = now.getTime() - dateDelivranceObj.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
+
+      const isEtranger = rawOcrTextFull.includes('ETRANGER') || rawOcrTextFull.includes('CONSULAT') || rawOcrTextFull.includes('AMBASSADE') || (infosExtraites?.nationalite && !infosExtraites.nationalite.toUpperCase().includes('IVOIR'));
+      const maxDays = isEtranger ? 180 : 90;
+      const maxMonthsStr = isEtranger ? '6 mois (étranger)' : '3 mois';
+
+      if (diffDays > maxDays) {
+        const dateFormatted = dateDelivranceObj.toLocaleDateString('fr-FR');
+        anomalies.push(`Extrait de naissance hors délai : Le document a été délivré le ${dateFormatted} (plus de ${maxMonthsStr}). L'original doit dater de moins de 3 mois (6 mois si né à l'étranger).`);
+      }
+    }
+  } else if (donneesDeclarees.numero_piece && donneesDeclarees.numero_piece.trim() !== '') {
+    // CNI or PASSPORT: Perform document number check
     const declaredRaw = donneesDeclarees.numero_piece.trim();
     const decNumClean = declaredRaw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     

@@ -306,21 +306,21 @@ export default function Dossier({
     const file = e.target.files?.[0];
     if (file) {
       setIsUploadingFile(true);
-      
+
       const img = new Image();
       img.onload = () => {
         const targetW = 800;
         const targetH = 506; // Ratio 1.58:1 (Standard CNI/Passeport ID Card)
-        
+
         const canvas = document.createElement('canvas');
         canvas.width = targetW;
         canvas.height = targetH;
-        
+
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
-          
+
           // Center crop calculation for exact framing
           const imgW = img.naturalWidth || img.width;
           const imgH = img.naturalHeight || img.height;
@@ -329,11 +329,11 @@ export default function Dossier({
           const cropH = targetH / scale;
           const cropX = (imgW - cropW) / 2;
           const cropY = (imgH - cropH) / 2;
-          
+
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, targetW, targetH);
           ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
-          
+
           const base64 = canvas.toDataURL('image/jpeg', 0.68); // ~50-80 KB
           if (side === 'recto') {
             setCniRectoBase64(base64);
@@ -891,8 +891,8 @@ export default function Dossier({
     const nom = nameParts[nameParts.length - 1] || '';
     const prenoms = nameParts.slice(0, -1).join(' ') || declaredFullName;
 
-    const isBirth = docId === 'doc2' || docId === 'doc2_f' || docId.includes('doc2');
-    const isId = docId === 'doc1' || docId === 'doc1_f' || docId.includes('doc1') || docId === 'doc5' || docId === 'doc9';
+    const isBirth = docId === 'doc1' || docId === 'doc1_f';
+    const isId = docId === 'doc2' || docId === 'doc2_f' || docId === 'doc5' || docId === 'doc9';
 
     let aiResult: AiAnalysisResult | null = null;
 
@@ -1048,28 +1048,26 @@ export default function Dossier({
 
                   return (
                     <div className="mt-2 space-y-3">
-                      <div className={`p-4 rounded-xl border flex flex-col gap-1.5 ${
-                        isOpened
+                      <div className={`p-4 rounded-xl border flex flex-col gap-1.5 ${isOpened
                           ? 'bg-emerald-50/95 border-emerald-200 text-emerald-950'
                           : 'bg-amber-50/95 border-amber-200 text-amber-950'
-                      }`}>
+                        }`}>
                         <div className="flex items-center justify-between font-bold text-xs">
                           <span className="flex items-center gap-1.5">
                             {isOpened ? '🟢 Réservations Ouvertes !' : `⏳ Réservations pas encore ouvertes`}
                           </span>
-                          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black ${
-                            isOpened ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
-                          }`}>
+                          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black ${isOpened ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                            }`}>
                             {isOpened ? 'Disponible' : remaining || 'Bientôt'}
                           </span>
                         </div>
-                        
+
                         <p className="text-xs font-medium leading-relaxed mt-0.5">
                           {isOpened
                             ? `Bonne nouvelle ! Les réservations de mariage civil pour ${item.moisCélébration} sont ouvertes à la Mairie. Vous pouvez remplir votre dossier dès maintenant.`
                             : `Attention : Les réservations pour ${item.moisCélébration} n'ouvriront officiellement que le ${item.debutReservation} à la Mairie de Cocody.`}
                         </p>
-                        
+
                         <p className="text-[11px] italic opacity-85 mt-0.5">
                           💡 {item.conseil}
                         </p>
@@ -1100,191 +1098,191 @@ export default function Dossier({
             </div>
           ) : (
             <form onSubmit={handleCreateDossier} className="w-full flex flex-col gap-4 text-left font-sans text-xs mt-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="font-bold text-slate-700">Nom complet du Futur Époux (Homme)</label>
-              <input
-                type="text"
-                value={s1}
-                onChange={(e) => setS1(e.target.value.toUpperCase())}
-                placeholder="EX: KONÉ"
-                style={{ textTransform: 'uppercase' }}
-                className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
-                required
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="font-bold text-slate-700">Nom complet de la Future Épouse (Femme)</label>
-              <input
-                type="text"
-                value={s2}
-                onChange={(e) => setS2(e.target.value.toUpperCase())}
-                placeholder="EX: AMY ROSINE"
-                style={{ textTransform: 'uppercase' }}
-                className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
-                required
-              />
-            </div>
-
-            {/* Téléphone — mêmes sécurités que le popup */}
-            <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <label className="font-bold text-slate-700">Tél. époux 1</label>
+                <label className="font-bold text-slate-700">Nom complet du Futur Époux (Homme)</label>
                 <input
                   type="text"
-                  value={phone1}
-                  onChange={e => handlePhoneChange(e.target.value, setPhone1)}
-                  onBlur={() => checkPhone1.triggerVerification()}
-                  placeholder="+225 07 00 00 00"
-                  style={getDossierBordureStyle(checkPhone1.statut)}
-                  className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
-                />
-                {checkPhone1.message && (
-                  <p className={`text-[10px] font-semibold mt-0.5 whitespace-pre-line ${getDossierMsgColor(checkPhone1.statut)}`}>
-                    {getDossierIcone(checkPhone1.statut)} {checkPhone1.message}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="font-bold text-slate-700">Tél. épouse 2</label>
-                <input
-                  type="text"
-                  value={phone2}
-                  onChange={e => handlePhoneChange(e.target.value, setPhone2)}
-                  onBlur={() => checkPhone2.triggerVerification()}
-                  placeholder="+225 07 00 00 00"
-                  style={getDossierBordureStyle(checkPhone2.statut)}
-                  className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
-                />
-                {checkPhone2.message && (
-                  <p className={`text-[10px] font-semibold mt-0.5 whitespace-pre-line ${getDossierMsgColor(checkPhone2.statut)}`}>
-                    {getDossierIcone(checkPhone2.statut)} {checkPhone2.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="font-bold text-slate-700">Type de pièce époux 1 *</label>
-                <select value={cniType1} onChange={e => setCniType1(e.target.value as any)}
-                  className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold transition-all">
-                  <option value="CNI">CNI</option>
-                  <option value="PASSEPORT">Passeport</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="font-bold text-slate-700">Type de pièce époux 2 *</label>
-                <select value={cniType2} onChange={e => setCniType2(e.target.value as any)}
-                  className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold transition-all">
-                  <option value="CNI">CNI</option>
-                  <option value="PASSEPORT">Passeport</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="font-bold text-slate-700">N° Pièce époux 1 *</label>
-                <input
-                  type="text"
-                  value={cni1}
-                  onChange={(e) => {
-                    setCni1(e.target.value);
-                    if (dossierDuplicateError) setDossierDuplicateError(null);
-                  }}
-                  onBlur={() => checkCni1.triggerVerification()}
-                  placeholder={cniType1 === 'PASSEPORT' ? "Ex: 12BC34567" : "Ex: CI0012345678"}
-                  style={{ textTransform: 'uppercase', ...getDossierBordureStyle(checkCni1.statut) }}
+                  value={s1}
+                  onChange={(e) => setS1(e.target.value.toUpperCase())}
+                  placeholder="EX: KONÉ"
+                  style={{ textTransform: 'uppercase' }}
                   className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
                   required
                 />
-                {checkCni1.message && (
-                  <p className={`text-[10px] font-semibold mt-0.5 whitespace-pre-line ${getDossierMsgColor(checkCni1.statut)}`}>
-                    {getDossierIcone(checkCni1.statut)} {checkCni1.message}
-                  </p>
-                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="font-bold text-slate-700">N° Pièce époux 2 *</label>
+                <label className="font-bold text-slate-700">Nom complet de la Future Épouse (Femme)</label>
                 <input
                   type="text"
-                  value={cni2}
-                  onChange={(e) => {
-                    setCni2(e.target.value);
-                    if (dossierDuplicateError) setDossierDuplicateError(null);
-                  }}
-                  onBlur={() => checkCni2.triggerVerification()}
-                  placeholder={cniType2 === 'PASSEPORT' ? "Ex: 12BC34567" : "Ex: CI0087654321"}
-                  style={{ textTransform: 'uppercase', ...getDossierBordureStyle(checkCni2.statut) }}
+                  value={s2}
+                  onChange={(e) => setS2(e.target.value.toUpperCase())}
+                  placeholder="EX: AMY ROSINE"
+                  style={{ textTransform: 'uppercase' }}
                   className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
                   required
                 />
-                {checkCni2.message && (
-                  <p className={`text-[10px] font-semibold mt-0.5 whitespace-pre-line ${getDossierMsgColor(checkCni2.statut)}`}>
-                    {getDossierIcone(checkCni2.statut)} {checkCni2.message}
-                  </p>
-                )}
               </div>
-            </div>
 
-            {erreurCroisement && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">Erreur de validation croisée</p>
-                  <p className="mt-0.5 font-semibold text-rose-800 whitespace-pre-line">{erreurCroisement}</p>
-                </div>
-              </div>
-            )}
-
-            {dossierDuplicateError && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">Erreur de validation</p>
-                  <p className="mt-0.5 font-semibold text-rose-800">{dossierDuplicateError}</p>
-                </div>
-              </div>
-            )}
-
-            {(() => {
-              const peutInitialiser =
-                checkPhone1.statut === 'disponible' &&
-                checkPhone2.statut === 'disponible' &&
-                checkCni1.statut === 'disponible' &&
-                checkCni2.statut === 'disponible' &&
-                !erreurCroisement &&
-                !submitting &&
-                s1.trim() && s2.trim() &&
-                isValidDateStr(birthdate1) && isValidDateStr(birthdate2) &&
-                cni1.trim() && cni2.trim();
-              return (
-                <button
-                  type="submit"
-                  disabled={!peutInitialiser}
-                  style={{ opacity: peutInitialiser ? 1 : 0.55, cursor: peutInitialiser ? 'pointer' : 'not-allowed' }}
-                  className="w-full py-3.5 text-white font-sans text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-lg mt-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-container"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-accent" />
-                      <span>Initialisation du dossier...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Heart className="w-4 h-4 text-accent fill-accent animate-pulse" />
-                      <span>Initialiser mon dossier civil</span>
-                    </>
+              {/* Téléphone — mêmes sécurités que le popup */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-700">Tél. époux 1</label>
+                  <input
+                    type="text"
+                    value={phone1}
+                    onChange={e => handlePhoneChange(e.target.value, setPhone1)}
+                    onBlur={() => checkPhone1.triggerVerification()}
+                    placeholder="+225 07 00 00 00"
+                    style={getDossierBordureStyle(checkPhone1.statut)}
+                    className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
+                  />
+                  {checkPhone1.message && (
+                    <p className={`text-[10px] font-semibold mt-0.5 whitespace-pre-line ${getDossierMsgColor(checkPhone1.statut)}`}>
+                      {getDossierIcone(checkPhone1.statut)} {checkPhone1.message}
+                    </p>
                   )}
-                </button>
-              );
-            })()}
-          </form>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-700">Tél. épouse 2</label>
+                  <input
+                    type="text"
+                    value={phone2}
+                    onChange={e => handlePhoneChange(e.target.value, setPhone2)}
+                    onBlur={() => checkPhone2.triggerVerification()}
+                    placeholder="+225 07 00 00 00"
+                    style={getDossierBordureStyle(checkPhone2.statut)}
+                    className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
+                  />
+                  {checkPhone2.message && (
+                    <p className={`text-[10px] font-semibold mt-0.5 whitespace-pre-line ${getDossierMsgColor(checkPhone2.statut)}`}>
+                      {getDossierIcone(checkPhone2.statut)} {checkPhone2.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-700">Type de pièce époux 1 *</label>
+                  <select value={cniType1} onChange={e => setCniType1(e.target.value as any)}
+                    className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold transition-all">
+                    <option value="CNI">CNI</option>
+                    <option value="PASSEPORT">Passeport</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-700">Type de pièce époux 2 *</label>
+                  <select value={cniType2} onChange={e => setCniType2(e.target.value as any)}
+                    className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold transition-all">
+                    <option value="CNI">CNI</option>
+                    <option value="PASSEPORT">Passeport</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-700">N° Pièce époux 1 *</label>
+                  <input
+                    type="text"
+                    value={cni1}
+                    onChange={(e) => {
+                      setCni1(e.target.value);
+                      if (dossierDuplicateError) setDossierDuplicateError(null);
+                    }}
+                    onBlur={() => checkCni1.triggerVerification()}
+                    placeholder={cniType1 === 'PASSEPORT' ? "Ex: 12BC34567" : "Ex: CI0012345678"}
+                    style={{ textTransform: 'uppercase', ...getDossierBordureStyle(checkCni1.statut) }}
+                    className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
+                    required
+                  />
+                  {checkCni1.message && (
+                    <p className={`text-[10px] font-semibold mt-0.5 whitespace-pre-line ${getDossierMsgColor(checkCni1.statut)}`}>
+                      {getDossierIcone(checkCni1.statut)} {checkCni1.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-bold text-slate-700">N° Pièce époux 2 *</label>
+                  <input
+                    type="text"
+                    value={cni2}
+                    onChange={(e) => {
+                      setCni2(e.target.value);
+                      if (dossierDuplicateError) setDossierDuplicateError(null);
+                    }}
+                    onBlur={() => checkCni2.triggerVerification()}
+                    placeholder={cniType2 === 'PASSEPORT' ? "Ex: 12BC34567" : "Ex: CI0087654321"}
+                    style={{ textTransform: 'uppercase', ...getDossierBordureStyle(checkCni2.statut) }}
+                    className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold shadow-inner-sm transition-all"
+                    required
+                  />
+                  {checkCni2.message && (
+                    <p className={`text-[10px] font-semibold mt-0.5 whitespace-pre-line ${getDossierMsgColor(checkCni2.statut)}`}>
+                      {getDossierIcone(checkCni2.statut)} {checkCni2.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {erreurCroisement && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Erreur de validation croisée</p>
+                    <p className="mt-0.5 font-semibold text-rose-800 whitespace-pre-line">{erreurCroisement}</p>
+                  </div>
+                </div>
+              )}
+
+              {dossierDuplicateError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Erreur de validation</p>
+                    <p className="mt-0.5 font-semibold text-rose-800">{dossierDuplicateError}</p>
+                  </div>
+                </div>
+              )}
+
+              {(() => {
+                const peutInitialiser =
+                  checkPhone1.statut === 'disponible' &&
+                  checkPhone2.statut === 'disponible' &&
+                  checkCni1.statut === 'disponible' &&
+                  checkCni2.statut === 'disponible' &&
+                  !erreurCroisement &&
+                  !submitting &&
+                  s1.trim() && s2.trim() &&
+                  isValidDateStr(birthdate1) && isValidDateStr(birthdate2) &&
+                  cni1.trim() && cni2.trim();
+                return (
+                  <button
+                    type="submit"
+                    disabled={!peutInitialiser}
+                    style={{ opacity: peutInitialiser ? 1 : 0.55, cursor: peutInitialiser ? 'pointer' : 'not-allowed' }}
+                    className="w-full py-3.5 text-white font-sans text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-lg mt-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-container"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                        <span>Initialisation du dossier...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Heart className="w-4 h-4 text-accent fill-accent animate-pulse" />
+                        <span>Initialiser mon dossier civil</span>
+                      </>
+                    )}
+                  </button>
+                );
+              })()}
+            </form>
           )}
         </motion.div>
       </div>
@@ -1321,15 +1319,10 @@ export default function Dossier({
         )}
 
         {!isVerified && !isUploading && (
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button onClick={() => setShowFileUploadModal(docId)} className="flex-1 py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-              <UploadCloud className="w-4 h-4" />
-              <span>{isRejected ? 'Corriger le document' : 'Téléverser ma pièce'}</span>
-            </button>
-            <button onClick={() => handleBypassValidation(docId)} className="py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-300 font-sans text-xs font-bold flex items-center justify-center gap-1 cursor-pointer" title="Validation instantanée pour démonstration">
-              <span>⚡ Mode Démo</span>
-            </button>
-          </div>
+          <button onClick={() => setShowFileUploadModal(docId)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+            <UploadCloud className="w-4 h-4" />
+            <span>{isRejected ? 'Corriger le document' : 'Téléverser ma pièce'}</span>
+          </button>
         )}
 
         {isUploading && (
@@ -1430,15 +1423,10 @@ export default function Dossier({
         )}
 
         {!isVerified && !isUploading && (
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button onClick={() => setShowFileUploadModal(docId)} className="flex-1 py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-              <UploadCloud className="w-4 h-4" />
-              <span>{isRejected ? 'Corriger le document' : 'Téléverser mon extrait'}</span>
-            </button>
-            <button onClick={() => handleBypassValidation(docId)} className="py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-300 font-sans text-xs font-bold flex items-center justify-center gap-1 cursor-pointer" title="Validation instantanée pour démonstration">
-              <span>⚡ Mode Démo</span>
-            </button>
-          </div>
+          <button onClick={() => setShowFileUploadModal(docId)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+            <UploadCloud className="w-4 h-4" />
+            <span>{isRejected ? 'Corriger le document' : 'Téléverser mon extrait'}</span>
+          </button>
         )}
 
         {isUploading && (
@@ -2209,8 +2197,8 @@ export default function Dossier({
                     onClick={handleUploadSubmit}
                     disabled={!selectedFile || isUploadingFile || isAnalyzingAi}
                     className={`flex-1 py-3 px-4 rounded-xl font-sans text-xs font-bold uppercase tracking-wider text-white shadow-md transition-all flex items-center justify-center gap-2 ${!selectedFile || isUploadingFile || isAnalyzingAi
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/20'
-                        : 'bg-primary hover:bg-primary-container cursor-pointer border border-primary/20 hover:shadow-lg'
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/20'
+                      : 'bg-primary hover:bg-primary-container cursor-pointer border border-primary/20 hover:shadow-lg'
                       }`}
                   >
                     {isUploadingFile || isAnalyzingAi ? (

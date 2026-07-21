@@ -3008,13 +3008,13 @@ export function croiserDonneesScriptInterne(
   // 1. Check Document Type Mismatch (CNI vs PASSEPORT)
   const declaredType = (donneesDeclarees.type_piece || '').toUpperCase();
   const extractedType = (typeDocumentExtrait || infosExtraites?.type_document || '').toUpperCase();
+  const isDocPassport = extractedType.includes('PASS') || rawOcrTextFull.includes('PASSEPORT') || rawOcrTextFull.includes('PASSPORT') || mrzRes.typeDocument === 'PASSEPORT';
+  const isDocCni = extractedType.includes('CNI') || extractedType.includes('CARTE') || rawOcrTextFull.includes('CARTE NATIONALE') || rawOcrTextFull.includes('IDENTITY CARD') || mrzRes.typeDocument === 'CNI';
 
-  if (declaredType && extractedType && extractedType !== 'INCONNU' && extractedType !== 'PIÈCE_IDENTITÉ') {
-    if (declaredType === 'PASSEPORT' && extractedType === 'CNI') {
-      anomalies.push(`Type de pièce incorrect : Un PASSEPORT est requis, mais une CNI a été soumise.`);
-    } else if (declaredType === 'CNI' && extractedType === 'PASSEPORT') {
-      anomalies.push(`Type de pièce incorrect : Une CNI est requise, mais un PASSEPORT a été soumis.`);
-    }
+  if (declaredType === 'PASSEPORT' && isDocCni && !isDocPassport) {
+    anomalies.push(`Type de pièce non conforme : Un PASSEPORT a été déclaré, mais une Carte d'Identité (CNI) a été fournie.`);
+  } else if (declaredType === 'CNI' && isDocPassport && !isDocCni) {
+    anomalies.push(`Type de pièce non conforme : Une Carte d'Identité (CNI) a été déclarée pour la future épouse, mais un PASSEPORT a été fourni.`);
   }
 
   // 2. Strict Identity Check (Word-by-word matching against extracted fields OR full raw OCR text)
@@ -3025,41 +3025,32 @@ export function croiserDonneesScriptInterne(
   const extractedNorm = normaliserNomComplet(extractedName);
   const rawOcrNorm = infosExtraites?.raw_ocr_text ? normaliserNomComplet(infosExtraites.raw_ocr_text) : '';
 
-  // Combine extracted fields + full OCR document text
-  const fullTextToSearch = `${extractedNorm} ${rawOcrNorm}`.trim();
+  // Filter out noise/header words from search space (REPUBLIQUE, COTE, IVOIRE, CEDEAO, PASSEPORT, etc.)
+  const noiseWords = new Set(['REPUBLIQUE', 'COTE', 'DIVOIRE', 'D', 'IVOIRE', 'CEDEAO', 'ECOWAS', 'PASSEPORT', 'PASSPORT', 'CARTE', 'NATIONALE', 'IDENTITE', 'REPUBLIC', 'OF']);
+  const searchableWords = `${extractedNorm} ${rawOcrNorm}`
+    .split(' ')
+    .filter(w => w.length > 1 && !noiseWords.has(w));
 
   if (declaredNorm) {
     const declaredWords = declaredNorm.split(' ').filter(w => w.length > 1);
-    const searchableWords = fullTextToSearch.split(' ').filter(w => w.length > 1);
 
     if (declaredWords.length > 0 && searchableWords.length > 0) {
       let matchedCount = 0;
       const missingWords: string[] = [];
 
       for (const dw of declaredWords) {
-        // Test exact or Fuzzy Levenshtein match with tolerance for OCR typos
         const hasMatch = searchableWords.some(sw => isFuzzyWordMatch(dw, sw));
         if (hasMatch) {
           matchedCount++;
         } else {
-          // Find closest word on document for diagnostic display
-          let bestWord = '';
-          let minDist = 99;
-          for (const sw of searchableWords) {
-            const d = levenshteinDistance(dw.replace(/0/g, 'O').replace(/1/g, 'I'), sw.replace(/0/g, 'O').replace(/1/g, 'I'));
-            if (d < minDist) {
-              minDist = d;
-              bestWord = sw;
-            }
-          }
-          missingWords.push(minDist <= 2 && bestWord ? `"${dw}" (sur doc: "${bestWord}")` : `"${dw}"`);
+          missingWords.push(`"${dw}"`);
         }
       }
 
-      // Allow identity match if at least 60% of declared words match (or match fuzzily)
       const matchRatio = matchedCount / declaredWords.length;
       if (matchRatio < 0.6 && missingWords.length > 0) {
-        anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré ("${declaredName}") mais non trouvé(s) sur le document.`);
+        const readNameStr = extractedName ? ` (Nom lu sur le document : "${extractedName}")` : '';
+        anomalies.push(`Identité non correspondante : le nom/prénom déclaré ("${declaredName}") ne figure pas sur la pièce fournie${readNameStr}.`);
       }
     }
   }

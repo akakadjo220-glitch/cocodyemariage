@@ -5319,6 +5319,49 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                         </div>
                       </div>
                     </div>
+
+                    {/* Active Learning & GLM-OCR Fine-Tuning Dataset Section */}
+                    <div className="border-t border-slate-100 pt-5 mt-3 text-left">
+                      <h5 className="font-bold text-slate-800 text-xs mb-3 flex items-center gap-2 font-serif">
+                        <Award className="w-4 h-4 text-emerald-600 shrink-0" />
+                        Apprentissage Continu &amp; Dataset GLM-OCR (Fine-Tuning Souverain)
+                      </h5>
+                      <div className="p-4 bg-emerald-50/50 border border-emerald-200/80 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-emerald-900 text-xs flex items-center gap-2">
+                            <span>🧠 Boucle de Rétroaction Active</span>
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-mono">
+                              {getOcrFeedbackDataset().length} Échantillons Validés
+                            </span>
+                          </span>
+                          <p className="text-[10px] text-emerald-700 leading-relaxed max-w-xl">
+                            Chaque acte de naissance et CNI validé alimente automatiquement un jeu de données souverain ivoirien. Les exemples validés sont réinjectés dynamiquement en Few-Shot Learning dans GLM-OCR sans aucun ralentissement.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => exportOcrDatasetJsonl()}
+                            className="py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl cursor-pointer transition-colors text-[11px] flex items-center gap-1.5 shadow-sm"
+                          >
+                            <span>📥 Exporter Dataset (JSONL Zhipu)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm("Réinitialiser le jeu de données d'apprentissage ?")) {
+                                clearOcrFeedbackDataset();
+                                alert("Dataset réinitialisé.");
+                                window.location.reload();
+                              }
+                            }}
+                            className="py-2 px-3 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 font-medium rounded-xl cursor-pointer transition-colors text-[11px]"
+                          >
+                            <span>🗑️ Vider</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* AI Diagnostics Section */}

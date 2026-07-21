@@ -725,8 +725,9 @@ export default function Dossier({
 
       const cniBase64 = await convertFileToBase64(cniBlob);
 
-      // 3. Face++ Comparison
-      setSelfieStatus("🧬 Reconnaissance faciale biométrique (Face++)...");
+      // 3. Biometric Facial Comparison
+      const engineName = config.useDeepFace ? "DeepFace & Liveness" : "Face++";
+      setSelfieStatus(`🧬 Reconnaissance faciale biométrique (${engineName})...`);
       const result = await comparerVisages(cniBase64, base64Clean, spouse === 'epoux' ? 'EPOUX' : 'EPOUSE');
 
       // Save selfie file to storage
@@ -764,7 +765,8 @@ export default function Dossier({
           setCapturedSelfieBase64(null);
           await fetchDossierDetails();
         } else {
-          setSelfieError(`La reconnaissance faciale n'a pas pu confirmer votre identité (${result.score.toFixed(1)}% de ressemblance). Tentative ${newAttempts} sur 3. Veuillez réessayer.`);
+          const reasonText = result.message ? ` — ${result.message}` : ` (${result.score.toFixed(1)}% de ressemblance)`;
+          setSelfieError(`La reconnaissance faciale n'a pas pu confirmer votre identité${reasonText}. Tentative ${newAttempts} sur 3. Veuillez réessayer.`);
           await fetchDossierDetails();
         }
       }

@@ -747,29 +747,9 @@ export default function Dossier({
         setCapturedSelfieBase64(null);
         await fetchDossierDetails();
       } else {
-        const prevAttempts = spouse === 'epoux'
-          ? (dossierDetails?.epoux_face_attempts ?? 0)
-          : (dossierDetails?.epouse_face_attempts ?? 0);
-        const newAttempts = prevAttempts + 1;
-        await updateDossierFaceAttempts(dossierId, spouse as 'epoux' | 'epouse', newAttempts);
-
-        if (newAttempts >= 3) {
-          // Escalate to manual verification
-          await updateDossierBiometrics(dossierId, {
-            [`${spouse}_selfie_url`]: selfieFilename,
-            [`${spouse}_selfie_valide`]: false,
-            [`${spouse}_face_match_score`]: result.score,
-            [`${spouse}_identite_verifiee`]: false
-          });
-
-          addNotification(`3 tentatives de selfie échouées. Le dossier biométrique de l'${spouse === 'epoux' ? 'époux' : 'épouse'} est mis en vérification manuelle par la mairie.`, 'warning');
-          setCapturedSelfieBase64(null);
-          await fetchDossierDetails();
-        } else {
-          const reasonText = result.message ? ` — ${result.message}` : ` (${result.score.toFixed(1)}% de ressemblance)`;
-          setSelfieError(`La reconnaissance faciale n'a pas pu confirmer votre identité${reasonText}. Tentative ${newAttempts} sur 3. Veuillez réessayer.`);
-          await fetchDossierDetails();
-        }
+        const reasonText = result.message ? ` — ${result.message}` : ` (${result.score.toFixed(1)}% de ressemblance)`;
+        setSelfieError(`La reconnaissance faciale n'a pas pu confirmer votre identité${reasonText}. Veuillez bien vous cadrer face à la caméra avec une bonne luminosité, puis réessayez.`);
+        await fetchDossierDetails();
       }
     } catch (err: any) {
       console.error("Selfie verification error:", err);

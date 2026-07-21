@@ -48,6 +48,59 @@ function getIcaoCharValue(char: string): number {
 }
 
 /**
+ * Calcule la distance de Levenshtein entre deux chaînes de caractères.
+ */
+export function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+  const lenA = a.length;
+  const lenB = b.length;
+
+  for (let i = 0; i <= lenA; i++) matrix[i] = [i];
+  for (let j = 0; j <= lenB; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= lenA; i++) {
+    for (let j = 1; j <= lenB; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,       // suppression
+        matrix[i][j - 1] + 1,       // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+  return matrix[lenA][lenB];
+}
+
+/**
+ * Calcule si deux mots correspondent avec tolérance aux erreurs d'OCR (Fuzzy Matching).
+ */
+export function isFuzzyWordMatch(word1: string, word2: string): boolean {
+  if (!word1 || !word2) return false;
+  const w1 = word1.toUpperCase().trim();
+  const w2 = word2.toUpperCase().trim();
+
+  if (w1 === w2) return true;
+
+  // Normalisation des confusions OCR courantes (ex: KADJ0 -> KADJO, 0 -> O, 1 -> I)
+  const norm1 = w1.replace(/0/g, 'O').replace(/1/g, 'I').replace(/8/g, 'B').replace(/5/g, 'S');
+  const norm2 = w2.replace(/0/g, 'O').replace(/1/g, 'I').replace(/8/g, 'B').replace(/5/g, 'S');
+
+  if (norm1 === norm2) return true;
+
+  const dist = levenshteinDistance(norm1, norm2);
+  const maxLen = Math.max(norm1.length, norm2.length);
+
+  // Mots courts (<= 3 chars) : doivent être identiques ou normalisés
+  if (maxLen <= 3) return dist === 0;
+
+  // Mots moyens (4-6 chars) : 1 faute/différence tolérée
+  if (maxLen <= 6) return dist <= 1;
+
+  // Mots longs (>= 7 chars) : jusqu'à 2 fautes tolérées
+  return dist <= 2;
+}
+
+/**
  * Calcule le chiffre de contrôle (Checksum) d'une chaîne selon ICAO 9303 (Modulo 10).
  */
 export function calculateIcaoChecksum(str: string): number {

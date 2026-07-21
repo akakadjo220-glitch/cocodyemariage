@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { Partner, DocumentInfo, TimelineStep, AlertNotification, PartnerContact, PaystackConfig, PaymentInfo, SentNotificationLog, OppositionInfo, AiConfig, AiAnalysisResult, TavilyAnalysisResult } from '../types';
-import { parseAndValidateMrz, extractMrzLinesFromText } from './mrzService';
+import { parseAndValidateMrz, extractMrzLinesFromText, isFuzzyWordMatch, levenshteinDistance } from './mrzService';
 import {
   INITIAL_PARTNERS,
   INITIAL_DOCUMENTS,
@@ -3020,18 +3020,32 @@ export function croiserDonneesScriptInterne(
     const searchableWords = fullTextToSearch.split(' ').filter(w => w.length > 1);
 
     if (declaredWords.length > 0 && searchableWords.length > 0) {
+      let matchedCount = 0;
       const missingWords: string[] = [];
+
       for (const dw of declaredWords) {
-        if (!searchableWords.includes(dw)) {
-          // Find closest word in document text for detailed diff
-          const closest = searchableWords.reduce((best, ew) => {
-            const common = [...dw].filter((c, i) => ew[i] === c).length;
-            return common > best.score ? { word: ew, score: common } : best;
-          }, { word: '', score: -1 });
-          missingWords.push(closest.score >= 3 ? `"${dw}" (sur doc: "${closest.word}")` : `"${dw}"`);
+        // Test exact or Fuzzy Levenshtein match with tolerance for OCR typos
+        const hasMatch = searchableWords.some(sw => isFuzzyWordMatch(dw, sw));
+        if (hasMatch) {
+          matchedCount++;
+        } else {
+          // Find closest word on document for diagnostic display
+          let bestWord = '';
+          let minDist = 99;
+          for (const sw of searchableWords) {
+            const d = levenshteinDistance(dw.replace(/0/g, 'O').replace(/1/g, 'I'), sw.replace(/0/g, 'O').replace(/1/g, 'I'));
+            if (d < minDist) {
+              minDist = d;
+              bestWord = sw;
+            }
+          }
+          missingWords.push(minDist <= 2 && bestWord ? `"${dw}" (sur doc: "${bestWord}")` : `"${dw}"`);
         }
       }
-      if (missingWords.length > 0) {
+
+      // Allow identity match if at least 60% of declared words match (or match fuzzily)
+      const matchRatio = matchedCount / declaredWords.length;
+      if (matchRatio < 0.6 && missingWords.length > 0) {
         anomalies.push(`Incohérence d'identité : Mot(s) ${missingWords.join(', ')} présent(s) dans le nom déclaré ("${declaredName}") mais non trouvé(s) sur le document.`);
       }
     }

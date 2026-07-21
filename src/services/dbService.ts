@@ -4512,8 +4512,8 @@ export async function runDocumentAiAnalysis(
       year: 'numeric'
     });
 
-  const isBirthCertificate = docId === 'doc2' || docId === 'doc2_f' || docId.includes('doc2') || fileName.toLowerCase().includes('naissance') || fileName.toLowerCase().includes('extrait');
-  const isIdentityDoc = docId === 'doc1' || docId === 'doc1_f' || docId.includes('doc1') || docId === 'doc5' || docId === 'doc9' || fileName.toLowerCase().includes('identit') || fileName.toLowerCase().includes('cni') || fileName.toLowerCase().includes('passeport');
+  const isBirthCertificate = docId === 'doc2' || docId === 'doc2_f' || docId.includes('doc2');
+  const isIdentityDoc = docId === 'doc1' || docId === 'doc1_f' || docId.includes('doc1') || docId === 'doc5' || docId === 'doc9';
 
   const dossier = await getDossierById(dossierId);
   const isSpouse2 = docId.includes('_f');

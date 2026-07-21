@@ -4366,8 +4366,8 @@ export async function runDocumentAiAnalysis(
       year: 'numeric'
     });
 
-  const isBirthCertificate = docId === 'doc1' || docId === 'doc1_f' || fileName.toLowerCase().includes('naissance') || fileName.toLowerCase().includes('extrait');
-  const isIdentityDoc = docId === 'doc2' || docId === 'doc2_f' || docId === 'doc5' || docId === 'doc9' || fileName.toLowerCase().includes('identit') || fileName.toLowerCase().includes('cni') || fileName.toLowerCase().includes('passeport');
+  const isBirthCertificate = docId === 'doc2' || docId === 'doc2_f' || docId.includes('doc2') || fileName.toLowerCase().includes('naissance') || fileName.toLowerCase().includes('extrait');
+  const isIdentityDoc = docId === 'doc1' || docId === 'doc1_f' || docId.includes('doc1') || docId === 'doc5' || docId === 'doc9' || fileName.toLowerCase().includes('identit') || fileName.toLowerCase().includes('cni') || fileName.toLowerCase().includes('passeport');
 
   const dossier = await getDossierById(dossierId);
   const isSpouse2 = docId.includes('_f');
@@ -4543,8 +4543,8 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
     if (finalRes) {
       const scriptCheck = croiserDonneesScriptInterne(
         finalRes.infos_extraites,
-        { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ, type_piece: TYPE_PIECE },
-        finalRes.type_document
+        { nom: NOM_DÉCLARÉ, prenoms: PRENOMS_DÉCLARÉS, date_naissance: DATE_NAISSANCE_DÉCLARÉE, numero_piece: NUMERO_PIECE_DÉCLARÉ, type_piece: isBirthCertificate ? 'EXTRAIT_NAISSANCE' : TYPE_PIECE },
+        isBirthCertificate ? 'EXTRAIT_NAISSANCE' : finalRes.type_document
       );
       if (scriptCheck.action === 'REJETER') {
         finalRes.action_recommandee = 'REJETER';
@@ -4670,7 +4670,7 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
 
     // Check document number match (CNI/Passport only if both are non-empty)
     let docNumMatches = true;
-    if (isIdentityDoc && declaredCni && declaredCni.trim() !== '') {
+    if (isIdentityDoc && !isBirthCertificate && declaredCni && declaredCni.trim() !== '') {
       const declaredRaw = declaredCni.trim();
       const decClean = declaredRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
       const extClean = (extractedDocNum || '').trim().replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -4713,7 +4713,7 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
       const sourceName = usingOtherDocForBirthdate ? "sur la pièce d'identité" : "déclarée";
       mismatchAnomalies.push(`Incohérence date de naissance : la date extraite "${extractedBirthdate}" ne correspond pas à celle ${sourceName} "${targetBirthdate}".`);
     }
-    if (isIdentityDoc && declaredCni && !docNumMatches) {
+    if (isIdentityDoc && !isBirthCertificate && declaredCni && !docNumMatches) {
       const alreadyHasNumAnom = (finalResult.anomalies || []).some(a => a.includes('Numéro de pièce non correspondant') || a.includes('Incohérence du numéro de pièce'));
       if (!alreadyHasNumAnom) {
         if (extractedDocNum && !/^\d{11}$/.test(extractedDocNum)) {

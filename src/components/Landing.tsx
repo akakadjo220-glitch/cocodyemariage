@@ -1738,7 +1738,7 @@ export default function Landing({
                         <button onClick={() => setActiveStep(1)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
                         <button disabled={!selectedMairie} onClick={handleStep2Submit}
                           className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all ${selectedMairie ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}>
-                          Continuer → Option de date
+                          Continuer → Dépôt des documents
                         </button>
                       </div>
                     </div>

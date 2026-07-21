@@ -1993,7 +1993,7 @@ export default function Dossier({
       <AnimatePresence>
         {showFileUploadModal && (() => {
           const activeDoc = documents.find(d => d.id === showFileUploadModal);
-          const isIdentityDoc = activeDoc?.id === 'doc2' || activeDoc?.id === 'doc2_f';
+          const isIdentityDoc = activeDoc?.id === 'doc1' || activeDoc?.id === 'doc1_f';
           return (
             <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/50 backdrop-blur-md px-4 text-left font-sans">
               <motion.div

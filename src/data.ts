@@ -47,19 +47,19 @@ export const INITIAL_DOCUMENTS: DocumentInfo[] = [
   // --- CONDITIONS GÉNÉRALES ---
   {
     id: 'doc1',
+    name: "Pièce d'identité (Époux)",
+    description: "Photocopie lisible recto verso sur la même page de la pièce d'identité (CNI ou Passeport) de l'Époux (Article 20).",
+    status: 'pending',
+    category: 'spouses',
+    icon: 'IdCard'
+  },
+  {
+    id: 'doc2',
     name: "Extrait de naissance ou jugement supplétif (Époux)",
     description: "Acte de naissance de l'Époux (Homme), datant de moins de 3 mois à la date du mariage (Article 2 et Article 15).",
     status: 'pending',
     category: 'spouses',
     icon: 'Baby'
-  },
-  {
-    id: 'doc2',
-    name: "Pièce d'identité (Époux)",
-    description: "Photocopie lisible recto verso sur la même page de la pièce d'identité (CNI ou attestation d'identité) de l'Époux (Article 20).",
-    status: 'pending',
-    category: 'spouses',
-    icon: 'IdCard'
   },
   {
     id: 'doc3',
@@ -71,19 +71,19 @@ export const INITIAL_DOCUMENTS: DocumentInfo[] = [
   },
   {
     id: 'doc1_f',
+    name: "Pièce d'identité (Épouse)",
+    description: "Photocopie lisible recto verso sur la même page de la pièce d'identité (CNI ou Passeport) de l'Épouse (Article 20).",
+    status: 'pending',
+    category: 'spouses',
+    icon: 'IdCard'
+  },
+  {
+    id: 'doc2_f',
     name: "Extrait de naissance ou jugement supplétif (Épouse)",
     description: "Acte de naissance de l'Épouse (Femme), datant de moins de 3 mois à la date du mariage (Article 2 et Article 15).",
     status: 'pending',
     category: 'spouses',
     icon: 'Baby'
-  },
-  {
-    id: 'doc2_f',
-    name: "Pièce d'identité (Épouse)",
-    description: "Photocopie lisible recto verso sur la même page de la pièce d'identité (CNI ou attestation d'identité) de l'Épouse (Article 20).",
-    status: 'pending',
-    category: 'spouses',
-    icon: 'IdCard'
   },
   {
     id: 'doc3_f',

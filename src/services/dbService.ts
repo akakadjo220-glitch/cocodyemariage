@@ -5665,23 +5665,55 @@ export async function comparerVisages(
       apiUrl = apiUrl.replace('http:', 'https:');
     }
     try {
-      const formData = new FormData();
-      formData.append('image1', imageCNIBase64);
-      formData.append('image2', selfieBase64);
-      formData.append('model_name', 'ArcFace');
-      formData.append('detector_backend', 'retinaface');
+      const cleanImg1 = imageCNIBase64.trim();
+      const cleanImg2 = selfieBase64.trim();
 
-      const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/compare`, {
-        method: 'POST',
-        body: formData
-      });
+      const sendCompareReq = async (backend: string) => {
+        const params = new URLSearchParams();
+        params.append('image1', cleanImg1);
+        params.append('image2', cleanImg2);
+        params.append('model_name', 'ArcFace');
+        params.append('detector_backend', backend);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur serveur DeepFace : ${errorText}`);
+        const response = await fetch(`${apiUrl.replace(/\/+$/, '')}/compare`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: params
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Erreur serveur DeepFace : ${errorText}`);
+        }
+        return await response.json();
+      };
+
+      // 1. Essai avec le détecteur principal (retinaface)
+      let data = await sendCompareReq('retinaface');
+
+      // 2. Si RetinaFace échoue à trouver le visage (ex: éclairage/teinte ambiante), repli automatique sur OpenCV puis SSD
+      if (!data.valide && data.message && (data.message.includes('Aucun visage') || data.message.includes('Face could not be detected'))) {
+        console.warn("RetinaFace n'a pas détecté le visage, bascule automatique sur OpenCV...");
+        try {
+          const fallbackData = await sendCompareReq('opencv');
+          if (fallbackData.valide || (fallbackData.message && !fallbackData.message.includes('Aucun visage'))) {
+            data = fallbackData;
+          }
+        } catch (e1) {
+          console.warn("OpenCV fallback error, trying SSD...", e1);
+          try {
+            const fallbackSsd = await sendCompareReq('ssd');
+            if (fallbackSsd.valide || (fallbackSsd.message && !fallbackSsd.message.includes('Aucun visage'))) {
+              data = fallbackSsd;
+            }
+          } catch (e2) {
+            // garder la réponse originale
+          }
+        }
       }
 
-      const data = await response.json();
       return {
         score: typeof data.score === 'number' ? data.score : 0,
         valide: !!data.valide,

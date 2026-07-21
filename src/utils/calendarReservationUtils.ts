@@ -88,3 +88,106 @@ export const getDaysRemainingStr = (ouvertureIso: string, referenceDate = new Da
 export const getSlotInfoById = (id: string): SlotReservation | undefined => {
   return CALENDRIER_RESERVATIONS_2026.find(s => s.id === id);
 };
+
+export const getIvorianHolidays = (year: number): string[] => {
+  const fixed = [
+    `${year}-01-01`, // Jour de l'An
+    `${year}-05-01`, // Fête du Travail
+    `${year}-08-07`, // Fête Nationale
+    `${year}-08-15`, // Assomption
+    `${year}-11-01`, // Toussaint
+    `${year}-11-15`, // Journée de la Paix
+    `${year}-12-25`, // Noël
+  ];
+
+  let variables: string[] = [];
+  if (year === 2026) {
+    variables = [
+      "2026-04-06", // Lundi de Pâques
+      "2026-03-20", // Ramadan
+      "2026-05-14", // Ascension
+      "2026-05-25", // Lundi de Pentecôte
+      "2026-05-27", // Tabaski
+      "2026-08-25", // Maouloud
+    ];
+  } else if (year === 2027) {
+    variables = [
+      "2027-03-29", // Lundi de Pâques
+      "2027-03-10", // Ramadan
+      "2027-05-06", // Ascension
+      "2027-05-17", // Lundi de Pentecôte
+      "2027-05-16", // Tabaski
+      "2027-08-14", // Maouloud
+    ];
+  }
+
+  return [...fixed, ...variables];
+};
+
+export const validateWeddingDate = (
+  dateStr: string,
+  referenceDate = new Date()
+): { isValid: boolean; reason?: string } => {
+  if (!dateStr) return { isValid: false, reason: "Veuillez sélectionner une date." };
+
+  const chosen = new Date(dateStr);
+  if (isNaN(chosen.getTime())) {
+    return { isValid: false, reason: "Date invalide." };
+  }
+
+  const ref = new Date(referenceDate);
+  ref.setHours(0, 0, 0, 0);
+
+  const minDate = new Date(ref);
+  minDate.setDate(minDate.getDate() + 30);
+  
+  if (chosen < minDate) {
+    const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
+    return {
+      isValid: false,
+      reason: `Délai légal insuffisant. La célébration doit être programmée au moins 30 jours à l'avance pour permettre le dépôt du dossier et la publication des bans. Première date autorisée : ${minDate.toLocaleDateString('fr-FR', options)}.`
+    };
+  }
+
+  const dayOfWeek = chosen.getDay(); // 0: Sunday, 1: Monday, 2: Tuesday, 3: Wednesday, 4: Thursday, 5: Friday, 6: Saturday
+  if (dayOfWeek < 3 || dayOfWeek > 6) {
+    return {
+      isValid: false,
+      reason: "Les célébrations de mariage à la Mairie de Cocody se déroulent uniquement du Mercredi au Samedi."
+    };
+  }
+
+  const year = chosen.getFullYear();
+  const holidays = getIvorianHolidays(year);
+  if (holidays.includes(dateStr)) {
+    return {
+      isValid: false,
+      reason: "La date choisie correspond à un jour férié officiel en Côte d'Ivoire. Les célébrations de la Mairie y sont suspendues."
+    };
+  }
+
+  const month = chosen.getMonth() + 1;
+  const chosenMonthStr = `${month.toString().padStart(2, '0')}`;
+  
+  const rule = CALENDRIER_RESERVATIONS_2026.find(r => {
+    if (r.id === "02_03") {
+      return chosenMonthStr === "02" || chosenMonthStr === "03";
+    }
+    if (r.id === "04_05") {
+      return chosenMonthStr === "04" || chosenMonthStr === "05";
+    }
+    return r.id === chosenMonthStr;
+  });
+
+  if (rule) {
+    const isOpened = checkIsOpened(rule.ouvertureIso, ref);
+    if (!isOpened) {
+      return {
+        isValid: false,
+        reason: `Les réservations pour le mois de ${rule.moisCélébration} ne sont pas encore ouvertes par la Mairie. Elles débuteront le ${rule.debutReservation}.`
+      };
+    }
+  }
+
+  return { isValid: true };
+};

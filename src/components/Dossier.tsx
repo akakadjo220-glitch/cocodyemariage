@@ -6,7 +6,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
 import { ensurePhonePrefix, handlePhoneChange } from './Landing';
-import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr } from '../utils/calendarReservationUtils';
+import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr, validateWeddingDate } from '../utils/calendarReservationUtils';
 
 // Security helpers — identical to Landing popup
 const getDossierBordureStyle = (statut: string | null) => {
@@ -382,6 +382,23 @@ export default function Dossier({
   // Step 6 Booking states
   const [chosenDate, setChosenDate] = useState('');
   const [chosenTime, setChosenTime] = useState('');
+  const [dateError, setDateError] = useState<string | null>(null);
+
+  const handleWeddingDateChange = (val: string) => {
+    setChosenDate(val);
+    setChosenTime(''); // Reset chosen time when date changes
+    if (!val) {
+      setDateError(null);
+      return;
+    }
+    const validation = validateWeddingDate(val);
+    if (!validation.isValid) {
+      setDateError(validation.reason || "Date invalide.");
+    } else {
+      setDateError(null);
+    }
+  };
+
   const [capacity, setCapacity] = useState<number>(15);
   const [allDossiers, setAllDossiers] = useState<DossierInfo[]>([]);
   const [mairies, setMairies] = useState<any[]>([]);
@@ -437,8 +454,13 @@ export default function Dossier({
   useEffect(() => {
     async function updateCapacityVal() {
       if (dossierDetails?.mairie_id && chosenDate) {
-        const cap = await getCapacityForDate(dossierDetails.mairie_id, chosenDate);
-        setCapacity(cap);
+        const validation = validateWeddingDate(chosenDate);
+        if (validation.isValid) {
+          const cap = await getCapacityForDate(dossierDetails.mairie_id, chosenDate);
+          setCapacity(cap);
+        } else {
+          setCapacity(0); // Set capacity to 0 if invalid
+        }
       }
     }
     updateCapacityVal();
@@ -999,21 +1021,64 @@ export default function Dossier({
 
   // Generate slots for date booking
   const generateSlots = (capVal: number) => {
+    const roomId = dossierDetails?.mairie_id || 'cocody_salle_prestige';
     const slots = [];
-    let currentHour = 8;
-    let currentMin = 0;
-    for (let i = 0; i < capVal; i++) {
-      const timeVal = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
-      slots.push({
-        val: timeVal,
-        label: `${currentHour}h${currentMin.toString().padStart(2, '0')}`,
-        desc: currentHour < 12 ? "Matinée" : currentHour < 15 ? "Méridienne" : "Après-midi",
-        icon: currentHour < 12 ? "🌅" : "☀️"
-      });
-      currentMin += 30;
-      if (currentMin >= 60) {
-        currentHour += 1;
-        currentMin = 0;
+
+    if (roomId === 'cocody_salle_union') {
+      // Union Room: 30-minute slots starting at 8h15 and ending at 15h15 (up to 14 slots)
+      let currentHour = 8;
+      let currentMin = 15;
+      const maxSlots = Math.min(capVal, 14);
+      for (let i = 0; i < maxSlots; i++) {
+        let endHour = currentHour;
+        let endMin = currentMin + 30;
+        if (endMin >= 60) {
+          endHour += 1;
+          endMin -= 60;
+        }
+
+        const startStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        const endStr = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        const timeVal = startStr;
+        const label = `${currentHour}h${currentMin.toString().padStart(2, '0')} - ${endHour}h${endMin.toString().padStart(2, '0')}`;
+
+        slots.push({
+          val: timeVal,
+          label: label,
+          desc: currentHour < 12 ? "Matinée" : currentHour < 14 ? "Méridienne" : "Après-midi",
+          icon: currentHour < 12 ? "🌅" : "☀️"
+        });
+
+        currentHour = endHour;
+        currentMin = endMin;
+      }
+    } else {
+      // Prestige or Annexe: 30-minute slots starting at 8h30 and ending at 15h00 (up to 13 slots)
+      let currentHour = 8;
+      let currentMin = 30;
+      const maxSlots = Math.min(capVal, 13);
+      for (let i = 0; i < maxSlots; i++) {
+        let endHour = currentHour;
+        let endMin = currentMin + 30;
+        if (endMin >= 60) {
+          endHour += 1;
+          endMin -= 60;
+        }
+
+        const startStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        const endStr = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        const timeVal = startStr;
+        const label = `${currentHour}h${currentMin.toString().padStart(2, '0')} - ${endHour}h${endMin.toString().padStart(2, '0')}`;
+
+        slots.push({
+          val: timeVal,
+          label: label,
+          desc: currentHour < 12 ? "Matinée" : currentHour < 14 ? "Méridienne" : "Après-midi",
+          icon: currentHour < 12 ? "🌅" : "☀️"
+        });
+
+        currentHour = endHour;
+        currentMin = endMin;
       }
     }
     return slots;
@@ -2071,24 +2136,43 @@ export default function Dossier({
                     </button>
                   </div>
                 ) : (
-                  <form onSubmit={handleBookingSubmit} className="space-y-4 bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm max-w-md">
+                  <form onSubmit={handleBookingSubmit} className="space-y-5 bg-white p-6 rounded-2xl border border-neutral-200 shadow-md max-w-lg text-left">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Date souhaitée</label>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Date de célébration souhaitée</label>
                       <div className="p-1 bg-neutral-50 rounded-xl border border-neutral-200">
-                        <input type="date" value={chosenDate} onChange={e => setChosenDate(e.target.value)} min={new Date().toISOString().split('T')[0]}
-                          className="w-full border-0 rounded-xl p-3 text-sm bg-transparent focus:outline-none text-slate-800 font-sans cursor-pointer" required />
+                        <input 
+                          type="date" 
+                          value={chosenDate} 
+                          onChange={e => handleWeddingDateChange(e.target.value)} 
+                          min={(() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + 30);
+                            return d.toISOString().split('T')[0];
+                          })()}
+                          className="w-full border-0 rounded-xl p-3 text-xs bg-transparent focus:outline-none text-slate-800 font-sans cursor-pointer font-bold" 
+                          required 
+                        />
                       </div>
+                      
+                      {dateError && (
+                        <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[10px] leading-relaxed font-semibold flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                          <span>{dateError}</span>
+                        </div>
+                      )}
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-2">Créneau horaire libre</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {generateSlots(capacity).map(time => {
-                          const isOccupied = chosenDate && dossierDetails?.mairie_id ? allDossiers.some(d =>
-                            d.id !== dossierId &&
-                            d.mairie_id === dossierDetails.mairie_id &&
-                            d.wedding_date === `${new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à ${time.val.replace(':', 'h')}`
-                          ) : false;
+                    {!dateError && chosenDate && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Créneau horaire libre (30 min par mariage)</label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {generateSlots(capacity).map(time => {
+                            const subTime = time.val.replace(':', 'h');
+                            const isOccupied = chosenDate && dossierDetails?.mairie_id ? allDossiers.some(d =>
+                              d.id !== dossierId &&
+                              d.mairie_id === dossierDetails.mairie_id &&
+                              d.wedding_date === `${new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à ${subTime}`
+                            ) : false;
 
                           return (
                             <button
@@ -2114,6 +2198,7 @@ export default function Dossier({
                         })}
                       </div>
                     </div>
+                    )}
 
                     <button type="submit" disabled={!chosenDate || !chosenTime}
                       className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-1.5 ${chosenDate && chosenTime ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'

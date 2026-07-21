@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TimelineStep, PaystackConfig, PaymentInfo, DocumentInfo } from '../types';
 import { ensurePhonePrefix, handlePhoneChange } from './Landing';
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
-import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr } from '../utils/calendarReservationUtils';
+import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr, validateWeddingDate } from '../utils/calendarReservationUtils';
 
 // Security helpers (same as Landing popup)
 const getBordureStyle = (statut: string | null) => {
@@ -216,6 +216,22 @@ export default function Timeline({
   const [allDossiers, setAllDossiers] = useState<DossierInfo[]>([]);
   const [currentDossier, setCurrentDossier] = useState<DossierInfo | null>(null);
   const [selectedDateVal, setSelectedDateVal] = useState<string>('');
+  const [dateError, setDateError] = useState<string | null>(null);
+
+  const handleWeddingDateChange = (val: string) => {
+    setSelectedDateVal(val);
+    if (!val) {
+      setDateError(null);
+      return;
+    }
+    const validation = validateWeddingDate(val);
+    if (!validation.isValid) {
+      setDateError(validation.reason || "Date invalide.");
+    } else {
+      setDateError(null);
+    }
+  };
+
   const [mairies, setMairies] = useState<MairieInfo[]>([]);
   const [capacity, setCapacity] = useState<number>(15);
   const [salles, setSalles] = useState<any[]>([]);
@@ -268,8 +284,13 @@ export default function Timeline({
     async function loadCapacity() {
       const room = currentDossier?.mairie_id || 'cocody_salle_prestige';
       if (room && selectedDateVal) {
-        const cap = await getCapacityForDate(room, selectedDateVal);
-        setCapacity(cap);
+        const validation = validateWeddingDate(selectedDateVal);
+        if (validation.isValid) {
+          const cap = await getCapacityForDate(room, selectedDateVal);
+          setCapacity(cap);
+        } else {
+          setCapacity(0); // If invalid, set capacity to 0
+        }
       } else {
         setCapacity(15);
       }
@@ -278,21 +299,64 @@ export default function Timeline({
   }, [currentDossier?.mairie_id, selectedDateVal]);
 
   const generateSlots = (capVal: number) => {
+    const roomId = currentDossier?.mairie_id || 'cocody_salle_prestige';
     const slots = [];
-    let currentHour = 8;
-    let currentMin = 0;
-    
-    for (let i = 0; i < capVal; i++) {
-      const timeVal = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
-      slots.push({
-        val: timeVal,
-        label: `${currentHour}h${currentMin.toString().padStart(2, '0')}`
-      });
-      
-      currentMin += 30;
-      if (currentMin >= 60) {
-        currentHour += 1;
-        currentMin = 0;
+
+    if (roomId === 'cocody_salle_union') {
+      // Union Room: 30-minute slots starting at 8h15 and ending at 15h15 (up to 14 slots)
+      let currentHour = 8;
+      let currentMin = 15;
+      const maxSlots = Math.min(capVal, 14);
+      for (let i = 0; i < maxSlots; i++) {
+        let endHour = currentHour;
+        let endMin = currentMin + 30;
+        if (endMin >= 60) {
+          endHour += 1;
+          endMin -= 60;
+        }
+
+        const startStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        const endStr = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        const timeVal = startStr;
+        const label = `${currentHour}h${currentMin.toString().padStart(2, '0')} - ${endHour}h${endMin.toString().padStart(2, '0')}`;
+
+        slots.push({
+          val: timeVal,
+          label: label,
+          desc: currentHour < 12 ? "Matinée" : currentHour < 14 ? "Méridienne" : "Après-midi",
+          icon: currentHour < 12 ? "🌅" : "☀️"
+        });
+
+        currentHour = endHour;
+        currentMin = endMin;
+      }
+    } else {
+      // Prestige or Annexe: 30-minute slots starting at 8h30 and ending at 15h00 (up to 13 slots)
+      let currentHour = 8;
+      let currentMin = 30;
+      const maxSlots = Math.min(capVal, 13);
+      for (let i = 0; i < maxSlots; i++) {
+        let endHour = currentHour;
+        let endMin = currentMin + 30;
+        if (endMin >= 60) {
+          endHour += 1;
+          endMin -= 60;
+        }
+
+        const startStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        const endStr = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        const timeVal = startStr;
+        const label = `${currentHour}h${currentMin.toString().padStart(2, '0')} - ${endHour}h${endMin.toString().padStart(2, '0')}`;
+
+        slots.push({
+          val: timeVal,
+          label: label,
+          desc: currentHour < 12 ? "Matinée" : currentHour < 14 ? "Méridienne" : "Après-midi",
+          icon: currentHour < 12 ? "🌅" : "☀️"
+        });
+
+        currentHour = endHour;
+        currentMin = endMin;
       }
     }
     return slots;
@@ -1364,11 +1428,22 @@ export default function Timeline({
               <input
                 type="date"
                 value={selectedDateVal}
-                min={new Date().toISOString().split('T')[0]}
-                onChange={(e) => setSelectedDateVal(e.target.value)}
+                min={(() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 30);
+                  return d.toISOString().split('T')[0];
+                })()}
+                onChange={(e) => handleWeddingDateChange(e.target.value)}
                 className="border border-neutral-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:border-primary text-xs font-medium"
               />
             </div>
+
+            {dateError && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[10px] leading-relaxed font-semibold flex items-start gap-2.5 text-left max-w-md">
+                <AlertCircle className="w-4.5 h-4.5 text-rose-600 shrink-0 mt-0.5" />
+                <span>{dateError}</span>
+              </div>
+            )}
 
             {selectedDateVal && (() => {
               const parts = selectedDateVal.split('-');
@@ -1414,8 +1489,8 @@ export default function Timeline({
               );
             })()}
 
-            {selectedDateVal && (
-              <div className="flex flex-col gap-2.5 text-left animate-reveal-up mt-4">
+            {!dateError && selectedDateVal && (
+              <div className="flex flex-col gap-2.5 text-left animate-reveal-up mt-4 font-sans text-xs">
                 <label className="font-bold text-slate-755">Créneaux horaires interlacés par salle (Cocody) :</label>
                 {loadingSlots ? (
                   <div className="flex items-center gap-2 text-slate-500 text-xs">
@@ -1446,7 +1521,7 @@ export default function Timeline({
                                 : 'bg-white border-neutral-250 hover:border-primary hover:text-primary text-slate-700 cursor-pointer shadow-sm hover:shadow'
                             }`}
                         >
-                          <div className="font-bold text-[11px]">🕒 {slotObj.heure_debut.replace(':', 'h')}</div>
+                          <div className="font-bold text-[11px]">🕒 {slotObj.heure_debut.replace(':', 'h')} - {slotObj.heure_fin.replace(':', 'h')}</div>
                           <div className={`text-[9px] mt-0.5 ${isSelected ? 'text-rose-100' : 'text-slate-455'}`}>{slotObj.salle_nom}</div>
                           {isOccupied && <div className="text-[8px] text-red-500 font-extrabold uppercase mt-1">Non dispo ({slotObj.reason})</div>}
                         </button>

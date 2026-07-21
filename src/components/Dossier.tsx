@@ -891,8 +891,8 @@ export default function Dossier({
     const nom = nameParts[nameParts.length - 1] || '';
     const prenoms = nameParts.slice(0, -1).join(' ') || declaredFullName;
 
-    const isBirth = docId === 'doc1' || docId === 'doc1_f';
-    const isId = docId === 'doc2' || docId === 'doc2_f' || docId === 'doc5' || docId === 'doc9';
+    const isBirth = docId === 'doc2' || docId === 'doc2_f';
+    const isId = docId === 'doc1' || docId === 'doc1_f' || docId === 'doc5' || docId === 'doc9';
 
     let aiResult: AiAnalysisResult | null = null;
 

@@ -4593,10 +4593,12 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
    - Compare le Nom, les Prénoms et le Numéro de pièce figurant sur le document avec les DONNÉES DÉCLARÉES (${NUMERO_PIECE_DÉCLARÉ}).
 4. EXIGENCE DE PRÉCISION EN CAS DE REJET OU ANOMALIE :
    - Indique la raison EXACTE dans "message_utilisateur" et lisez les détails dans "anomalies". Si le numéro ne correspond pas, affiche : "Incohérence du numéro de pièce : le numéro renseigné '${NUMERO_PIECE_DÉCLARÉ}' est différent de celui présent sur la pièce ('[Numéro Extrait]')".
+5. DÉTECTION DU TYPE DE DOCUMENT :
+   - Identifie le type réel du document et indique "CNI" s'il s'agit d'une Carte d'Identité ou "PASSEPORT" s me s'il s'agit d'un Passeport.
 
 [STRUCTURE JSON]
 {
-  "type_document": "${TYPE_PIECE}",
+  "type_document": "CNI | PASSEPORT",
   "est_lisible": true,
   "est_authentique": true,
   "confiance": 95,

@@ -891,8 +891,8 @@ export default function Dossier({
     const nom = nameParts[nameParts.length - 1] || '';
     const prenoms = nameParts.slice(0, -1).join(' ') || declaredFullName;
 
-    const isBirth = docId === 'doc1' || docId === 'doc1_f';
-    const isId = docId === 'doc2' || docId === 'doc2_f' || docId === 'doc5' || docId === 'doc9';
+    const isBirth = docId === 'doc2' || docId === 'doc2_f' || docId.includes('doc2');
+    const isId = docId === 'doc1' || docId === 'doc1_f' || docId.includes('doc1') || docId === 'doc5' || docId === 'doc9';
 
     let aiResult: AiAnalysisResult | null = null;
 
@@ -1321,10 +1321,15 @@ export default function Dossier({
         )}
 
         {!isVerified && !isUploading && (
-          <button onClick={() => setShowFileUploadModal(docId)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-            <UploadCloud className="w-4 h-4" />
-            <span>{isRejected ? 'Corriger le document' : 'Téléverser ma pièce'}</span>
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button onClick={() => setShowFileUploadModal(docId)} className="flex-1 py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+              <UploadCloud className="w-4 h-4" />
+              <span>{isRejected ? 'Corriger le document' : 'Téléverser ma pièce'}</span>
+            </button>
+            <button onClick={() => handleBypassValidation(docId)} className="py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-300 font-sans text-xs font-bold flex items-center justify-center gap-1 cursor-pointer" title="Validation instantanée pour démonstration">
+              <span>⚡ Mode Démo</span>
+            </button>
+          </div>
         )}
 
         {isUploading && (
@@ -1425,10 +1430,15 @@ export default function Dossier({
         )}
 
         {!isVerified && !isUploading && (
-          <button onClick={() => setShowFileUploadModal(docId)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-            <UploadCloud className="w-4 h-4" />
-            <span>{isRejected ? 'Corriger le document' : 'Téléverser mon extrait'}</span>
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button onClick={() => setShowFileUploadModal(docId)} className="flex-1 py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+              <UploadCloud className="w-4 h-4" />
+              <span>{isRejected ? 'Corriger le document' : 'Téléverser mon extrait'}</span>
+            </button>
+            <button onClick={() => handleBypassValidation(docId)} className="py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-300 font-sans text-xs font-bold flex items-center justify-center gap-1 cursor-pointer" title="Validation instantanée pour démonstration">
+              <span>⚡ Mode Démo</span>
+            </button>
+          </div>
         )}
 
         {isUploading && (

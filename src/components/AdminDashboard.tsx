@@ -7506,7 +7506,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                               )}
 
                               {/* 2. BIRTH CERTIFICATE PREVIEW */}
-                              {(previewDoc.id.includes('doc1') || previewDoc.name.toLowerCase().includes('naissance')) && (
+                              {(previewDoc.id.includes('doc2') || previewDoc.name.toLowerCase().includes('naissance')) && (
                                 <div className="flex flex-col gap-4 h-full font-serif text-slate-800">
                                   <div className="text-center flex flex-col gap-0.5 border-b border-slate-200 pb-2">
                                     <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">République de Côte d'Ivoire</span>
@@ -8938,7 +8938,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                     )}
 
                     {/* 2. BIRTH CERTIFICATE PREVIEW */}
-                    {(previewDoc.id.includes('doc1') || previewDoc.name.toLowerCase().includes('naissance')) && (
+                    {(previewDoc.id.includes('doc2') || previewDoc.name.toLowerCase().includes('naissance')) && (
                       <div className="flex flex-col gap-4 h-full font-serif text-slate-800">
                         <div className="text-center flex flex-col gap-0.5 border-b border-slate-200 pb-2">
                           <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">République de Côte d'Ivoire</span>

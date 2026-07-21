@@ -479,8 +479,8 @@ export default function Timeline({
 
     switch (stepId) {
       case 1: { // CNI Époux
-        const s = findStatus('doc2');
-        return { status: s, message: s === 'rejected' ? getMessage('doc2') : undefined };
+        const s = findStatus('doc1');
+        return { status: s, message: s === 'rejected' ? getMessage('doc1') : undefined };
       }
       case 2: { // Selfie Époux
         const attempts = currentDossier?.epoux_face_attempts ?? 0;
@@ -499,12 +499,12 @@ export default function Timeline({
         return { status: 'pending' };
       }
       case 3: { // Extrait Époux
-        const s = findStatus('doc1');
-        return { status: s, message: s === 'rejected' ? getMessage('doc1') : undefined };
+        const s = findStatus('doc2');
+        return { status: s, message: s === 'rejected' ? getMessage('doc2') : undefined };
       }
       case 4: { // CNI Épouse
-        const s = findStatus('doc2_f');
-        return { status: s, message: s === 'rejected' ? getMessage('doc2_f') : undefined };
+        const s = findStatus('doc1_f');
+        return { status: s, message: s === 'rejected' ? getMessage('doc1_f') : undefined };
       }
       case 5: { // Selfie Épouse
         const attempts = currentDossier?.epouse_face_attempts ?? 0;
@@ -523,8 +523,8 @@ export default function Timeline({
         return { status: 'pending' };
       }
       case 6: { // Extrait Épouse
-        const s = findStatus('doc1_f');
-        return { status: s, message: s === 'rejected' ? getMessage('doc1_f') : undefined };
+        const s = findStatus('doc2_f');
+        return { status: s, message: s === 'rejected' ? getMessage('doc2_f') : undefined };
       }
       case 7: { // Autres docs (Justificatifs + Témoins)
         const s3 = findStatus('doc3');

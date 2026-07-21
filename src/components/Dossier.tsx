@@ -1583,10 +1583,50 @@ export default function Dossier({
             {/* Webcam / File input Buttons */}
             <div className="flex flex-wrap gap-2.5 justify-center w-full mt-1">
               {!webcamActive && !capturedSelfieBase64 && !isAnalyzingSelfie && (
-                <button onClick={startWebcam} className="px-5 py-2.5 bg-primary text-white border border-primary/20 rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
-                  <Camera className="w-4 h-4 text-accent" />
-                  <span>Activer ma webcam</span>
-                </button>
+                <>
+                  <button onClick={startWebcam} className="px-5 py-2.5 bg-primary text-white border border-primary/20 rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                    <Camera className="w-4 h-4 text-accent" />
+                    <span>Activer ma webcam</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setIsAnalyzingSelfie(true);
+                      setSelfieStatus("⚡ Mode Démo : Validation directe en cours...");
+                      try {
+                        const demoSelfieFilename = `${spouse}_selfie.jpg`;
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 400; canvas.height = 400;
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                          ctx.fillStyle = '#4f46e5'; ctx.fillRect(0, 0, 400, 400);
+                          ctx.fillStyle = '#ffffff'; ctx.font = '22px sans-serif';
+                          ctx.fillText('SELFIE DEMO OFFICIAL', 75, 205);
+                        }
+                        const demoDataUrl = canvas.toDataURL('image/jpeg');
+                        const blob = await (await fetch(demoDataUrl)).blob();
+                        await uploadDocumentFile(dossierId, `${spouse}_selfie`, blob, demoSelfieFilename);
+                        await updateDossierBiometrics(dossierId, {
+                          [`${spouse}_selfie_url`]: demoSelfieFilename,
+                          [`${spouse}_selfie_valide`]: true,
+                          [`${spouse}_face_match_score`]: 96.4,
+                          [`${spouse}_identite_verifiee`]: true
+                        });
+                        addNotification(`⚡ Mode Démo : Validation biométrique réussie (96.4%) !`, 'success');
+                        await fetchDossierDetails();
+                      } catch (e: any) {
+                        setSelfieError("Erreur bypass démo : " + e.message);
+                      } finally {
+                        setIsAnalyzingSelfie(false);
+                        setSelfieStatus('');
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-amber-500/10 text-amber-700 border border-amber-300/60 rounded-xl font-sans text-xs font-bold hover:bg-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                    title="Bouton spécial Présentation : Valider immédiatement sans webcam"
+                  >
+                    <Zap className="w-4 h-4 text-amber-600 fill-amber-500/20" />
+                    <span>⚡ Mode Démo (Bypass Instantané)</span>
+                  </button>
+                </>
               )}
 
               {webcamActive && (

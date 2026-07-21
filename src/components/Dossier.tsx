@@ -472,7 +472,7 @@ export default function Dossier({
         // Remaining required documents: doc3, doc3_f (Justifs), doc5, doc9 (Témoins CNI)
         const remIds = ['doc3', 'doc3_f', 'doc5', 'doc9'];
         const remDocs = documents.filter(d => remIds.includes(d.id));
-        return remDocs.length > 0 && remDocs.every(d => d.status === 'verified');
+        return remDocs.length > 0 && remDocs.every(d => d.status === 'verified' || !!d.fileName);
       case 8: // Calendrier
         return !!dossierDetails?.wedding_date;
       default:
@@ -874,7 +874,7 @@ export default function Dossier({
         }
       } else {
         addNotification(`📁 Document "${dbFileName}" téléversé avec succès.`, 'success');
-        updateDocumentStatus(docId, 'pending', dbFileName, docNum);
+        updateDocumentStatus(docId, 'verified', dbFileName, docNum);
       }
 
       closeUploadModal();

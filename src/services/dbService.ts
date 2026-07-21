@@ -4622,7 +4622,7 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
       const declaredRaw = declaredCni.trim();
       const decClean = declaredRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
       const extClean = (extractedDocNum || '').trim().replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      const rawTextFull = safeString(finalResult.infos_extraites?.raw_ocr_text || '').toUpperCase();
+      const rawTextFull = safeString((finalResult.infos_extraites as any)?.raw_ocr_text || '').toUpperCase();
       const rawTextClean = rawTextFull.replace(/[^A-Z0-9]/gi, '');
 
       const prefixRegex = /^(CI|SN|ML|BF|BJ|TG|NE|GN|GH|NG|GM|GW|LR|SL|CV|CNI|PASSEPORT|PASSPORT|PA|PAS|P|ID|CARD|C0*)/gi;
@@ -5676,7 +5676,7 @@ export async function convertBlobToImageBase64(blob: Blob): Promise<string> {
       canvas.height = viewport.height;
 
       if (context) {
-        await page.render({ canvasContext: context, viewport }).promise;
+        await page.render({ canvasContext: context, canvas, viewport } as any).promise;
         const dataUrl = canvas.toDataURL('image/png');
         return dataUrl.split(',')[1] || dataUrl;
       }

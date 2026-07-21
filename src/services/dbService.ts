@@ -1141,8 +1141,13 @@ export async function updateDocumentInDb(
   try {
     const dbKey = docId.includes(dossierId) ? docId : `${dossierId}_${docId}`;
     const currentDocs = await getDocuments(dossierId);
-    const doc = currentDocs.find(d => d.id === docId) || INITIAL_DOCUMENTS.find(d => d.id === docId);
-    if (!doc) return false;
+    const doc = currentDocs.find(d => d.id === docId) || INITIAL_DOCUMENTS.find(d => d.id === docId) || {
+      id: docId,
+      name: fileName ? fileName.replace(/\.[^/.]+$/, "").replace(/_/g, " ") : "Document spécifique",
+      description: "Document supplémentaire téléversé par l'utilisateur",
+      category: 'special',
+      icon: 'FileText'
+    };
 
     const cleanFileName = fileName !== undefined ? fileName : (doc.fileName || null);
     const finalDocNumber = docNumber !== undefined ? docNumber : (doc.docNumber || null);

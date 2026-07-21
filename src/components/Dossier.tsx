@@ -222,6 +222,12 @@ export default function Dossier({
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState<Record<string, string>>({});
 
+  // Custom document states for unplanned specific cases
+  const [showAddCustomModal, setShowAddCustomModal] = useState(false);
+  const [customDocTitle, setCustomDocTitle] = useState('');
+  const [customDocFile, setCustomDocFile] = useState<File | null>(null);
+  const [isSubmittingCustomDoc, setIsSubmittingCustomDoc] = useState(false);
+
   // Webcam (selfie) states
   const [webcamActive, setWebcamActive] = useState(false);
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
@@ -957,6 +963,37 @@ export default function Dossier({
     } catch (err) {
       console.error("Booking error:", err);
       addNotification("Erreur lors de la réservation de votre date.", "warning");
+    }
+  };
+
+  // Custom unplanned document upload submission
+  const handleAddCustomDocSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customDocTitle.trim() || !customDocFile) {
+      addNotification("Veuillez renseigner l'intitulé du document et choisir un fichier.", "warning");
+      return;
+    }
+
+    setIsSubmittingCustomDoc(true);
+    try {
+      const customId = `custom_${Date.now()}`;
+      const fileName = customDocFile.name;
+      
+      // Upload file to Supabase storage
+      await uploadDocumentFile(dossierId, customId, customDocFile, fileName);
+      
+      // Update state and DB with custom document
+      await updateDocumentStatus(customId, 'verified', fileName, null, null);
+      
+      addNotification(`✅ Document spécifique "${customDocTitle}" téléversé avec succès !`, 'success');
+      setShowAddCustomModal(false);
+      setCustomDocTitle('');
+      setCustomDocFile(null);
+    } catch (err) {
+      console.error("Custom document upload error:", err);
+      addNotification("Erreur lors du téléversement du document spécifique.", "warning");
+    } finally {
+      setIsSubmittingCustomDoc(false);
     }
   };
 
@@ -1848,51 +1885,153 @@ export default function Dossier({
               </div>
             )}
 
-            {/* Step 7: Autres documents */}
+            {/* Step 7: Autres documents & Cas spécifiques */}
             {activeStep === 7 && (
-              <div className="space-y-5">
+              <div className="space-y-6 text-left">
                 <div className="bg-sky-50/50 p-4 border border-sky-200 rounded-2xl">
                   <p className="font-sans text-xs text-sky-900 leading-relaxed font-semibold">
-                    📁 <strong>Étape 7 : Liste des autres justificatifs et témoins</strong><br />
-                    Fournissez les justificatifs de domicile respectifs des conjoints ainsi que la pièce d'identité des témoins désignés.<br />
-                    <em>Note : Vos pièces d'identité (CNI/Passeport) déjà validées par IA et selfies n'apparaissent plus dans cette liste.</em>
+                    📁 <strong>Étape 7 : Autres justificatifs, cas spécifiques &amp; témoins</strong><br />
+                    Fournissez les justificatifs de résidence, la pièce d'identité des témoins, ou tout document propre à votre situation (veuf, divorcé, militaire, étranger, etc.).
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {documents
-                    .filter(doc => ['doc3', 'doc3_f', 'doc4', 'doc4_f', 'doc5', 'doc9', 'doc7', 'doc8'].includes(doc.id))
-                    .map(doc => {
-                      const isPending = doc.status === 'pending' && !doc.fileName;
-                      const isUploaded = !!doc.fileName;
-                      return (
-                        <div key={doc.id} className={`p-4 rounded-xl border flex flex-col gap-3 ${isUploaded ? 'bg-emerald-50/30 border-emerald-250' : 'bg-neutral-50 border-neutral-200'}`}>
-                          <div className="flex justify-between items-start">
-                            <div className="text-left">
-                              <span className="font-sans font-bold text-xs text-slate-800 block">{doc.name}</span>
-                              <span className="font-sans text-[10px] text-slate-400 leading-relaxed block mt-0.5">{doc.description}</span>
+                {/* 1. Justificatifs généraux et Témoins */}
+                <div className="space-y-3">
+                  <h4 className="font-serif font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <span>📑 Justificatifs Généraux &amp; Témoins</span>
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {documents
+                      .filter(doc => ['doc3', 'doc3_f', 'doc5', 'doc9'].includes(doc.id))
+                      .map(doc => {
+                        const isUploaded = !!doc.fileName;
+                        return (
+                          <div key={doc.id} className={`p-4 rounded-xl border flex flex-col gap-3 ${isUploaded ? 'bg-emerald-50/30 border-emerald-250' : 'bg-neutral-50 border-neutral-200'}`}>
+                            <div className="flex justify-between items-start">
+                              <div className="text-left">
+                                <span className="font-sans font-bold text-xs text-slate-800 block">{doc.name}</span>
+                                <span className="font-sans text-[10px] text-slate-400 leading-relaxed block mt-0.5">{doc.description}</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-full font-sans text-[9px] font-bold shrink-0 ${isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-200 text-slate-500'}`}>
+                                {isUploaded ? 'Téléversé ✓' : 'À fournir'}
+                              </span>
                             </div>
-                            <span className={`px-2 py-0.5 rounded-full font-sans text-[9px] font-bold shrink-0 ${isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-200 text-slate-500'}`}>
-                              {isUploaded ? 'Téléversé ✓' : 'À fournir'}
-                            </span>
-                          </div>
 
-                          {isUploaded ? (
-                            <div className="flex justify-between items-center text-xs font-sans p-2 bg-white rounded-xl border border-neutral-100">
-                              <span className="truncate max-w-[80%] font-semibold text-slate-600">📄 {doc.fileName}</span>
-                              <button onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border border-none cursor-pointer">
-                                <Trash2 className="w-3.5 h-3.5" />
+                            {isUploaded ? (
+                              <div className="flex justify-between items-center text-xs font-sans p-2 bg-white rounded-xl border border-neutral-100">
+                                <span className="truncate max-w-[80%] font-semibold text-slate-600">📄 {doc.fileName}</span>
+                                <button onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border border-none cursor-pointer">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button onClick={() => setShowFileUploadModal(doc.id)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                                <UploadCloud className="w-4 h-4" />
+                                <span>Téléverser</span>
                               </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* 2. Documents supplémentaires pour cas particuliers */}
+                <div className="space-y-3 pt-2 border-t border-dashed border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-serif font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                      <span>⚖️ Pièces spécifiques (Veuf, Divorcé, Militaire, Étranger)</span>
+                    </h4>
+                    <span className="text-[10px] font-bold text-slate-400">Optionnel selon situation</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {documents
+                      .filter(doc => ['doc_deces', 'doc_divorce', 'doc_viduite', 'doc_dispense', 'doc_militaire_presence', 'doc_militaire_autorisation', 'doc_etranger_certif', 'doc_etranger_capacite', 'doc_etranger_sejour', 'doc_etranger_consulaire'].includes(doc.id))
+                      .map(doc => {
+                        const isUploaded = !!doc.fileName;
+                        return (
+                          <div key={doc.id} className={`p-4 rounded-xl border flex flex-col gap-3 ${isUploaded ? 'bg-emerald-50/30 border-emerald-250' : 'bg-neutral-50/60 border-neutral-200'}`}>
+                            <div className="flex justify-between items-start">
+                              <div className="text-left">
+                                <span className="font-sans font-bold text-xs text-slate-800 block">{doc.name}</span>
+                                <span className="font-sans text-[10px] text-slate-400 leading-relaxed block mt-0.5">{doc.description}</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-full font-sans text-[9px] font-bold shrink-0 ${isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100/60 text-amber-700'}`}>
+                                {isUploaded ? 'Téléversé ✓' : 'Si applicable'}
+                              </span>
                             </div>
-                          ) : (
-                            <button onClick={() => setShowFileUploadModal(doc.id)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                              <UploadCloud className="w-4 h-4" />
-                              <span>Téléverser</span>
+
+                            {isUploaded ? (
+                              <div className="flex justify-between items-center text-xs font-sans p-2 bg-white rounded-xl border border-neutral-100">
+                                <span className="truncate max-w-[80%] font-semibold text-slate-600">📄 {doc.fileName}</span>
+                                <button onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border border-none cursor-pointer">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button onClick={() => setShowFileUploadModal(doc.id)} className="py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                                <UploadCloud className="w-4 h-4" />
+                                <span>Téléverser</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* 3. Zone de téléversement libre pour cas spécifiques NON PRÉVUS */}
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-violet-500/5 via-primary/5 to-amber-500/5 border border-primary/20 space-y-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="font-serif font-bold text-slate-900 text-sm flex items-center gap-2">
+                        <Sparkles className="w-4.5 h-4.5 text-amber-600" />
+                        <span>Zone d'ajout de documents spécifiques ou non prévus</span>
+                      </h4>
+                      <p className="font-sans text-xs text-slate-500 mt-1 leading-relaxed">
+                        Si la Mairie exige une pièce complémentaire non répertoriée (ex: contrat de mariage, attestation notariée, autorisation spéciale...), ajoutez-la librement ci-dessous.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCustomModal(true)}
+                      className="py-2.5 px-4 bg-primary hover:bg-primary-container text-white rounded-xl font-sans text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <UploadCloud className="w-4 h-4" />
+                      <span>Ajouter un document</span>
+                    </button>
+                  </div>
+
+                  {/* Dynamic list of custom uploaded documents */}
+                  {documents.filter(d => d.id.startsWith('custom_')).length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                      {documents.filter(d => d.id.startsWith('custom_')).map(doc => (
+                        <div key={doc.id} className="p-3.5 rounded-xl bg-white border border-violet-200 flex items-center justify-between shadow-sm">
+                          <div className="min-w-0 pr-2">
+                            <span className="font-sans font-bold text-xs text-slate-800 block truncate">{doc.name}</span>
+                            <span className="font-sans text-[10px] text-slate-400 block truncate mt-0.5">📄 {doc.fileName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="px-2 py-0.5 rounded-full font-sans text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                              Reçu ✓
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)}
+                              className="p-1 text-slate-400 hover:text-rose-600 bg-transparent border-none cursor-pointer transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                          )}
+                          </div>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl border border-dashed border-slate-300 bg-white/50 text-center font-sans text-xs text-slate-400">
+                      Aucun document spécifique supplémentaire téléversé pour le moment.
+                    </div>
+                  )}
                 </div>
 
                 {isStepCompleted(7) && (
@@ -2229,6 +2368,91 @@ export default function Dossier({
             </div>
           );
         })()}
+      </AnimatePresence>
+
+      {/* Custom document modal */}
+      <AnimatePresence>
+        {showAddCustomModal && (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/50 backdrop-blur-md px-4 text-left font-sans">
+            <motion.div
+              className="bg-white rounded-2xl w-full max-w-md p-6 border border-neutral-200 shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <h3 className="font-serif text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                Nouveau document spécifique
+              </h3>
+              <p className="text-xs text-slate-500 mb-5 font-medium leading-relaxed">
+                Renseignez le nom du document exigé par la Mairie ou requis par votre situation, puis téléversez-le.
+              </p>
+
+              <form onSubmit={handleAddCustomDocSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Intitulé du document *</label>
+                  <input
+                    type="text"
+                    required
+                    value={customDocTitle}
+                    onChange={(e) => setCustomDocTitle(e.target.value)}
+                    placeholder="Ex: Contrat de mariage, Dispense consulaire, etc."
+                    className="w-full border border-neutral-250 rounded-xl p-3 text-xs focus:border-primary focus:outline-none bg-neutral-50 font-sans font-medium text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Fichier justificatif *</label>
+                  <div className="p-1 bg-neutral-50 rounded-xl border border-neutral-200">
+                    <input
+                      type="file"
+                      required
+                      accept="application/pdf,image/jpeg,image/png,image/webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setCustomDocFile(file);
+                      }}
+                      className="w-full border-0 rounded-xl p-3 text-xs bg-transparent focus:outline-none text-slate-700 font-sans cursor-pointer"
+                    />
+                  </div>
+                  <span className="text-[9px] text-slate-400 mt-1 block">Formats acceptés : PDF, JPEG, PNG (Max: 5Mo)</span>
+                </div>
+
+                <div className="mt-6 flex flex-col sm:flex-row gap-2 pt-3 border-t border-dashed border-slate-100">
+                  <button
+                    type="submit"
+                    disabled={isSubmittingCustomDoc || !customDocTitle.trim() || !customDocFile}
+                    className="flex-1 py-3 px-4 rounded-xl bg-primary hover:bg-primary-container text-white font-sans text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {isSubmittingCustomDoc ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Téléversage...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Ajouter &amp; Téléverser</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddCustomModal(false);
+                      setCustomDocTitle('');
+                      setCustomDocFile(null);
+                    }}
+                    disabled={isSubmittingCustomDoc}
+                    className="py-3 px-5 text-[11px] font-bold text-slate-700 hover:bg-neutral-50 rounded-xl border border-neutral-250 cursor-pointer transition-colors"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );

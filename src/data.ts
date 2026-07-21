@@ -170,10 +170,26 @@ export const INITIAL_DOCUMENTS: DocumentInfo[] = [
   {
     id: 'doc_etranger_sejour',
     name: "Carte de séjour ou visa (Étranger)",
-    description: "Photocopie de la carte de séjour en cours de validité ou de la page du visa.",
+    description: "Photocopie de la carte de séjour en cours de validité ou de la page du visa (Si applicable).",
     status: 'pending',
     category: 'special',
     icon: 'IdCard'
+  },
+  {
+    id: 'doc_etranger_consulaire',
+    name: "Carte consulaire ou Passeport (Étranger)",
+    description: "Photocopie de la carte consulaire, de la carte d'identité ou du passeport consulaire (Si applicable).",
+    status: 'pending',
+    category: 'special',
+    icon: 'IdCard'
+  },
+  {
+    id: 'doc_viduite',
+    name: "Décision abrogeant le délai de viduité",
+    description: "Décision définitive du président du tribunal abrogeant le délai de viduité pour la femme divorcée (Si applicable).",
+    status: 'pending',
+    category: 'special',
+    icon: 'ScrollText'
   }
 ];
 

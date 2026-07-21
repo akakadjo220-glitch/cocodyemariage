@@ -402,18 +402,37 @@ export default function App() {
     aiAnalysis?: AiAnalysisResult | null
   ) => {
     // Optimistic UI update
-    setDocuments(prev => prev.map(doc => {
-      if (doc.id === id) {
-        return {
-          ...doc,
+    setDocuments(prev => {
+      const exists = prev.some(d => d.id === id);
+      if (exists) {
+        return prev.map(doc => {
+          if (doc.id === id) {
+            return {
+              ...doc,
+              status,
+              fileName,
+              docNumber: docNumber !== undefined ? docNumber : doc.docNumber,
+              aiAnalysis: aiAnalysis !== undefined ? aiAnalysis : doc.aiAnalysis
+            };
+          }
+          return doc;
+        });
+      } else {
+        const canonical = INITIAL_DOCUMENTS.find(initDoc => initDoc.id === id);
+        const newDoc: DocumentInfo = {
+          id,
+          name: canonical ? canonical.name : (fileName ? fileName.replace(/\.[^/.]+$/, "").replace(/_/g, " ") : "Document spécifique"),
+          description: canonical ? canonical.description : "Document supplémentaire téléversé par l'utilisateur",
           status,
           fileName,
-          docNumber: docNumber !== undefined ? docNumber : doc.docNumber,
-          aiAnalysis: aiAnalysis !== undefined ? aiAnalysis : doc.aiAnalysis
+          category: 'special',
+          icon: 'FileText',
+          docNumber: docNumber || null,
+          aiAnalysis: aiAnalysis || null
         };
+        return [...prev, newDoc];
       }
-      return doc;
-    }));
+    });
 
     // Sync with database
     await updateDocumentInDb(dossierId, id, status, fileName, undefined, docNumber, aiAnalysis);

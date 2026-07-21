@@ -439,28 +439,28 @@ export default function Dossier({
 
   // Helpers to check step progression
   const isStepCompleted = (stepId: number): boolean => {
-    const doc1 = documents.find(d => d.id === 'doc1'); // Extrait Epoux
-    const doc2 = documents.find(d => d.id === 'doc2'); // CNI Epoux
-    const doc1_f = documents.find(d => d.id === 'doc1_f'); // Extrait Epouse
-    const doc2_f = documents.find(d => d.id === 'doc2_f'); // CNI Epouse
+    const doc1 = documents.find(d => d.id === 'doc1'); // CNI Epoux (Step 1)
+    const doc2 = documents.find(d => d.id === 'doc2'); // Extrait Epoux (Step 3)
+    const doc1_f = documents.find(d => d.id === 'doc1_f'); // CNI Epouse (Step 4)
+    const doc2_f = documents.find(d => d.id === 'doc2_f'); // Extrait Epouse (Step 6)
 
     switch (stepId) {
       case 1: // CNI Époux
-        return doc2?.status === 'verified';
+        return doc1?.status === 'verified';
       case 2: // Selfie Époux
         return !!dossierDetails?.epoux_selfie_url &&
           (dossierDetails?.epoux_identite_verifiee === true ||
             (dossierDetails?.epoux_face_attempts ?? 0) >= 3);
       case 3: // Extrait Époux
-        return doc1?.status === 'verified';
+        return doc2?.status === 'verified';
       case 4: // CNI Épouse
-        return doc2_f?.status === 'verified';
+        return doc1_f?.status === 'verified';
       case 5: // Selfie Épouse
         return !!dossierDetails?.epouse_selfie_url &&
           (dossierDetails?.epouse_identite_verifiee === true ||
             (dossierDetails?.epouse_face_attempts ?? 0) >= 3);
       case 6: // Extrait Épouse
-        return doc1_f?.status === 'verified';
+        return doc2_f?.status === 'verified';
       case 7: // Autres docs
         // Remaining required documents: doc3, doc3_f (Justifs), doc5, doc9 (Témoins CNI)
         const remIds = ['doc3', 'doc3_f', 'doc5', 'doc9'];
@@ -509,24 +509,24 @@ export default function Dossier({
 
     switch (stepId) {
       case 1:
-        if (doc2?.status === 'rejected') return 'red';
+        if (doc1?.status === 'rejected') return 'red';
         return 'none';
       case 2:
         const epouxAttempts = dossierDetails?.epoux_face_attempts ?? 0;
         if (epouxAttempts >= 3 && dossierDetails?.epoux_identite_verifiee !== true) return 'red';
         return 'none';
       case 3:
-        if (doc1?.status === 'rejected') return 'red';
+        if (doc2?.status === 'rejected') return 'red';
         return 'none';
       case 4:
-        if (doc2_f?.status === 'rejected') return 'red';
+        if (doc1_f?.status === 'rejected') return 'red';
         return 'none';
       case 5:
         const epouseAttempts = dossierDetails?.epouse_face_attempts ?? 0;
         if (epouseAttempts >= 3 && dossierDetails?.epouse_identite_verifiee !== true) return 'red';
         return 'none';
       case 6:
-        if (doc1_f?.status === 'rejected') return 'red';
+        if (doc2_f?.status === 'rejected') return 'red';
         return 'none';
       case 7:
         const remIds = ['doc3', 'doc3_f', 'doc5', 'doc9'];
@@ -1290,7 +1290,7 @@ export default function Dossier({
   }
 
   // Helper render logic for simple CNI/passport card
-  const renderCniCard = (docId: 'doc2' | 'doc2_f', label: string) => {
+  const renderCniCard = (docId: 'doc1' | 'doc1_f', label: string) => {
     const doc = documents.find(d => d.id === docId);
     const isVerified = doc?.status === 'verified';
     const isRejected = doc?.status === 'rejected';
@@ -1394,7 +1394,7 @@ export default function Dossier({
   };
 
   // Helper render logic for Birth Act card
-  const renderBirthActCard = (docId: 'doc1' | 'doc1_f', label: string) => {
+  const renderBirthActCard = (docId: 'doc2' | 'doc2_f', label: string) => {
     const doc = documents.find(d => d.id === docId);
     const isVerified = doc?.status === 'verified';
     const isRejected = doc?.status === 'rejected';
@@ -1742,7 +1742,7 @@ export default function Dossier({
                     Veuillez fournir la photo nette de la pièce d'identité (type : {spouse1CniType}) de l'époux.
                   </p>
                 </div>
-                {renderCniCard('doc2', `Pièce d'identité (${spouse1CniType}) — Époux`)}
+                {renderCniCard('doc1', `Pièce d'identité (${spouse1CniType}) — Époux`)}
                 {isStepCompleted(1) && (
                   <button onClick={() => setActiveStep(2)} className="py-3 px-6 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container shadow-md transition-all self-start flex items-center gap-1">
                     <span>Étape suivante : Selfie &amp; Face Match Époux</span>
@@ -1780,7 +1780,7 @@ export default function Dossier({
                     Téléversez l'original de l'extrait de naissance de moins de 3 mois de l'époux (ou moins de 6 mois s'il est né à l'étranger).
                   </p>
                 </div>
-                {renderBirthActCard('doc1', "Extrait d'acte de naissance — Époux")}
+                {renderBirthActCard('doc2', "Extrait d'acte de naissance — Époux")}
                 {isStepCompleted(3) && (
                   <button onClick={() => setActiveStep(4)} className="py-3 px-6 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container shadow-md transition-all self-start flex items-center gap-1">
                     <span>Étape suivante : Pièce d'identité de l'Épouse</span>
@@ -1799,7 +1799,7 @@ export default function Dossier({
                     Veuillez fournir la photo nette de la pièce d'identité (type : {spouse2CniType}) de l'épouse.
                   </p>
                 </div>
-                {renderCniCard('doc2_f', `Pièce d'identité (${spouse2CniType}) — Épouse`)}
+                {renderCniCard('doc1_f', `Pièce d'identité (${spouse2CniType}) — Épouse`)}
                 {isStepCompleted(4) && (
                   <button onClick={() => setActiveStep(5)} className="py-3 px-6 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container shadow-md transition-all self-start flex items-center gap-1">
                     <span>Étape suivante : Selfie &amp; Face Match Épouse</span>
@@ -1837,7 +1837,7 @@ export default function Dossier({
                     Téléversez l'original de l'extrait de naissance de moins de 3 mois de l'épouse (ou moins de 6 mois si elle est née à l'étranger).
                   </p>
                 </div>
-                {renderBirthActCard('doc1_f', "Extrait d'acte de naissance — Épouse")}
+                {renderBirthActCard('doc2_f', "Extrait d'acte de naissance — Épouse")}
                 {isStepCompleted(6) && (
                   <button onClick={() => setActiveStep(7)} className="py-3 px-6 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container shadow-md transition-all self-start flex items-center gap-1">
                     <span>Étape suivante : Autres documents à fournir</span>

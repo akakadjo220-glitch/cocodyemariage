@@ -4426,22 +4426,22 @@ export async function runDocumentAiAnalysis(
     throw new Error("Clé API OpenRouter manquante. Veuillez la configurer dans l'administration.");
   }
 
-  if (docId === 'doc1') {
-    const docs = await getDocuments(dossierId);
-    const doc2 = docs.find(d => d.id === 'doc2');
-    if (doc2?.status !== 'verified') {
-      throw new Error("L'extrait de naissance de l'époux ne peut pas être analysé tant que sa pièce d'identité n'est pas validée.");
-    }
-  } else if (docId === 'doc2_f') {
+  if (docId === 'doc2') {
     const docs = await getDocuments(dossierId);
     const doc1 = docs.find(d => d.id === 'doc1');
     if (doc1?.status !== 'verified') {
-      throw new Error("La pièce d'identité de l'épouse ne peut pas être analysée tant que l'extrait de naissance de l'époux n'est pas validé.");
+      throw new Error("L'extrait de naissance de l'époux ne peut pas être analysé tant que sa pièce d'identité n'est pas validée.");
     }
   } else if (docId === 'doc1_f') {
     const docs = await getDocuments(dossierId);
-    const doc2_f = docs.find(d => d.id === 'doc2_f');
-    if (doc2_f?.status !== 'verified') {
+    const doc2 = docs.find(d => d.id === 'doc2');
+    if (doc2?.status !== 'verified') {
+      throw new Error("La pièce d'identité de l'épouse ne peut pas être analysée tant que l'extrait de naissance de l'époux n'est pas validé.");
+    }
+  } else if (docId === 'doc2_f') {
+    const docs = await getDocuments(dossierId);
+    const doc1_f = docs.find(d => d.id === 'doc1_f');
+    if (doc1_f?.status !== 'verified') {
       throw new Error("L'extrait de naissance de l'épouse ne peut pas être analysé tant que sa pièce d'identité n'est pas validée.");
     }
   }

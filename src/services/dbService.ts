@@ -1095,14 +1095,15 @@ export async function getDocuments(dossierId: string): Promise<DocumentInfo[]> {
           }
         }
 
+        const defaultDoc = INITIAL_DOCUMENTS.find(initDoc => initDoc.id === id);
         return {
           id,
-          name: item.name,
-          description: item.description || '',
+          name: defaultDoc ? defaultDoc.name : item.name,
+          description: defaultDoc ? defaultDoc.description : (item.description || ''),
           status: item.status as any,
           fileName: cleanFileName,
           category: item.category as any,
-          icon: item.icon,
+          icon: defaultDoc ? defaultDoc.icon : item.icon,
           rejectionReason: rejectionReason,
           docNumber: docNumber,
           aiAnalysis: aiAnalysis

@@ -36,6 +36,7 @@ const getDossierMsgColor = (statut: string | null) => {
   }
 };
 import { DocumentInfo, AiAnalysisResult } from '../types';
+import { INITIAL_DOCUMENTS } from '../data';
 import {
   uploadDocumentFile,
   checkDuplicateDocumentNumber,
@@ -1993,6 +1994,8 @@ export default function Dossier({
       <AnimatePresence>
         {showFileUploadModal && (() => {
           const activeDoc = documents.find(d => d.id === showFileUploadModal);
+          const canonicalDoc = INITIAL_DOCUMENTS.find(d => d.id === showFileUploadModal);
+          const activeDocName = canonicalDoc ? canonicalDoc.name : (activeDoc?.name || '');
           const isIdentityDoc = activeDoc?.id === 'doc1' || activeDoc?.id === 'doc1_f';
           return (
             <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/50 backdrop-blur-md px-4 text-left font-sans">
@@ -2004,7 +2007,7 @@ export default function Dossier({
               >
                 <h3 className="font-serif text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
                   <UploadCloud className="w-5 h-5 text-primary" />
-                  Téléversement : {activeDoc?.name}
+                  Téléversement : {activeDocName}
                 </h3>
                 <p className="text-xs text-slate-500 mb-5 font-medium leading-relaxed">
                   {isIdentityDoc
@@ -2098,7 +2101,7 @@ export default function Dossier({
                           {cniRectoBase64 && cniVersoBase64 && (
                             <button
                               type="button"
-                              onClick={() => handleStitchCniImages(activeDoc?.name || 'Piece_Identite')}
+                              onClick={() => handleStitchCniImages(activeDocName || 'Piece_Identite')}
                               className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-sans text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
                             >
                               <Check className="w-4 h-4 text-white animate-bounce" />

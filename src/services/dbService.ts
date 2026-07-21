@@ -5677,7 +5677,7 @@ export async function convertBlobToImageBase64(blob: Blob): Promise<string> {
 
       if (context) {
         await page.render({ canvasContext: context, viewport }).promise;
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        const dataUrl = canvas.toDataURL('image/png');
         return dataUrl.split(',')[1] || dataUrl;
       }
     } catch (err) {
@@ -5697,6 +5697,18 @@ export async function convertBlobToImageBase64(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * Nettoie et formate une chaîne Base64 pour garantir la compatibilité OpenCV / DeepFace
+ */
+function sanitizeBase64ForPy(b64: string): string {
+  let clean = b64.replace(/^data:image\/[a-z]+;base64,/, '').replace(/[\r\n\s]+/g, '');
+  const pad = clean.length % 4;
+  if (pad) {
+    clean += '='.repeat(4 - pad);
+  }
+  return `data:image/png;base64,${clean}`;
+}
+
 export async function comparerVisages(
   imageCNIBase64: string,
   selfieBase64: string,
@@ -5710,8 +5722,8 @@ export async function comparerVisages(
       apiUrl = apiUrl.replace('http:', 'https:');
     }
     try {
-      const cleanImg1 = imageCNIBase64.trim();
-      const cleanImg2 = selfieBase64.trim();
+      const cleanImg1 = sanitizeBase64ForPy(imageCNIBase64);
+      const cleanImg2 = sanitizeBase64ForPy(selfieBase64);
 
       const sendCompareReq = async (backend: string) => {
         const params = new URLSearchParams();

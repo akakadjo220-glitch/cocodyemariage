@@ -682,7 +682,7 @@ export default function Dossier({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL('image/jpeg', 0.95);
+        const base64 = canvas.toDataURL('image/png');
         setCapturedSelfieBase64(base64);
         stopWebcam();
       }

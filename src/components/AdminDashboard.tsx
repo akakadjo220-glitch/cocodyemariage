@@ -4,7 +4,7 @@ import {
   CheckCircle2, AlertTriangle, ClipboardList, Shield, ToggleLeft,
   ToggleRight, Settings, Users, Calendar, ArrowRight, Activity, Landmark,
   Lock, Unlock, Key, Trash2, Search, Filter, RefreshCw, Edit, LogOut, Loader2, Cpu,
-  Clock, Printer, CheckSquare, QrCode
+  Clock, Printer, CheckSquare, QrCode, Receipt
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {

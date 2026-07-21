@@ -1170,6 +1170,19 @@ export async function updateDocumentInDb(
       .upsert(upsertData);
 
     if (error) throw error;
+
+    if (status === 'verified' && finalAiAnalysis) {
+      saveOcrFeedbackEntry({
+        id: `${dossierId}_${docId}_${Date.now()}`,
+        dossierId,
+        docId,
+        typeDocument: finalAiAnalysis.type_document || docId,
+        rawOcrText: (finalAiAnalysis.infos_extraites as any)?.raw_ocr_text || '',
+        infosExtraites: finalAiAnalysis.infos_extraites || {},
+        dateValidated: new Date().toISOString(),
+        valideParAgent: true
+      });
+    }
   } catch (err) {
     console.warn(`Supabase: Failed to upsert document ${docId} for dossier ${dossierId}.`, err);
   }
@@ -1187,18 +1200,6 @@ export async function updateDocumentInDb(
   }
 
   if (status === 'verified') {
-    if (finalAiAnalysis) {
-      saveOcrFeedbackEntry({
-        id: `${dossierId}_${docId}_${Date.now()}`,
-        dossierId,
-        docId,
-        typeDocument: finalAiAnalysis.type_document || docId,
-        rawOcrText: (finalAiAnalysis.infos_extraites as any)?.raw_ocr_text || '',
-        infosExtraites: finalAiAnalysis.infos_extraites || {},
-        dateValidated: new Date().toISOString(),
-        valideParAgent: true
-      });
-    }
     setTimeout(() => {
       checkAndAutoApproveDossier(dossierId);
     }, 100);

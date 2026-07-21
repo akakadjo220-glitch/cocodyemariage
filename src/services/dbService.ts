@@ -3074,30 +3074,69 @@ export function croiserDonneesScriptInterne(
     const rawOcrTextFull = safeString(infosExtraites?.raw_ocr_text || '').toUpperCase();
     const delivranceStr = safeString(infosExtraites?.date_delivrance || (infosExtraites as any)?.date_delivrance_extraite || '');
 
-    let dateDelivranceObj: Date | null = null;
-    if (delivranceStr) {
-      const m = delivranceStr.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
-      if (m) {
-        dateDelivranceObj = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    const normalizeMonthStr = (str: string) => {
+      return str
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .trim();
+    };
+
+    const parseFrenchDateStr = (dateStr: string): Date | null => {
+      if (!dateStr) return null;
+      // 1. Digital format: DD/MM/YYYY or DD-MM-YYYY
+      const mDig = dateStr.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+      if (mDig) {
+        const d = parseInt(mDig[1], 10);
+        const m = parseInt(mDig[2], 10) - 1;
+        const y = parseInt(mDig[3], 10);
+        if (y >= 1900 && m >= 0 && m <= 11 && d >= 1 && d <= 31) {
+          return new Date(y, m, d);
+        }
       }
-    }
-    if (!dateDelivranceObj && rawOcrTextFull) {
-      const matchDelivre = rawOcrTextFull.match(/(?:DÉLIVRÉ|FAIT|ÉTABLI|LE)\s*(?:À|AU)?\s*[\w\s\.]*?\s*LE\s*(\d{1,2})\s*([\w]+|\d{1,2})\s*(\d{4})/i)
-                        || rawOcrTextFull.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](202[0-9])/);
-      if (matchDelivre && matchDelivre[1] && matchDelivre[2] && matchDelivre[3]) {
-        const d = parseInt(matchDelivre[1], 10);
-        const y = parseInt(matchDelivre[3], 10);
-        let m = 0;
+
+      // 2. Textual format: 12 Février 2026 or 12 Fevrier 2026
+      const mText = dateStr.match(/(\d{1,2})\s+([a-zA-Z\u00C0-\u024F]+)\s+(\d{4})/);
+      if (mText) {
+        const d = parseInt(mText[1], 10);
+        const normM = normalizeMonthStr(mText[2]);
+        const y = parseInt(mText[3], 10);
+
         const months = ["JANVIER","FEVRIER","MARS","AVRIL","MAI","JUIN","JUILLET","AOUT","SEPTEMBRE","OCTOBRE","NOVEMBRE","DECEMBRE"];
-        const monthIdx = months.findIndex(mn => matchDelivre[2].toUpperCase().includes(mn));
-        if (monthIdx !== -1) {
-          m = monthIdx;
-        } else {
-          m = parseInt(matchDelivre[2], 10) - 1;
+        let m = months.findIndex(mn => normM.includes(mn) || mn.includes(normM));
+        if (m === -1) {
+          if (normM.startsWith("JAN")) m = 0;
+          else if (normM.startsWith("FEV")) m = 1;
+          else if (normM.startsWith("MAR")) m = 2;
+          else if (normM.startsWith("AVR")) m = 3;
+          else if (normM.startsWith("MAI")) m = 4;
+          else if (normM.startsWith("JUIN")) m = 5;
+          else if (normM.startsWith("JUIL")) m = 6;
+          else if (normM.startsWith("AOU")) m = 7;
+          else if (normM.startsWith("SEP")) m = 8;
+          else if (normM.startsWith("OCT")) m = 9;
+          else if (normM.startsWith("NOV")) m = 10;
+          else if (normM.startsWith("DEC")) m = 11;
         }
-        if (y >= 2020 && m >= 0 && m <= 11 && d >= 1 && d <= 31) {
-          dateDelivranceObj = new Date(y, m, d);
+
+        if (y >= 1900 && m >= 0 && m <= 11 && d >= 1 && d <= 31) {
+          return new Date(y, m, d);
         }
+      }
+      return null;
+    };
+
+    let dateDelivranceObj: Date | null = parseFrenchDateStr(delivranceStr);
+
+    if (!dateDelivranceObj && rawOcrTextFull) {
+      // Search issuance date patterns in full OCR text: "DÉLIVRÉ À BONOUA, LE 12 FÉVRIER 2026" or "LE 12 FÉVRIER 2026"
+      const matchDelivre = rawOcrTextFull.match(/(?:DÉLIVRÉ|FAIT|ÉTABLI|LE)\s*(?:À|AU)?\s*[\w\s\.]*?\s*LE\s*(\d{1,2}\s+[a-zA-Z\u00C0-\u024F\s]+\s+\d{4})/i)
+                        || rawOcrTextFull.match(/(?:DÉLIVRÉ|FAIT|ÉTABLI|LE)\s*(?:À|AU)?\s*[\w\s\.]*?\s*LE\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/i)
+                        || rawOcrTextFull.match(/(\d{1,2}\s+(?:JANVIER|FEVRIER|FÉVRIER|MARS|AVRIL|MAI|JUIN|JUILLET|AOUT|AOÛT|SEPTEMBRE|OCTOBRE|NOVEMBRE|DECEMBRE|DÉCEMBRE)\s+202[0-9])/i)
+                        || rawOcrTextFull.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]202[0-9])/);
+      if (matchDelivre) {
+        const foundStr = matchDelivre[1] || matchDelivre[0];
+        dateDelivranceObj = parseFrenchDateStr(foundStr);
       }
     }
 
@@ -3112,7 +3151,7 @@ export function croiserDonneesScriptInterne(
 
       if (diffDays > maxDays) {
         const dateFormatted = dateDelivranceObj.toLocaleDateString('fr-FR');
-        anomalies.push(`Extrait de naissance hors délai : Le document a été délivré le ${dateFormatted} (plus de ${maxMonthsStr}). L'original doit dater de moins de 3 mois (6 mois si né à l'étranger).`);
+        anomalies.push(`Extrait de naissance hors délai : Le document a été délivré le ${dateFormatted} (il y a ${diffDays} jours, soit plus de ${maxMonthsStr}). L'original doit dater de moins de 3 mois (6 mois si né à l'étranger).`);
       }
     }
   } else if (donneesDeclarees.numero_piece && donneesDeclarees.numero_piece.trim() !== '') {

@@ -26,7 +26,8 @@ import {
   getMairieAgents, createMairieAgent, toggleMairieAgentActive, deleteMairieAgent,
   getSalles, addSalle, updateSalle, deleteSalle, getCreneauxBloques, addCreneauBloque,
   deleteCreneauBloque, getSystemParameters, updateSystemParameters, confirmMairieAppointment,
-  SystemParameters
+  SystemParameters,
+  getOcrFeedbackDataset, exportOcrDatasetJsonl, clearOcrFeedbackDataset
 } from '../services/dbService';
 import { DocumentInfo, Partner, PartnerContact, PaystackConfig, OppositionInfo, AiConfig, AiAnalysisResult, PaymentInfo } from '../types';
 import { supabase } from '../supabaseClient';

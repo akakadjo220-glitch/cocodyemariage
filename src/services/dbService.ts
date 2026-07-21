@@ -1187,6 +1187,18 @@ export async function updateDocumentInDb(
   }
 
   if (status === 'verified') {
+    if (finalAiAnalysis) {
+      saveOcrFeedbackEntry({
+        id: `${dossierId}_${docId}_${Date.now()}`,
+        dossierId,
+        docId,
+        typeDocument: finalAiAnalysis.type_document || docId,
+        rawOcrText: (finalAiAnalysis.infos_extraites as any)?.raw_ocr_text || '',
+        infosExtraites: finalAiAnalysis.infos_extraites || {},
+        dateValidated: new Date().toISOString(),
+        valideParAgent: true
+      });
+    }
     setTimeout(() => {
       checkAndAutoApproveDossier(dossierId);
     }, 100);
@@ -3233,6 +3245,109 @@ export function croiserDonneesScriptInterne(
   return { action: 'VALIDER' };
 }
 
+/* ==========================================================================
+   ACTIVE LEARNING & DATASET FEEDBACK LOOP (GLM-OCR FINE-TUNING SOUVERAIN)
+   ========================================================================== */
+
+export interface OcrFeedbackEntry {
+  id: string;
+  dossierId: string;
+  docId: string;
+  typeDocument: string;
+  rawOcrText: string;
+  infosExtraites: any;
+  dateValidated: string;
+  valideParAgent: boolean;
+}
+
+export function saveOcrFeedbackEntry(entry: OcrFeedbackEntry): void {
+  try {
+    const existing = getOcrFeedbackDataset();
+    const filtered = existing.filter(e => !(e.dossierId === entry.dossierId && e.docId === entry.docId));
+    filtered.unshift(entry);
+    const trimmed = filtered.slice(0, 500);
+    localStorage.setItem('e_mariage_ocr_feedback_dataset', JSON.stringify(trimmed));
+  } catch (err) {
+    console.warn("Failed to save OCR feedback entry:", err);
+  }
+}
+
+export function getOcrFeedbackDataset(): OcrFeedbackEntry[] {
+  try {
+    const raw = localStorage.getItem('e_mariage_ocr_feedback_dataset');
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (err) {
+    return [];
+  }
+}
+
+export function clearOcrFeedbackDataset(): void {
+  localStorage.removeItem('e_mariage_ocr_feedback_dataset');
+}
+
+export function exportOcrDatasetJsonl(): void {
+  const dataset = getOcrFeedbackDataset();
+  if (dataset.length === 0) {
+    alert("Aucune donnée d'apprentissage enregistrée pour le moment.");
+    return;
+  }
+
+  const lines = dataset.map(entry => {
+    return JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: `Analyse cet extrait/pièce de type ${entry.typeDocument}. Texte OCR brut : ${safeString(entry.rawOcrText).substring(0, 300)}`
+        },
+        {
+          role: "assistant",
+          content: JSON.stringify(entry.infosExtraites)
+        }
+      ]
+    });
+  });
+
+  const jsonlContent = lines.join('\n');
+  const blob = new Blob([jsonlContent], { type: 'application/x-jsonlines' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `glm_ocr_fine_tuning_dataset_${Date.now()}.jsonl`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function buildEnrichedOcrPrompt(basePrompt: string, docId: string): string {
+  try {
+    const dataset = getOcrFeedbackDataset();
+    if (dataset.length === 0) return basePrompt;
+
+    const isBirth = docId.includes('doc2') || docId === 'doc2' || docId === 'doc2_f';
+    const typeKey = isBirth ? 'EXTRAIT_NAISSANCE' : 'CNI';
+
+    const matching = dataset.filter(d => d.typeDocument.includes(typeKey) || (isBirth && d.docId.includes('doc2'))).slice(0, 2);
+    if (matching.length === 0) return basePrompt;
+
+    const examplesStr = matching.map((ex, idx) => {
+      return `Exemple Appris ${idx + 1} (${ex.typeDocument}):
+- OCR extrait: "${safeString(ex.rawOcrText).substring(0, 180)}..."
+- Données Validées: ${JSON.stringify(ex.infosExtraites)}`;
+    }).join('\n\n');
+
+    return `${basePrompt}
+
+[EXEMPLES DE RÉFÉRENCE APPRIS PAR LE SYSTÈME EN CÔTE D'IVOIRE]
+Les exemples suivants ont été validés avec succès par l'état civil :
+${examplesStr}
+`;
+  } catch (err) {
+    return basePrompt;
+  }
+}
+
 export async function appelMistralVision(prompt: string, base64Data: string, mimeType: string, config: AiConfig): Promise<AiAnalysisResult> {
   if (config.mistralKey) {
     try {
@@ -4504,6 +4619,9 @@ Analyse cette pièce d'identité ou ce passeport (Pays CEDEAO ou International /
 }
 `;
   }
+
+  // Enrich prompt with Active Learning Few-Shot examples (GLM-OCR Feedback Loop)
+  promptAEnvoyer = buildEnrichedOcrPrompt(promptAEnvoyer, docId);
 
   if (onStatusUpdate) {
     onStatusUpdate(`🔍 Analyse HD par l'IA en cours...`);

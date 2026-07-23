@@ -3,13 +3,13 @@ import {
   UserPlus, Building, CalendarDays, CalendarCheck,
   FolderUp, Megaphone, HeartHandshake, CheckCircle2, ChevronDown, Check, Compass,
   CreditCard, Smartphone, QrCode, Loader2, AlertCircle, ChevronRight, LayoutGrid, HelpCircle,
-  ShieldAlert, Info, Download, Heart
+  ShieldAlert, Info, Download, Heart, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TimelineStep, PaystackConfig, PaymentInfo, DocumentInfo } from '../types';
 import { ensurePhonePrefix, handlePhoneChange } from './Landing';
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
-import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr, validateWeddingDate } from '../utils/calendarReservationUtils';
+import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr, validateWeddingDate, getIvorianHolidays } from '../utils/calendarReservationUtils';
 
 // Security helpers (same as Landing popup)
 const getBordureStyle = (statut: string | null) => {
@@ -596,6 +596,8 @@ export default function Timeline({
         const s5 = findStatus('doc5');
         const s9 = findStatus('doc9');
         
+        const isUploaded = (s: string) => s === 'verified' || s === 'uploading';
+
         const allV = s3 === 'verified' && s3_f === 'verified' && s5 === 'verified' && s9 === 'verified';
         if (allV) return { status: 'verified' };
         
@@ -604,10 +606,21 @@ export default function Timeline({
         if (s5 === 'rejected') return { status: 'rejected', message: `Témoin 1 : ${getMessage('doc5')}` };
         if (s9 === 'rejected') return { status: 'rejected', message: `Témoin 2 : ${getMessage('doc9')}` };
         
-        if (s3 === 'uploading' || s3_f === 'uploading' || s5 === 'uploading' || s9 === 'uploading') {
+        const allUploaded = isUploaded(s3) && isUploaded(s3_f) && isUploaded(s5) && isUploaded(s9);
+        if (allUploaded) {
           return { status: 'uploading' };
         }
-        return { status: 'pending' };
+
+        const missing: string[] = [];
+        if (!isUploaded(s3)) missing.push("Justif. Époux");
+        if (!isUploaded(s3_f)) missing.push("Justif. Épouse");
+        if (!isUploaded(s5)) missing.push("CNI Témoin 1");
+        if (!isUploaded(s9)) missing.push("CNI Témoin 2");
+
+        return { 
+          status: 'pending', 
+          message: missing.length === 4 ? undefined : `Pièces manquantes (${4 - missing.length}/4 fournies) : ${missing.join(', ')}` 
+        };
       }
       default:
         return { status: 'pending' };
@@ -1144,7 +1157,7 @@ export default function Timeline({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">Tél. époux 1</label>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">Tél. Époux</label>
                     <input value={editPhone1} onChange={e => handlePhoneChange(e.target.value, setEditPhone1)} onBlur={() => checkPhone1.triggerVerification()} placeholder="+225 07 00 00 00"
                       style={getBordureStyle(checkPhone1.statut)}
                       className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
@@ -1155,7 +1168,7 @@ export default function Timeline({
                     )}
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">Tél. époux 2</label>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">Tél. Épouse</label>
                     <input value={editPhone2} onChange={e => handlePhoneChange(e.target.value, setEditPhone2)} onBlur={() => checkPhone2.triggerVerification()} placeholder="+225 07 00 00 00"
                       style={getBordureStyle(checkPhone2.statut)}
                       className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
@@ -1169,7 +1182,7 @@ export default function Timeline({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">Type de pièce époux 1 *</label>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">Type de pièce Époux *</label>
                     <select value={editCniType1} onChange={e => setEditCniType1(e.target.value as any)}
                       className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans">
                       <option value="CNI">CNI</option>
@@ -1177,7 +1190,7 @@ export default function Timeline({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">Type de pièce époux 2 *</label>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">Type de pièce Épouse *</label>
                     <select value={editCniType2} onChange={e => setEditCniType2(e.target.value as any)}
                       className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans">
                       <option value="CNI">CNI</option>
@@ -1187,7 +1200,7 @@ export default function Timeline({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">N° Pièce époux 1 *</label>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 text-left">N° Pièce Époux *</label>
                     <input required value={editCni1} onChange={e => {
                       setEditCni1(e.target.value);
                       if (dossierDuplicateError) setDossierDuplicateError(null);
@@ -1201,7 +1214,7 @@ export default function Timeline({
                     )}
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-650 uppercase tracking-widest mb-1.5 text-left">N° Pièce époux 2 *</label>
+                    <label className="block text-[11px] font-bold text-slate-650 uppercase tracking-widest mb-1.5 text-left">N° Pièce Épouse *</label>
                     <input required value={editCni2} onChange={e => {
                       setEditCni2(e.target.value);
                       if (dossierDuplicateError) setDossierDuplicateError(null);
@@ -1340,9 +1353,9 @@ export default function Timeline({
                   badgeBg = "bg-rose-100 text-rose-800";
                   badgeText = "Rejeté ❌";
                 } else if (status === 'uploading') {
-                  cardBg = "bg-sky-50/20 border-sky-200 hover:bg-sky-50/40 hover:border-sky-300 animate-pulse";
+                  cardBg = "bg-sky-50/20 border-sky-200 hover:bg-sky-50/40 hover:border-sky-300";
                   badgeBg = "bg-sky-100 text-sky-850";
-                  badgeText = "Reçu / En analyse ⏳";
+                  badgeText = "Reçu / Transmis 📄";
                 }
 
                 return (
@@ -1374,7 +1387,9 @@ export default function Timeline({
                             <AlertCircle className="w-3.5 h-3.5" strokeWidth={3} />
                           </div>
                         ) : status === 'uploading' ? (
-                          <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin shrink-0" />
+                          <div className="w-4.5 h-4.5 rounded-full bg-sky-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                            <FileText className="w-2.5 h-2.5" />
+                          </div>
                         ) : (
                           <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                         )}
@@ -1384,6 +1399,11 @@ export default function Timeline({
                     {status === 'rejected' && message && (
                       <div className="p-1.5 bg-white/95 border border-rose-200 rounded-lg text-[9.5px] font-semibold text-rose-800 leading-normal text-left font-sans shadow-sm">
                         ⚠️ Motif : {message}
+                      </div>
+                    )}
+                    {status === 'pending' && message && (
+                      <div className="p-1.5 bg-amber-50 border border-amber-200 rounded-lg text-[9.5px] font-semibold text-amber-900 leading-normal text-left font-sans shadow-sm">
+                        📌 {message}
                       </div>
                     )}
                   </div>
@@ -1660,7 +1680,14 @@ export default function Timeline({
                           <span className="text-slate-400 uppercase tracking-widest text-[9px] font-bold block">Date du rendez-vous</span>
                           <span className="font-bold text-slate-800 text-sm mt-0.5 block">
                             {currentDossier?.date_rendezvous 
-                              ? new Date(currentDossier.date_rendezvous).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+                              ? (() => {
+                                  const parts = currentDossier.date_rendezvous.split('/');
+                                  if (parts.length === 3) {
+                                    const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                                    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+                                  }
+                                  return currentDossier.date_rendezvous;
+                                })()
                               : "Non planifié"}
                           </span>
                         </div>
@@ -1673,7 +1700,7 @@ export default function Timeline({
 
                     <div className="border-t pt-4 space-y-3 font-sans text-xs">
                       <div className="flex justify-between items-center text-[10px] font-bold text-slate-505 uppercase tracking-wider">
-                        <span>Reprogrammer mon rendez-vous</span>
+                        <span>Reprogrammer mon rendez-vous (Matin uniquement)</span>
                         <span className={`${
                           (currentDossier?.nombre_reprogrammations || 0) >= (systemParams?.nombre_reprogrammations_limite || 3)
                             ? 'text-rose-500 font-extrabold'
@@ -1689,12 +1716,13 @@ export default function Timeline({
                             type="date"
                             id="new-rdv-date-timeline"
                             min={new Date().toISOString().split('T')[0]}
-                            className="border border-neutral-350 rounded-xl px-3 py-2 bg-white text-xs flex-1"
+                            className="border border-neutral-350 rounded-xl px-3 py-2 bg-white text-xs flex-1 font-semibold"
                           />
                           <select
                             id="new-rdv-time-timeline"
-                            className="border border-neutral-355 rounded-xl px-3 py-2 bg-white text-xs"
+                            className="border border-neutral-355 rounded-xl px-3 py-2 bg-white text-xs font-semibold"
                           >
+                            <option value="08:00">08:00</option>
                             <option value="08:30">08:30</option>
                             <option value="09:00">09:00</option>
                             <option value="09:30">09:30</option>
@@ -1702,10 +1730,6 @@ export default function Timeline({
                             <option value="10:30">10:30</option>
                             <option value="11:00">11:00</option>
                             <option value="11:30">11:30</option>
-                            <option value="13:30">13:30</option>
-                            <option value="14:00">14:00</option>
-                            <option value="14:30">14:30</option>
-                            <option value="15:00">15:00</option>
                           </select>
                           <button
                             type="button"
@@ -1716,7 +1740,70 @@ export default function Timeline({
                                 triggerToast("Sélectionnez d'abord une date !");
                                 return;
                               }
-                              const res = await rescheduleAppointment(dossierId, dateEl.value, timeEl.value);
+
+                              const newDateObj = new Date(dateEl.value);
+                              if (isNaN(newDateObj.getTime())) {
+                                triggerToast("Format de date invalide !");
+                                return;
+                              }
+
+                              // Validation par rapport à la date du mariage
+                              const MOIS_LOCAL: Record<string, number> = {
+                                janvier: 0, février: 1, mars: 2, avril: 3, mai: 4, juin: 5,
+                                juillet: 6, août: 7, septembre: 8, octobre: 9, novembre: 10, décembre: 11
+                              };
+                              let wDate = new Date();
+                              let hasWDate = false;
+                              const match = currentDossier?.wedding_date?.match(/^(\d{1,2})\s+([a-zéûî]+)\s+(\d{4})/i);
+                              if (match) {
+                                const day = parseInt(match[1], 10);
+                                const monthKey = match[2].toLowerCase();
+                                const year = parseInt(match[3], 10);
+                                const monthIdx = MOIS_LOCAL[monthKey];
+                                if (monthIdx !== undefined) {
+                                  wDate = new Date(year, monthIdx, day);
+                                  hasWDate = true;
+                                }
+                              }
+
+                              if (hasWDate) {
+                                const diffTime = wDate.getTime() - newDateObj.getTime();
+                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                if (diffDays < 10 || diffDays > 30) {
+                                  triggerToast("La date du rendez-vous doit se situer entre 10 et 30 jours avant le mariage !");
+                                  return;
+                                }
+                              }
+
+                              // Validation jours ouvrables (Lundi à Vendredi)
+                              const dayOfWeek = newDateObj.getDay();
+                              if (dayOfWeek === 0 || dayOfWeek === 6) {
+                                triggerToast("Les rendez-vous de dépôt se font uniquement du Lundi au Vendredi !");
+                                return;
+                              }
+
+                              // Validation jours fériés ivoiriens
+                              const year = newDateObj.getFullYear();
+                              const holidays = getIvorianHolidays(year);
+                              const dateKey = `${newDateObj.getDate().toString().padStart(2, '0')}/${(newDateObj.getMonth() + 1).toString().padStart(2, '0')}`;
+                              const holidayNames = Object.keys(holidays);
+                              const isHoliday = holidayNames.some(h => {
+                                if (h.includes('/')) return h === dateKey;
+                                const isoStr = newDateObj.toISOString().split('T')[0];
+                                return h === isoStr;
+                              });
+                              if (isHoliday) {
+                                triggerToast("Le jour choisi est un jour férié officiel !");
+                                return;
+                              }
+
+                              // Formater au format DD/MM/YYYY
+                              const dd = String(newDateObj.getDate()).padStart(2, '0');
+                              const mm = String(newDateObj.getMonth() + 1).padStart(2, '0');
+                              const yyyy = newDateObj.getFullYear();
+                              const formattedDateStr = `${dd}/${mm}/${yyyy}`;
+
+                              const res = await rescheduleAppointment(dossierId, formattedDateStr, timeEl.value);
                               if (res.success) {
                                 triggerToast("Rendez-vous reprogrammé avec succès !");
                                 const dbDossiers = await getDossiers();
@@ -1725,7 +1812,7 @@ export default function Timeline({
                                 triggerToast(res.error || "Erreur de reprogrammation.");
                               }
                             }}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer animate-pulse"
                           >
                             Valider
                           </button>

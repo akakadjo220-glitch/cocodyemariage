@@ -110,6 +110,7 @@ export default function App() {
   const [appointmentDate, setAppointmentDate] = useState<string | null>(null);
 
   // Application Data States
+  const [dossierDetails, setDossierDetails] = useState<DossierInfo | null>(null);
   const [documents, setDocuments] = useState<DocumentInfo[]>(INITIAL_DOCUMENTS);
   const [timelineSteps, setTimelineSteps] = useState<TimelineStep[]>(INITIAL_TIMELINE_STEPS);
   const [notifications, setNotifications] = useState<AlertNotification[]>(INITIAL_NOTIFICATIONS);
@@ -217,6 +218,7 @@ export default function App() {
       try {
         const dossier = await getDossierById(dossierId);
         if (dossier) {
+          setDossierDetails(dossier);
           setSpouse1Name(dossier.spouse1_name);
           setSpouse2Name(dossier.spouse2_name);
           setSpouse1Phone(dossier.spouse1_phone || '');
@@ -539,16 +541,16 @@ export default function App() {
     } else {
       setSpouse1Name(spouse1);
       setSpouse2Name(spouse2);
-      setSpouse1Phone(phone1 || '');
-      setSpouse2Phone(phone2 || '');
-      setSpouse1Email(email1 || '');
-      setSpouse2Email(email2 || '');
-      setSpouse1Birthdate(birthdate1 || '');
-      setSpouse2Birthdate(birthdate2 || '');
-      setSpouse1Cni(cni1 || '');
-      setSpouse2Cni(cni2 || '');
-      setSpouse1CniType(cniType1 || 'CNI');
-      setSpouse2CniType(cniType2 || 'CNI');
+      if (phone1 !== undefined) setSpouse1Phone(phone1);
+      if (phone2 !== undefined) setSpouse2Phone(phone2);
+      if (email1 !== undefined) setSpouse1Email(email1);
+      if (email2 !== undefined) setSpouse2Email(email2);
+      if (birthdate1 !== undefined) setSpouse1Birthdate(birthdate1);
+      if (birthdate2 !== undefined) setSpouse2Birthdate(birthdate2);
+      if (cni1 !== undefined) setSpouse1Cni(cni1);
+      if (cni2 !== undefined) setSpouse2Cni(cni2);
+      if (cniType1 !== undefined) setSpouse1CniType(cniType1);
+      if (cniType2 !== undefined) setSpouse2CniType(cniType2);
       await updateDossierSpouseNames(activeId, spouse1, spouse2, phone1, phone2, email1, email2, birthdate1, birthdate2, cni1, cni2, cniType1, cniType2);
       if (spouse1.trim() && spouse2.trim()) {
         await updateStepStatus(1, 'completed');
@@ -651,6 +653,27 @@ export default function App() {
 
   // Switch tabs cleanly with page triggers
   const setTab = (tabId: string) => {
+    if (tabId === 'dossier') {
+      const isDocDone = (id: string) => {
+        const d = documents.find(doc => doc.id === id);
+        return d && d.status === 'verified';
+      };
+
+      const isEpouxFaceDone = dossierDetails?.epoux_identite_verifiee === true || (dossierDetails?.epoux_face_attempts ?? 0) >= 3;
+      const isEpouseFaceDone = dossierDetails?.epouse_identite_verifiee === true || (dossierDetails?.epouse_face_attempts ?? 0) >= 3;
+
+      let firstUnfinished = 1;
+      if (!isDocDone('doc1')) firstUnfinished = 1;
+      else if (!isEpouxFaceDone) firstUnfinished = 2;
+      else if (!isDocDone('doc2')) firstUnfinished = 3;
+      else if (!isDocDone('doc1_f')) firstUnfinished = 4;
+      else if (!isEpouseFaceDone) firstUnfinished = 5;
+      else if (!isDocDone('doc2_f')) firstUnfinished = 6;
+      else if (!isDocDone('doc3') || !isDocDone('doc3_f') || !isDocDone('doc5') || !isDocDone('doc9')) firstUnfinished = 7;
+      else firstUnfinished = 8;
+
+      setDossierActiveStep(firstUnfinished);
+    }
     setCurrentTab(tabId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -809,6 +832,10 @@ export default function App() {
                 onUpdateNames={handleUpdateNames}
                 activeStep={dossierActiveStep}
                 setActiveStep={setDossierActiveStep}
+                selectedMairieId={selectedMairieId}
+                selectedMairieName={selectedMairieName}
+                weddingDate={weddingDate}
+                onWeddingDateSelected={handleWeddingDateSelected}
               />
             )}
 

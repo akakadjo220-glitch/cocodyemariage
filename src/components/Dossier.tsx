@@ -149,6 +149,10 @@ interface DossierProps {
   ) => void;
   activeStep: number;
   setActiveStep: (step: number) => void;
+  selectedMairieId?: string | null;
+  selectedMairieName?: string | null;
+  weddingDate?: string;
+  onWeddingDateSelected?: (dateStr: string) => void;
 }
 
 export default function Dossier({
@@ -167,7 +171,11 @@ export default function Dossier({
   spouse2CniType = 'CNI',
   onUpdateNames,
   activeStep,
-  setActiveStep
+  setActiveStep,
+  selectedMairieId,
+  selectedMairieName,
+  weddingDate,
+  onWeddingDateSelected
 }: DossierProps) {
   const [dossierDetails, setDossierDetails] = useState<DossierInfo | null>(null);
 
@@ -235,6 +243,29 @@ export default function Dossier({
   const [isAnalyzingSelfie, setIsAnalyzingSelfie] = useState(false);
   const [selfieStatus, setSelfieStatus] = useState('');
   const [selfieError, setSelfieError] = useState<string | null>(null);
+  const fileSelfieInputRef = useRef<HTMLInputElement>(null);
+
+  const handleMobileSelfieFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setSelfieError("Veuillez choisir un fichier image (JPG, PNG).");
+      return;
+    }
+
+    setSelfieError(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (base64) {
+        setCapturedSelfieBase64(base64);
+        stopWebcam();
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // CNI Recto/Verso flow states
   const [cniRectoBase64, setCniRectoBase64] = useState<string | null>(null);
@@ -512,19 +543,23 @@ export default function Dossier({
     return true;
   };
 
-  // Initialisation à la première étape non complétée lors du premier chargement du dossier
+  // Initialisation à la première étape non complétée uniquement au chargement initial si aucune étape spécifique n'est demandée
+  const hasInitializedRef = useRef(false);
   useEffect(() => {
-    if (spouse1Name && spouse2Name && dossierId) {
-      let initialStep = 1;
-      if (!isStepCompleted(1)) initialStep = 1;
-      else if (!isStepCompleted(2)) initialStep = 2;
-      else if (!isStepCompleted(3)) initialStep = 3;
-      else if (!isStepCompleted(4)) initialStep = 4;
-      else if (!isStepCompleted(5)) initialStep = 5;
-      else if (!isStepCompleted(6)) initialStep = 6;
-      else if (!isStepCompleted(7)) initialStep = 7;
-      else if (!isStepCompleted(8)) initialStep = 8;
-      setActiveStep(initialStep);
+    if (!hasInitializedRef.current && spouse1Name && spouse2Name && dossierId) {
+      hasInitializedRef.current = true;
+      if (!activeStep || activeStep === 1) {
+        let initialStep = 1;
+        if (!isStepCompleted(1)) initialStep = 1;
+        else if (!isStepCompleted(2)) initialStep = 2;
+        else if (!isStepCompleted(3)) initialStep = 3;
+        else if (!isStepCompleted(4)) initialStep = 4;
+        else if (!isStepCompleted(5)) initialStep = 5;
+        else if (!isStepCompleted(6)) initialStep = 6;
+        else if (!isStepCompleted(7)) initialStep = 7;
+        else if (!isStepCompleted(8)) initialStep = 8;
+        setActiveStep(initialStep);
+      }
     }
   }, [dossierId]); // Déclenché uniquement lors du chargement initial ou changement de dossier
 
@@ -671,9 +706,14 @@ export default function Dossier({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' }
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+      } catch (firstErr) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       setWebcamStream(stream);
       setWebcamActive(true);
       requestAnimationFrame(() => {
@@ -685,11 +725,11 @@ export default function Dossier({
       console.warn("Webcam not accessible:", err);
       const errName = err?.name || '';
       if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-        setSelfieError("L'accès à la caméra a été refusé. Autorisez la caméra dans les paramètres de votre navigateur.");
+        setSelfieError("L'accès direct à la caméra est bloqué par votre navigateur. Cliquez sur le bouton ci-dessous pour prendre une photo avec votre téléphone.");
       } else if (errName === 'NotFoundError') {
-        setSelfieError("Aucune caméra frontale trouvée sur cet appareil.");
+        setSelfieError("Aucune caméra en direct détectée. Cliquez sur le bouton ci-dessous pour prendre ou importer votre selfie.");
       } else {
-        setSelfieError("Impossible d'accéder à votre webcam. Vérifiez les permissions de votre navigateur et autorisez l'accès à la caméra.");
+        setSelfieError("Accès webcam indisponible. Cliquez sur le bouton ci-dessous pour utiliser l'appareil photo de votre téléphone.");
       }
     }
   };
@@ -980,6 +1020,9 @@ export default function Dossier({
       const dateFormatted = new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
       const fullDate = `${dateFormatted} à ${chosenTime.replace(':', 'h')}`;
       await updateDossierWeddingDate(dossierId, fullDate);
+      if (onWeddingDateSelected) {
+        onWeddingDateSelected(fullDate);
+      }
       addNotification(`Date de célébration réservée pour le : ${fullDate}`, 'success');
       await fetchDossierDetails();
     } catch (err) {
@@ -1230,7 +1273,7 @@ export default function Dossier({
               {/* Téléphone — mêmes sécurités que le popup */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-slate-700">Tél. époux 1</label>
+                  <label className="font-bold text-slate-700">Tél. Époux</label>
                   <input
                     type="text"
                     value={phone1}
@@ -1247,7 +1290,7 @@ export default function Dossier({
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-slate-700">Tél. épouse 2</label>
+                  <label className="font-bold text-slate-700">Tél. Épouse</label>
                   <input
                     type="text"
                     value={phone2}
@@ -1269,7 +1312,7 @@ export default function Dossier({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-slate-700">Type de pièce époux 1 *</label>
+                  <label className="font-bold text-slate-700">Type de pièce Époux *</label>
                   <select value={cniType1} onChange={e => setCniType1(e.target.value as any)}
                     className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold transition-all">
                     <option value="CNI">CNI</option>
@@ -1278,7 +1321,7 @@ export default function Dossier({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-slate-700">Type de pièce époux 2 *</label>
+                  <label className="font-bold text-slate-700">Type de pièce Épouse *</label>
                   <select value={cniType2} onChange={e => setCniType2(e.target.value as any)}
                     className="border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50/55 w-full focus:outline-none focus:border-primary text-xs font-semibold transition-all">
                     <option value="CNI">CNI</option>
@@ -1289,7 +1332,7 @@ export default function Dossier({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-slate-700">N° Pièce époux 1 *</label>
+                  <label className="font-bold text-slate-700">N° Pièce Époux *</label>
                   <input
                     type="text"
                     value={cni1}
@@ -1311,7 +1354,7 @@ export default function Dossier({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-slate-700">N° Pièce époux 2 *</label>
+                  <label className="font-bold text-slate-700">N° Pièce Épouse *</label>
                   <input
                     type="text"
                     value={cni2}
@@ -1664,11 +1707,30 @@ export default function Dossier({
               </div>
             )}
 
+            {/* Hidden Mobile Camera Input */}
+            <input
+              ref={fileSelfieInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              className="hidden"
+              onChange={handleMobileSelfieFileChange}
+            />
+
             {/* Error or Status banner */}
             {selfieError && (
-              <div className="w-full p-3 bg-rose-50 border border-rose-100 rounded-xl text-[11px] text-rose-900 font-semibold leading-relaxed flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span>{selfieError}</span>
+              <div className="w-full p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-semibold leading-relaxed flex flex-col gap-2.5">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>{selfieError}</span>
+                </div>
+                <button
+                  onClick={() => fileSelfieInputRef.current?.click()}
+                  className="w-full py-2.5 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <Camera className="w-4 h-4 text-accent" />
+                  <span>📱 Prendre ma photo (Appareil Téléphone / Galerie)</span>
+                </button>
               </div>
             )}
 
@@ -1685,9 +1747,16 @@ export default function Dossier({
             <div className="flex flex-wrap gap-2.5 justify-center w-full mt-1">
               {!webcamActive && !capturedSelfieBase64 && !isAnalyzingSelfie && (
                 <>
-                  <button onClick={startWebcam} className="px-5 py-2.5 bg-primary text-white border border-primary/20 rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                  <button onClick={startWebcam} className="px-4 py-2.5 bg-primary text-white border border-primary/20 rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
                     <Camera className="w-4 h-4 text-accent" />
                     <span>Activer ma webcam</span>
+                  </button>
+                  <button
+                    onClick={() => fileSelfieInputRef.current?.click()}
+                    className="px-4 py-2.5 bg-slate-800 text-white border border-slate-700 rounded-xl font-sans text-xs font-bold hover:bg-slate-900 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <UploadCloud className="w-4 h-4 text-accent" />
+                    <span>📱 Photo Téléphone / Selfie</span>
                   </button>
                   <button
                     onClick={async () => {
@@ -2137,6 +2206,14 @@ export default function Dossier({
                   </div>
                 ) : (
                   <form onSubmit={handleBookingSubmit} className="space-y-5 bg-white p-6 rounded-2xl border border-neutral-200 shadow-md max-w-lg text-left">
+                    <div className="p-3 bg-[#fdfbf7] border border-[#c5a368]/30 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 shadow-sm mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🏛️</span>
+                        <span className="font-bold text-slate-800">{selectedMairieName || dossierDetails?.mairie_nom || 'Mairie de Cocody'}</span>
+                      </div>
+                      <span className="text-[10px] text-primary bg-primary/10 px-2.5 py-0.5 rounded-full font-bold uppercase">Salle de l'Union</span>
+                    </div>
+
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Date de célébration souhaitée</label>
                       <div className="p-1 bg-neutral-50 rounded-xl border border-neutral-200">

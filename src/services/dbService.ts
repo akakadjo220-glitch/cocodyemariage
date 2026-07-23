@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { Partner, DocumentInfo, TimelineStep, AlertNotification, PartnerContact, PaystackConfig, PaymentInfo, SentNotificationLog, OppositionInfo, AiConfig, AiAnalysisResult, TavilyAnalysisResult } from '../types';
 import { parseAndValidateMrz, extractMrzLinesFromText, isFuzzyWordMatch, levenshteinDistance } from './mrzService';
+import { getIvorianHolidays } from '../utils/calendarReservationUtils';
 import {
   INITIAL_PARTNERS,
   INITIAL_DOCUMENTS,
@@ -628,22 +629,25 @@ export async function updateDossierSpouseNames(
   cniType2?: 'CNI' | 'PASSEPORT'
 ): Promise<boolean> {
   try {
+    const updateData: Record<string, any> = {
+      spouse1_name: spouse1,
+      spouse2_name: spouse2
+    };
+
+    if (phone1 !== undefined) updateData.spouse1_phone = phone1 || null;
+    if (phone2 !== undefined) updateData.spouse2_phone = phone2 || null;
+    if (email1 !== undefined) updateData.spouse1_email = email1 || null;
+    if (email2 !== undefined) updateData.spouse2_email = email2 || null;
+    if (birthdate1 !== undefined) updateData.spouse1_birthdate = birthdate1 || null;
+    if (birthdate2 !== undefined) updateData.spouse2_birthdate = birthdate2 || null;
+    if (cni1 !== undefined) updateData.spouse1_cni = cni1 || null;
+    if (cni2 !== undefined) updateData.spouse2_cni = cni2 || null;
+    if (cniType1 !== undefined) updateData.spouse1_cni_type = cniType1 || 'CNI';
+    if (cniType2 !== undefined) updateData.spouse2_cni_type = cniType2 || 'CNI';
+
     const { error } = await supabase
       .from('dossiers')
-      .update({
-        spouse1_name: spouse1,
-        spouse2_name: spouse2,
-        spouse1_phone: phone1 || null,
-        spouse2_phone: phone2 || null,
-        spouse1_email: email1 || null,
-        spouse2_email: email2 || null,
-        spouse1_birthdate: birthdate1 || null,
-        spouse2_birthdate: birthdate2 || null,
-        spouse1_cni: cni1 || null,
-        spouse2_cni: cni2 || null,
-        spouse1_cni_type: cniType1 || null,
-        spouse2_cni_type: cniType2 || null
-      })
+      .update(updateData)
       .eq('id', id);
 
     if (error) {
@@ -652,36 +656,28 @@ export async function updateDossierSpouseNames(
         .from('dossiers')
         .update({
           spouse1_name: spouse1,
-          spouse2_name: spouse2,
-          spouse1_phone: phone1 || null,
-          spouse2_phone: phone2 || null,
-          spouse1_email: email1 || null,
-          spouse2_email: email2 || null,
-          spouse1_birthdate: birthdate1 || null,
-          spouse2_birthdate: birthdate2 || null,
-          spouse1_cni: cni1 || null,
-          spouse2_cni: cni2 || null
+          spouse2_name: spouse2
         })
         .eq('id', id);
       if (basicErr) throw basicErr;
     }
+
+    if (spouse1 && spouse2) {
+      await sauvegarderVecteurProfilDossier(
+        id,
+        spouse1,
+        birthdate1 || '',
+        cni1 || '',
+        spouse2,
+        birthdate2 || '',
+        cni2 || ''
+      );
+    }
+    return true;
   } catch (err) {
     console.warn(`Supabase: Failed to update spouse names for dossier ${id}.`, err);
     return false;
   }
-
-  if (spouse1 && spouse2) {
-    await sauvegarderVecteurProfilDossier(
-      id,
-      spouse1,
-      birthdate1 || '',
-      cni1 || '',
-      spouse2,
-      birthdate2 || '',
-      cni2 || ''
-    );
-  }
-  return true;
 }
 
 export async function updateDossierMairie(id: string, mairieId: string): Promise<boolean> {
@@ -784,6 +780,108 @@ export function computeRdvFromWeddingDate(weddingDateStr: string, delayDays: num
   } catch {
     return null;
   }
+}
+
+export async function attribuerAutomatiquementRdv(
+  weddingDateStr: string,
+  mairieId: string
+): Promise<{ date: string; heure: string }> {
+  const MOIS: Record<string, number> = {
+    janvier: 0, février: 1, mars: 2, avril: 3, mai: 4, juin: 5,
+    juillet: 6, août: 7, septembre: 8, octobre: 9, novembre: 10, décembre: 11
+  };
+  
+  let wDate = new Date();
+  try {
+    const match = weddingDateStr.match(/^(\d{1,2})\s+([a-zéûî]+)\s+(\d{4})/i);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const monthKey = match[2].toLowerCase();
+      const year = parseInt(match[3], 10);
+      const monthIdx = MOIS[monthKey];
+      if (monthIdx !== undefined) {
+        wDate = new Date(year, monthIdx, day);
+      }
+    }
+  } catch (err) {
+    console.error("Error parsing wedding date for appointment: ", err);
+  }
+
+  const params = await getSystemParameters();
+  const limit = params.quota_rdv_physiques_journalier || 5;
+  const allDossiers = await getDossiers();
+
+  let selectedDate: Date | null = null;
+  let minRdvCount = Infinity;
+  let leastBusyDate: Date | null = null;
+
+  // Plage légale : de Mariage - 30 jours à Mariage - 10 jours
+  for (let i = 10; i <= 30; i++) {
+    const testDate = new Date(wDate.getTime());
+    testDate.setDate(wDate.getDate() - i);
+
+    const dayOfWeek = testDate.getDay(); // 0 = Sunday, 6 = Saturday
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Pas de rdv le week-end
+
+    // Exclure les jours fériés ivoiriens
+    const year = testDate.getFullYear();
+    const holidays = getIvorianHolidays(year);
+    const dateKey = `${testDate.getDate().toString().padStart(2, '0')}/${(testDate.getMonth() + 1).toString().padStart(2, '0')}`;
+    const holidayNames = Object.keys(holidays);
+    const isHoliday = holidayNames.some(h => {
+      if (h.includes('/')) return h === dateKey;
+      const isoStr = testDate.toISOString().split('T')[0];
+      return h === isoStr;
+    });
+    if (isHoliday) continue;
+
+    const dd = String(testDate.getDate()).padStart(2, '0');
+    const mm = String(testDate.getMonth() + 1).padStart(2, '0');
+    const yyyy = testDate.getFullYear();
+    const testDateStr = `${dd}/${mm}/${yyyy}`;
+
+    const rdvCount = allDossiers.filter(d => {
+      if (d.status === 'rejected' || d.statut === 'ANNULE' || d.statut === 'EXPIRE' || d.statut === 'REJETE') return false;
+      if (d.mairie_id !== mairieId) return false;
+      return d.date_rendezvous === testDateStr || d.appointment_date === testDateStr;
+    }).length;
+
+    if (rdvCount < limit) {
+      selectedDate = testDate;
+      break;
+    }
+
+    if (rdvCount < minRdvCount) {
+      minRdvCount = rdvCount;
+      leastBusyDate = testDate;
+    }
+  }
+
+  if (!selectedDate) {
+    selectedDate = leastBusyDate || new Date(wDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+  }
+
+  const finalDd = String(selectedDate.getDate()).padStart(2, '0');
+  const finalMm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+  const finalYyyy = selectedDate.getFullYear();
+  const appointmentDateStr = `${finalDd}/${finalMm}/${finalYyyy}`;
+
+  const existingRdvCount = allDossiers.filter(d => {
+    if (d.status === 'rejected' || d.statut === 'ANNULE' || d.statut === 'EXPIRE' || d.statut === 'REJETE') return false;
+    if (d.mairie_id !== mairieId) return false;
+    return d.date_rendezvous === appointmentDateStr || d.appointment_date === appointmentDateStr;
+  }).length;
+
+  // Staggering (échelonnement) des heures : matins uniquement (08h00 - 12h00)
+  // 08:00, 08:30, 09:00, 09:30, 10:00, 10:30, 11:00, 11:30
+  const startHour = 8;
+  const intervalMin = 30;
+  const totalMin = startHour * 60 + (existingRdvCount % 8) * intervalMin;
+  const hour = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  const appointmentTimeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+
+  return { date: appointmentDateStr, heure: appointmentTimeStr };
 }
 
 /**
@@ -1141,13 +1239,13 @@ export async function updateDocumentInDb(
   try {
     const dbKey = docId.includes(dossierId) ? docId : `${dossierId}_${docId}`;
     const currentDocs = await getDocuments(dossierId);
-    const doc = currentDocs.find(d => d.id === docId) || INITIAL_DOCUMENTS.find(d => d.id === docId) || {
+    const doc = (currentDocs.find(d => d.id === docId) || INITIAL_DOCUMENTS.find(d => d.id === docId) || {
       id: docId,
       name: fileName ? fileName.replace(/\.[^/.]+$/, "").replace(/_/g, " ") : "Document spécifique",
       description: "Document supplémentaire téléversé par l'utilisateur",
       category: 'special',
       icon: 'FileText'
-    };
+    }) as DocumentInfo;
 
     const cleanFileName = fileName !== undefined ? fileName : (doc.fileName || null);
     const finalDocNumber = docNumber !== undefined ? docNumber : (doc.docNumber || null);
@@ -3014,8 +3112,8 @@ export function croiserDonneesScriptInterne(
   // 1. Check Document Type Mismatch (CNI vs PASSEPORT)
   const declaredType = (donneesDeclarees.type_piece || '').toUpperCase();
   const extractedType = (typeDocumentExtrait || infosExtraites?.type_document || '').toUpperCase();
-  const isDocPassport = extractedType.includes('PASS') || rawOcrTextFull.includes('PASSEPORT') || rawOcrTextFull.includes('PASSPORT') || mrzRes.typeDocument === 'PASSEPORT';
-  const isDocCni = extractedType.includes('CNI') || extractedType.includes('CARTE') || rawOcrTextFull.includes('CARTE NATIONALE') || rawOcrTextFull.includes('IDENTITY CARD') || mrzRes.typeDocument === 'CNI';
+  const isDocPassport = extractedType.includes('PASS') || rawOcrTextFull.includes('PASSEPORT') || rawOcrTextFull.includes('PASSPORT') || (mrzRes.typeDocument as string) === 'PASSEPORT';
+  const isDocCni = extractedType.includes('CNI') || extractedType.includes('CARTE') || rawOcrTextFull.includes('CARTE NATIONALE') || rawOcrTextFull.includes('IDENTITY CARD') || (mrzRes.typeDocument as string) === 'CNI';
 
   if (declaredType === 'PASSEPORT' && isDocCni && !isDocPassport) {
     anomalies.push(`Type de pièce non conforme : Un PASSEPORT a été déclaré, mais une Carte d'Identité (CNI) a été fournie.`);
@@ -5327,6 +5425,7 @@ export interface SystemParameters {
   nombre_reprogrammations_limite: number;
   remboursement_absence: boolean;
   quota_max_journalier?: number;
+  quota_rdv_physiques_journalier?: number;
 }
 
 const DEFAULT_PARAMETERS: SystemParameters = {
@@ -5335,7 +5434,8 @@ const DEFAULT_PARAMETERS: SystemParameters = {
   rdv_delai_defaut: 15,
   nombre_reprogrammations_limite: 3,
   remboursement_absence: false,
-  quota_max_journalier: 15
+  quota_max_journalier: 15,
+  quota_rdv_physiques_journalier: 5
 };
 
 // Salles CRUD
@@ -5621,14 +5721,13 @@ export async function confirmPaystackReservationPayment(
     const dossier = await getDossierById(dossierId);
     if (!dossier) return false;
 
-    const params = await getSystemParameters();
-    const delayDays = params.rdv_delai_defaut || 15;
-
     let appointmentDateStr: string | null = null;
     let appointmentTimeStr = "09:00";
 
     if (dossier.wedding_date) {
-      appointmentDateStr = computeRdvFromWeddingDate(dossier.wedding_date, delayDays);
+      const autoRdv = await attribuerAutomatiquementRdv(dossier.wedding_date, dossier.mairie_id);
+      appointmentDateStr = autoRdv.date;
+      appointmentTimeStr = autoRdv.heure;
     }
 
     const { error } = await supabase
@@ -5641,6 +5740,7 @@ export async function confirmPaystackReservationPayment(
         recu_url_pdf: `/receipts/receipt_${dossierId}.pdf`,
         date_rendezvous: appointmentDateStr,
         heure_rendezvous: appointmentTimeStr,
+        appointment_date: appointmentDateStr,
         rendezvous_confirme: false,
         statut: 'VALIDE'
       })

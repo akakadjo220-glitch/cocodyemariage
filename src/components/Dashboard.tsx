@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Mail, FolderOpen, ChevronRight, Hourglass, Info, Bell, Send, CheckCircle2, Award, Sparkles, Edit3, Copy, Check, Clock, Building, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
 import { AlertNotification, DocumentInfo, Partner } from '../types';
-import { getPartners, getMairies, MairieInfo, deletePartnerContactInDb, getPaymentForDossier } from '../services/dbService';
+import { getPartners, getMairies, MairieInfo, deletePartnerContactInDb, getPaymentForDossier, getDossierById } from '../services/dbService';
 import MarriageReceiptModal from './MarriageReceiptModal';
 
 const getSimulatedQuote = (category: string, isCFA: boolean) => {
@@ -96,18 +96,25 @@ export default function Dashboard({
   const [mairies, setMairies] = useState<MairieInfo[]>([]);
   const [hasPaid, setHasPaid] = useState<boolean>(false);
   const [showReceipt, setShowReceipt] = useState<boolean>(false);
+  const [rdvConfirme, setRdvConfirme] = useState<boolean>(false);
+  const [rdvHeure, setRdvHeure] = useState<string>("09:00");
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [dbPartners, dbMairies, dbPayment] = await Promise.all([
+        const [dbPartners, dbMairies, dbPayment, dbDossier] = await Promise.all([
           getPartners(dossierId),
           getMairies(),
-          dossierId ? getPaymentForDossier(dossierId) : Promise.resolve(null)
+          dossierId ? getPaymentForDossier(dossierId) : Promise.resolve(null),
+          dossierId ? getDossierById(dossierId) : Promise.resolve(null)
         ]);
         setPartners(dbPartners);
         setMairies(dbMairies);
         setHasPaid(dbPayment !== null);
+        if (dbDossier) {
+          setRdvConfirme(dbDossier.rendezvous_confirme === true);
+          setRdvHeure(dbDossier.heure_rendezvous || "09:00");
+        }
       } catch (e) {
         console.error("Error loading partners/mairies in Dashboard", e);
       }
@@ -539,7 +546,14 @@ export default function Dashboard({
                         <Clock className="w-3 h-3 text-primary shrink-0" /> RDV Mairie
                       </span>
                       <span className="font-sans font-bold text-[11px] text-slate-800 mt-1">
-                        {appointmentDate}
+                        {(() => {
+                          const parts = appointmentDate.split('/');
+                          if (parts.length === 3) {
+                            const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                            return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' à ' + (rdvHeure || "09:00");
+                          }
+                          return appointmentDate;
+                        })()}
                       </span>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-rose-50 border border-accent/20 flex items-center justify-center text-primary">
@@ -549,6 +563,80 @@ export default function Dashboard({
                 )}
               </div>
             </div>
+            
+            {appointmentDate && (
+              <div className="mt-6 p-6 bg-gradient-to-br from-primary/5 to-primary-container/5 border border-primary/20 rounded-2xl flex flex-col gap-4 text-left shadow-sm animate-fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-primary/10 text-primary rounded-full flex items-center justify-center shrink-0 shadow-sm">
+                      <Building className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif text-sm font-bold text-slate-800">
+                        Dépôt Physique de votre Dossier
+                      </h4>
+                      <p className="font-sans text-[11px] text-slate-500 mt-0.5 leading-relaxed font-semibold">
+                        Votre rendez-vous d'instruction en mairie est programmé.
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`self-start sm:self-auto px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    rdvConfirme 
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                      : 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
+                  }`}>
+                    {rdvConfirme ? "✅ Dépôt Validé" : "⏳ En attente de dépôt"}
+                  </span>
+                </div>
+
+                <div className="p-4 bg-white/70 border border-neutral-100 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-sans">
+                  <div>
+                    <span className="text-slate-400 uppercase tracking-widest text-[9px] font-bold block">Date du rendez-vous</span>
+                    <span className="font-bold text-slate-800 text-sm mt-0.5 block font-sans">
+                      {(() => {
+                        const parts = appointmentDate.split('/');
+                        if (parts.length === 3) {
+                          const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                          return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                        }
+                        return appointmentDate;
+                      })()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 uppercase tracking-widest text-[9px] font-bold block">Heure de convocation</span>
+                    <span className="font-bold text-slate-800 text-sm mt-0.5 block">🕒 {rdvHeure || "09:00"} (Matin uniquement)</span>
+                  </div>
+                </div>
+
+                <div className="border-t border-neutral-100 pt-4 font-sans text-xs">
+                  <span className="font-bold text-slate-700 block mb-3">
+                    📁 Pièces justificatives à apporter physiquement :
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-655 font-medium">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Originaux et copies des pièces d'identité (CNI/Passeport)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Extraits de naissance certifiés (datant de moins de 3 mois)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Copies des pièces d'identité des témoins</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Reçu de paiement imprimé des frais de réservation (2500 FCFA)</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 italic mt-4">
+                    ⚠️ Les deux conjoints doivent obligatoirement se présenter ensemble le jour du rendez-vous munis de ce dossier papier complet.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Prestataires d'Exception Section */}
@@ -796,12 +884,22 @@ export default function Dashboard({
           </div>
 
           {/* Notifications Centre */}
-          <div className="bg-white rounded-2xl border border-accent/25 p-6 shadow-md shadow-slate-100/50 flex-grow">
-            <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-2">
-              <h4 className="font-serif text-base font-bold text-slate-900 select-none">
-                Notifications Civiles
-              </h4>
-              <Bell className="w-4 h-4 text-slate-400" />
+          <div className="bg-white rounded-2xl border border-accent/25 p-6 shadow-md shadow-slate-100/50 flex-grow flex flex-col min-h-0">
+            <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-slate-400" />
+                <h4 className="font-serif text-base font-bold text-slate-900 select-none">
+                  Notifications Civiles
+                </h4>
+              </div>
+              {displayNotifications.length > 0 && (
+                <button
+                  onClick={() => displayNotifications.forEach(n => removeNotification(n.id))}
+                  className="text-[10px] font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg px-2 py-0.5 transition-all cursor-pointer border border-slate-200/60"
+                >
+                  Tout effacer
+                </button>
+              )}
             </div>
 
             {displayNotifications.length === 0 ? (
@@ -809,34 +907,36 @@ export default function Dashboard({
                 Pas de nouvelles notifications.
               </p>
             ) : (
-              <div className="relative pl-4 border-l-2 border-accent/20 space-y-5 text-left">
-                {displayNotifications.map((notif) => {
-                  const colorClass = 
-                    notif.type === 'warning' ? 'bg-amber-500' :
-                    notif.type === 'success' ? 'bg-emerald-500' : 'bg-primary';
+              <div className="max-h-[320px] overflow-y-auto pr-2 scrollbar-thin">
+                <div className="relative pl-4 border-l-2 border-accent/20 space-y-4 text-left py-1">
+                  {displayNotifications.map((notif) => {
+                    const colorClass = 
+                      notif.type === 'warning' ? 'bg-amber-500' :
+                      notif.type === 'success' ? 'bg-emerald-500' : 'bg-primary';
 
-                  return (
-                    <div key={notif.id} className="relative group/item">
-                      <span 
-                        className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full ${colorClass} ring-4 ring-white`} 
-                      />
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-sans text-[11px] font-medium text-slate-800 leading-normal">
-                          {notif.text}
+                    return (
+                      <div key={notif.id} className="relative group/item">
+                        <span 
+                          className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full ${colorClass} ring-4 ring-white`} 
+                        />
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-sans text-[11px] font-medium text-slate-800 leading-normal">
+                            {notif.text}
+                          </p>
+                          <button 
+                            onClick={() => removeNotification(notif.id)}
+                            className="text-[9px] font-bold text-red-650 hover:bg-red-50 rounded px-1.5 py-0.5 shrink-0 cursor-pointer transition-all border border-red-200/30"
+                          >
+                            Effacer
+                          </button>
+                        </div>
+                        <p className="font-sans text-[9px] text-slate-400 mt-1 font-semibold">
+                          {notif.time}
                         </p>
-                        <button 
-                          onClick={() => removeNotification(notif.id)}
-                          className="text-[9px] font-bold text-red-650 hover:bg-red-50 rounded px-1.5 py-0.5 shrink-0 cursor-pointer transition-all border border-red-200/30"
-                        >
-                          Effacer
-                        </button>
                       </div>
-                      <p className="font-sans text-[9px] text-slate-400 mt-1 font-semibold">
-                        {notif.time}
-                      </p>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

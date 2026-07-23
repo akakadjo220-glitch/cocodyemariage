@@ -51,18 +51,7 @@ export const useVerifierDoublon = (
         }
       }
 
-      if (type === 'cni' && cniType === 'CNI') {
-        const formatCNI = /^CI[0-9]{10}$/i;
-        if (!formatCNI.test(cleanedVal)) {
-          setStatut('invalide');
-          setMessage(
-            '⚠️ Format de CNI invalide.\n' +
-            'Format attendu : CI + 10 chiffres\n' +
-            'Ex: CI0012345678'
-          );
-          return;
-        }
-      }
+
 
       try {
         const fn = type === 'telephone' ? 'verifier_telephone' : 'verifier_numero_piece';

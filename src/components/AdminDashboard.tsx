@@ -148,6 +148,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   const [paramTimbrePrice, setParamTimbrePrice] = useState<number>(100000);
   const [paramRescheduleLimit, setParamRescheduleLimit] = useState<number>(3);
   const [paramDailyWeddingLimit, setParamDailyWeddingLimit] = useState<number>(15);
+  const [paramDailyPhysicalRdvLimit, setParamDailyPhysicalRdvLimit] = useState<number>(5);
+  const [agendaSubTab, setAgendaSubTab] = useState<'celebrations' | 'rdv_physiques'>('celebrations');
 
   // QR Code scanner simulator state
   const [qrVerificationInput, setQrVerificationInput] = useState('');
@@ -432,6 +434,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       setParamTimbrePrice(dbParams.frais_timbre_montant || 100000);
       setParamRescheduleLimit(dbParams.nombre_reprogrammations_limite);
       setParamDailyWeddingLimit(dbParams.quota_max_journalier || 15);
+      setParamDailyPhysicalRdvLimit(dbParams.quota_rdv_physiques_journalier || 5);
     }
 
     if (paystackConfig) {
@@ -1447,6 +1450,21 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
     }
   };
 
+  const handleConfirmRdv = async (dossierId: string) => {
+    try {
+      const res = await confirmMairieAppointment(dossierId);
+      if (res) {
+        addNotification("Le rendez-vous physique et le dépôt de dossier ont été confirmés !", "success");
+        loadData();
+      } else {
+        addNotification("Erreur lors de la confirmation du rendez-vous.", "warning");
+      }
+    } catch (err) {
+      console.error(err);
+      addNotification("Une erreur est survenue.", "warning");
+    }
+  };
+
   // Planning settings database handlers
   const handleSaveRoomsSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1454,7 +1472,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       frais_reservation_montant: paramReservationPrice,
       frais_timbre_montant: paramTimbrePrice,
       nombre_reprogrammations_limite: paramRescheduleLimit,
-      quota_max_journalier: paramDailyWeddingLimit
+      quota_max_journalier: paramDailyWeddingLimit,
+      quota_rdv_physiques_journalier: paramDailyPhysicalRdvLimit
     });
     if (success) {
       addNotification("Paramètres tarifaires et système enregistrés !", "success");
@@ -3078,8 +3097,292 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
     const selectedBookings = getBookingsForDate(selectedCalendarDate);
 
+    // Get appointments for a specific day
+    const getAppointmentsForDate = (date: Date) => {
+      return dossiers.filter(d => {
+        if (!isSuperadmin) {
+          if (isCentralMairie) {
+            const isCentral = d.mairie_id === 'cocody_salle_prestige' || d.mairie_id === 'cocody_salle_union';
+            if (!isCentral) return false;
+            if (selectedRoomFilter !== 'all' && d.mairie_id !== selectedRoomFilter) return false;
+          } else {
+            if (d.mairie_id !== activeMairieId) return false;
+          }
+        }
+        if (isSuperadmin && superadminCalendarMairieFilter !== 'all' && d.mairie_id !== superadminCalendarMairieFilter) return false;
+
+        if (d.status === 'rejected' || d.statut === 'ANNULE' || d.statut === 'EXPIRE' || d.statut === 'REJETE') return false;
+        
+        const rdvDateStr = d.date_rendezvous || d.appointment_date;
+        if (!rdvDateStr) return false;
+
+        const parts = rdvDateStr.split('/');
+        if (parts.length !== 3) return false;
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+
+        return date.getFullYear() === year &&
+               date.getMonth() === month &&
+               date.getDate() === day;
+      });
+    };
+
+    const renderPhysicalAppointmentsView = () => {
+      const selectedRdv = getAppointmentsForDate(selectedCalendarDate);
+      const maxQuota = roomsParams?.quota_rdv_physiques_journalier || 5;
+      const chargePct = Math.min(100, Math.round((selectedRdv.length / maxQuota) * 100));
+
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in font-sans text-xs">
+          {/* Left Column: Calendar Grid */}
+          <div className="lg:col-span-7 bg-white rounded-2xl border border-outline-variant/40 p-6 shadow-sm flex flex-col gap-6">
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 border-b border-neutral-100 pb-4">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  RDV de Dépôt : {monthNames[calendarMonth]} {calendarYear}
+                </h3>
+                <p className="text-secondary/70 text-[10px] font-sans mt-0.5">
+                  Cliquez sur un jour pour gérer la charge de travail et confirmer les dépôts physiques.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  className="p-2 border border-neutral-300 hover:bg-neutral-50 rounded-xl cursor-pointer transition-colors text-slate-655"
+                >
+                  &larr;
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  className="p-2 border border-neutral-300 hover:bg-neutral-50 rounded-xl cursor-pointer transition-colors text-slate-655"
+                >
+                  &rarr;
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToday}
+                  className="py-2 px-3 border border-neutral-300 hover:bg-neutral-50 rounded-xl font-bold transition-all text-slate-655"
+                >
+                  Aujourd'hui
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2 text-center font-bold text-slate-400 text-[10px] uppercase tracking-wider">
+              {weekDays.map(d => <div key={d} className="py-1">{d}</div>)}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {cells.map((cell, cellIdx) => {
+                if (cell.day === null || cell.date === null) {
+                  return <div key={`empty-${cellIdx}`} className="aspect-square bg-slate-50/20 border border-transparent rounded-xl" />;
+                }
+
+                const cellDate = cell.date;
+                const isSelected = selectedCalendarDate.getFullYear() === cellDate.getFullYear() &&
+                  selectedCalendarDate.getMonth() === cellDate.getMonth() &&
+                  selectedCalendarDate.getDate() === cellDate.getDate();
+
+                const today = new Date();
+                const isToday = today.getFullYear() === cellDate.getFullYear() &&
+                  today.getMonth() === cellDate.getMonth() &&
+                  today.getDate() === cellDate.getDate();
+
+                const cellRdv = getAppointmentsForDate(cellDate);
+                const hasRdv = cellRdv.length > 0;
+                const isLimitReached = cellRdv.length >= maxQuota;
+
+                return (
+                  <button
+                    type="button"
+                    key={`day-${cell.day}`}
+                    onClick={() => setSelectedCalendarDate(cellDate)}
+                    className={`aspect-square rounded-xl p-1.5 flex flex-col justify-between items-stretch border transition-all cursor-pointer relative hover:scale-105 ${isSelected
+                        ? 'bg-gradient-to-br from-primary to-primary-container text-white border-primary shadow-md shadow-primary/20 scale-[1.03]'
+                        : isToday
+                          ? 'bg-amber-50/40 border-amber-400/70 text-slate-800 font-bold'
+                          : 'bg-white border-neutral-100 hover:border-primary-container text-slate-800'
+                      }`}
+                  >
+                    <span className={`text-xs font-semibold self-start ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+                      {cell.day}
+                    </span>
+
+                    {hasRdv && (
+                      <div className="flex flex-col gap-0.5 items-end self-end w-full">
+                        <span className={`text-[8.5px] px-1 py-0.5 rounded font-black border leading-none ${
+                          isSelected
+                            ? 'bg-white/20 border-white/20 text-white'
+                            : isLimitReached
+                              ? 'bg-rose-50 border-rose-200 text-rose-700'
+                              : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        }`}>
+                          {cellRdv.length}/{maxQuota}
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 border-t border-slate-100 pt-4 text-[10px] text-slate-500 font-medium font-sans">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-emerald-100 border border-emerald-350" />
+                Sous le quota (RDV disponible)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-rose-100 border border-rose-350" />
+                Quota max atteint (Dossiers pleins)
+              </span>
+            </div>
+          </div>
+
+          {/* Right Column: Physical Appointments Details */}
+          <div className="lg:col-span-5 bg-white rounded-2xl border border-outline-variant/40 p-6 shadow-sm flex flex-col gap-4">
+            <div>
+              <span className="text-[9px] font-bold text-primary uppercase tracking-wider block">Charge de travail de l'agent</span>
+              <h3 className="font-serif text-base font-bold text-slate-800 mt-0.5">
+                {selectedCalendarDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </h3>
+              <p className="text-secondary/70 text-[10px] font-sans mt-0.5">
+                Planning journalier des dépôts physiques de dossiers.
+              </p>
+            </div>
+
+            {/* Quota Gauge Progress Bar */}
+            <div className="p-3 bg-neutral-50/70 border border-neutral-200 rounded-xl space-y-2">
+              <div className="flex justify-between items-center text-[10px] font-bold">
+                <span className="text-slate-655">Taux de remplissage :</span>
+                <span className={selectedRdv.length >= maxQuota ? "text-rose-655" : "text-emerald-655"}>
+                  {selectedRdv.length} / {maxQuota} RDV ({chargePct}%)
+                </span>
+              </div>
+              <div className="w-full bg-neutral-200 h-2 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-500 ${
+                    selectedRdv.length >= maxQuota
+                      ? 'bg-rose-500'
+                      : selectedRdv.length >= maxQuota * 0.8
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${chargePct}%` }}
+                />
+              </div>
+              <p className="text-[9px] text-slate-400 italic">
+                {selectedRdv.length >= maxQuota 
+                  ? "⚠️ Capacité maximale de travail atteinte pour aujourd'hui." 
+                  : "✓ Des plages de rendez-vous physiques restent disponibles."}
+              </p>
+            </div>
+
+            {/* List of Couples Convocated */}
+            <div className="space-y-3 mt-1 max-h-[380px] overflow-y-auto pr-1">
+              {selectedRdv.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 font-sans font-medium bg-neutral-50/40 border border-dashed border-neutral-250 rounded-xl">
+                   Aucun dépôt de dossier physique prévu ce jour.
+                </div>
+              ) : (
+                selectedRdv.map(rdvItem => {
+                  const isConfirmed = rdvItem.rendezvous_confirme === true;
+                  return (
+                    <div 
+                      key={rdvItem.id} 
+                      className={`p-3.5 rounded-xl border flex flex-col gap-2.5 transition-all text-left ${
+                        isConfirmed 
+                          ? 'bg-emerald-50/30 border-emerald-200/60' 
+                          : 'bg-white border-neutral-200 shadow-sm'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <h4 className="font-serif font-bold text-slate-800 text-[11.5px] leading-tight">
+                            💍 {rdvItem.spouse1_name} & {rdvItem.spouse2_name}
+                          </h4>
+                          <span className="text-[9px] font-bold text-primary tracking-wide uppercase mt-0.5 block">
+                            🕒 {rdvItem.heure_rendezvous || "09:00"}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-black tracking-wide uppercase ${
+                          isConfirmed 
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-250' 
+                            : 'bg-amber-100 text-amber-800 border border-amber-250'
+                        }`}>
+                          {isConfirmed ? "🟢 Confirmé" : "⏳ En attente"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 text-[9.5px] text-slate-500 font-medium font-sans">
+                        <div>📞 Époux: {rdvItem.spouse1_phone || 'Non spécifié'}</div>
+                        <div>📞 Épouse: {rdvItem.spouse2_phone || 'Non spécifié'}</div>
+                        <div className="col-span-2">🏛️ Salle: {rdvItem.mairie_id === 'cocody_salle_prestige' ? 'Salle Prestige' : rdvItem.mairie_id === 'cocody_salle_union' ? "Salle de l'Union" : 'Mairie Annexe'}</div>
+                      </div>
+
+                      <div className="flex items-center gap-2 border-t border-slate-100 pt-2 mt-0.5 justify-between">
+                        <button
+                          type="button"
+                          onClick={() => handleExamineDossier(rdvItem)}
+                          className="text-slate-655 hover:text-primary font-bold flex items-center gap-1 cursor-pointer transition-colors text-[9.5px]"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          Examiner le dossier
+                        </button>
+                        
+                        {!isConfirmed && (
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmRdv(rdvItem.id)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-2.5 rounded-lg flex items-center gap-1 cursor-pointer transition-colors text-[9.5px] shadow-sm shadow-emerald-100"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            Valider le Dépôt
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in font-sans text-xs mt-4">
+      <div className="space-y-6">
+        {/* Sub tab selector */}
+        <div className="flex border-b border-neutral-100 pb-1 gap-4 font-sans text-xs">
+          <button
+            onClick={() => setAgendaSubTab('celebrations')}
+            className={`pb-2.5 px-2 font-bold cursor-pointer transition-all border-b-2 ${
+              agendaSubTab === 'celebrations'
+                ? 'border-primary text-primary font-black'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            👰 Célébrations de Mariage
+          </button>
+          <button
+            onClick={() => setAgendaSubTab('rdv_physiques')}
+            className={`pb-2.5 px-2 font-bold cursor-pointer transition-all border-b-2 ${
+              agendaSubTab === 'rdv_physiques'
+                ? 'border-primary text-primary font-black'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            📂 Rendez-vous Physiques (Dépôt)
+          </button>
+        </div>
+
+        {agendaSubTab === 'celebrations' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in font-sans text-xs mt-4">
         {/* Left Column: Calendar Grid */}
         <div className="lg:col-span-7 bg-white rounded-2xl border border-outline-variant/40 p-6 shadow-sm flex flex-col gap-6">
           {/* Calendar Header */}
@@ -3376,8 +3679,12 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
           </div>
         </div>
       </div>
-    );
-  };
+    ) : (
+      renderPhysicalAppointmentsView()
+    )}
+  </div>
+);
+};
 
   return (
     <div className="flex flex-col gap-8 w-full animate-fade-in text-left">
@@ -6912,6 +7219,18 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                         className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:outline-none focus:border-primary"
                       />
                       <span className="text-[10px] text-slate-400">Max. mariages par jour par salle</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="font-bold text-slate-700">Quota journalier (RDV Physiques)</label>
+                      <input
+                        type="number"
+                        value={paramDailyPhysicalRdvLimit}
+                        onChange={(e) => setParamDailyPhysicalRdvLimit(Number(e.target.value))}
+                        min={1}
+                        max={50}
+                        className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:outline-none focus:border-primary"
+                      />
+                      <span className="text-[10px] text-slate-400">Max. rendez-vous de dépôt de dossier par jour</span>
                     </div>
                     <div className="sm:col-span-3 flex justify-end">
                       <button

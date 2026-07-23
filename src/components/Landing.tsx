@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, CheckSquare, UploadCloud, CreditCard, ChevronRight, Heart, CalendarCheck, Sparkles, Check, Loader2, Search, X, AlertCircle, UserPlus, FileText, Building, CheckCircle2, Landmark, ChevronUp, ChevronDown, BookOpen, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getMairies, MairieInfo, getDossiers, findDossierByQuery, getPaystackConfig, sendOpenwaWhatsapp, DossierInfo, getCapacityForDate, checkDuplicateSpouse, logDuplicateAttempt } from '../services/dbService';
+import { getMairies, MairieInfo, getDossiers, findDossierByQuery, getPaystackConfig, sendOpenwaWhatsapp, DossierInfo, getCapacityForDate, checkDuplicateSpouse, logDuplicateAttempt, updateDossierWeddingDate } from '../services/dbService';
 import { TimelineStep, DocumentInfo } from '../types';
 import { supabase } from '../supabaseClient';
 
@@ -154,8 +154,8 @@ const getMessageColor = (statut: string | null) => {
   }
 };
 
-import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr } from '../utils/calendarReservationUtils';
-export { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr };
+import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr, validateWeddingDate } from '../utils/calendarReservationUtils';
+export { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr, validateWeddingDate };
 
 export default function Landing({
   setTab,
@@ -339,22 +339,16 @@ export default function Landing({
   };
 
   // États du wizard
-  const [activeStep, setActiveStep] = useState(1);
+  const [localActiveStep, setLocalActiveStep] = useState(1);
+  const activeStep = dossierActiveStep || localActiveStep;
+  const setActiveStep = (step: number | ((prev: number) => number)) => {
+    const nextStep = typeof step === 'function' ? step(activeStep) : step;
+    setLocalActiveStep(nextStep);
+    if (setDossierActiveStep) {
+      setDossierActiveStep(nextStep);
+    }
+  };
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-
-  // Synchroniser l'étape active locale avec la globale (pour les autres onglets)
-  useEffect(() => {
-    if (dossierActiveStep && dossierActiveStep !== activeStep) {
-      setActiveStep(dossierActiveStep);
-    }
-  }, [dossierActiveStep]);
-
-  // Propager l'étape active locale vers la globale
-  useEffect(() => {
-    if (setDossierActiveStep && activeStep !== dossierActiveStep) {
-      setDossierActiveStep(activeStep);
-    }
-  }, [activeStep, setDossierActiveStep, dossierActiveStep]);
 
   // Données Step 1 - Noms
   const [editS1, setEditS1] = useState('');
@@ -378,7 +372,22 @@ export default function Landing({
   // Données Step 3 - Date & Heure
   const [chosenDate, setChosenDate] = useState('');
   const [chosenTime, setChosenTime] = useState('');
+  const [dateError, setDateError] = useState<string | null>(null);
   const [allDossiers, setAllDossiers] = useState<any[]>([]);
+
+  const handleWeddingDateChange = (val: string) => {
+    setChosenDate(val);
+    if (!val) {
+      setDateError(null);
+      return;
+    }
+    const validation = validateWeddingDate(val);
+    if (!validation.isValid) {
+      setDateError(validation.reason || "Date non disponible.");
+    } else {
+      setDateError(null);
+    }
+  };
 
   // Dynamically check selected mairie phone number
   const selectedMairiePhone = mairies.find(m => m.id === selectedMairie)?.phone || '+225 27 22 44 88 00';
@@ -430,23 +439,64 @@ export default function Landing({
   }, [selectedMairie, chosenDate]);
 
   const generateSlots = (capVal: number) => {
+    const roomId = selectedMairie || 'cocody_salle_prestige';
     const slots = [];
-    let currentHour = 8;
-    let currentMin = 0;
-    
-    for (let i = 0; i < capVal; i++) {
-      const timeVal = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
-      slots.push({
-        val: timeVal,
-        label: `${currentHour}h${currentMin.toString().padStart(2, '0')}`,
-        desc: currentHour < 12 ? "Matinée" : currentHour < 15 ? "Méridienne" : "Après-midi",
-        icon: currentHour < 12 ? "🌅" : "☀️"
-      });
-      
-      currentMin += 30;
-      if (currentMin >= 60) {
-        currentHour += 1;
-        currentMin = 0;
+
+    if (roomId === 'cocody_salle_union') {
+      // Union Room: 30-minute slots starting at 8h15 and ending at 15h15 (up to 14 slots)
+      let currentHour = 8;
+      let currentMin = 15;
+      const maxSlots = Math.min(capVal, 14);
+      for (let i = 0; i < maxSlots; i++) {
+        let endHour = currentHour;
+        let endMin = currentMin + 30;
+        if (endMin >= 60) {
+          endHour += 1;
+          endMin -= 60;
+        }
+
+        const startStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        const endStr = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        const timeVal = startStr;
+        const label = `${currentHour}h${currentMin.toString().padStart(2, '0')} - ${endHour}h${endMin.toString().padStart(2, '0')}`;
+
+        slots.push({
+          val: timeVal,
+          label: label,
+          desc: currentHour < 12 ? "Matinée" : currentHour < 14 ? "Méridienne" : "Après-midi",
+          icon: currentHour < 12 ? "🌅" : "☀️"
+        });
+
+        currentHour = endHour;
+        currentMin = endMin;
+      }
+    } else {
+      // Prestige or Annexe: 30-minute slots starting at 8h30 and ending at 15h00 (up to 13 slots)
+      let currentHour = 8;
+      let currentMin = 30;
+      const maxSlots = Math.min(capVal, 13);
+      for (let i = 0; i < maxSlots; i++) {
+        let endHour = currentHour;
+        let endMin = currentMin + 30;
+        if (endMin >= 60) {
+          endHour += 1;
+          endMin -= 60;
+        }
+
+        const startStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        const endStr = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        const timeVal = startStr;
+        const label = `${currentHour}h${currentMin.toString().padStart(2, '0')} - ${endHour}h${endMin.toString().padStart(2, '0')}`;
+
+        slots.push({
+          val: timeVal,
+          label: label,
+          desc: currentHour < 12 ? "Matinée" : currentHour < 14 ? "Méridienne" : "Après-midi",
+          icon: currentHour < 12 ? "🌅" : "☀️"
+        });
+
+        currentHour = endHour;
+        currentMin = endMin;
       }
     }
     return slots;
@@ -526,6 +576,8 @@ export default function Landing({
         const s5 = findStatus('doc5');
         const s9 = findStatus('doc9');
         
+        const isUploaded = (s: string) => s === 'verified' || s === 'uploading';
+
         const allV = s3 === 'verified' && s3_f === 'verified' && s5 === 'verified' && s9 === 'verified';
         if (allV) return { status: 'verified' };
         
@@ -534,10 +586,21 @@ export default function Landing({
         if (s5 === 'rejected') return { status: 'rejected', message: `Témoin 1 : ${getMessage('doc5')}` };
         if (s9 === 'rejected') return { status: 'rejected', message: `Témoin 2 : ${getMessage('doc9')}` };
         
-        if (s3 === 'uploading' || s3_f === 'uploading' || s5 === 'uploading' || s9 === 'uploading') {
+        const allUploaded = isUploaded(s3) && isUploaded(s3_f) && isUploaded(s5) && isUploaded(s9);
+        if (allUploaded) {
           return { status: 'uploading' };
         }
-        return { status: 'pending' };
+
+        const missing: string[] = [];
+        if (!isUploaded(s3)) missing.push("Justif. Époux");
+        if (!isUploaded(s3_f)) missing.push("Justif. Épouse");
+        if (!isUploaded(s5)) missing.push("CNI Témoin 1");
+        if (!isUploaded(s9)) missing.push("CNI Témoin 2");
+
+        return { 
+          status: 'pending', 
+          message: missing.length === 4 ? undefined : `Pièces manquantes (${4 - missing.length}/4 fournies) : ${missing.join(', ')}` 
+        };
       }
       default:
         return { status: 'pending' };
@@ -547,6 +610,23 @@ export default function Landing({
   const handleDocumentAction = (stepId: number) => {
     if (setDossierActiveStep) {
       setDossierActiveStep(stepId);
+    }
+    setTab('dossier');
+    if (typeof setShowParcours === 'function') {
+      setShowParcours(false);
+    }
+  };
+
+  const handleDepositNow = () => {
+    const firstUnfinishedDoc = REQUIRED_DOCS.find(doc => {
+      const { status } = getDocStatusDetailed(doc.id);
+      return status !== 'verified';
+    });
+
+    const targetStep = firstUnfinishedDoc ? firstUnfinishedDoc.id : 1;
+
+    if (setDossierActiveStep) {
+      setDossierActiveStep(targetStep);
     }
     setTab('dossier');
     if (typeof setShowParcours === 'function') {
@@ -748,10 +828,13 @@ export default function Landing({
     setActiveStep(4);
   };
 
-  const handleStep4Submit = () => {
-    if (!chosenDate || !chosenTime) return;
+  const handleStep4Submit = async () => {
+    if (!chosenDate || !chosenTime || dateError) return;
     const dateFormatted = new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
     const fullDate = `${dateFormatted} à ${chosenTime.replace(':', 'h')}`;
+    if (dossierId) {
+      await updateDossierWeddingDate(dossierId, fullDate);
+    }
     if (onWeddingDateSelected) {
       onWeddingDateSelected(fullDate);
     }
@@ -1312,17 +1395,27 @@ export default function Landing({
 
 
       {/* ===== POPUP PARCOURS ÉTAPE PAR ÉTAPE (données réelles) ===== */}
-      {showParcours && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center" style={{ animation: 'fadeIn 0.2s ease' }}>
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { if (!allDone) setShowParcours(false); }} />
-
-          {/* Sheet */}
-          <div
-            className="relative bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"
-            style={{ animation: 'slideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-            onClick={e => e.stopPropagation()}
+      <AnimatePresence>
+        {showParcours && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center"
           >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { if (!allDone) setShowParcours(false); }} />
+
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 50, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="relative bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
             {/* Drag handle mobile */}
             <div className="flex justify-center pt-3 pb-0 sm:hidden shrink-0">
               <div className="w-10 h-1 rounded-full bg-neutral-200" />
@@ -1387,7 +1480,7 @@ export default function Landing({
             </div>
 
             {/* Contenu scrollable */}
-            <div className="overflow-y-auto flex-1 px-5 py-5">
+            <div className="overflow-y-auto overflow-x-hidden flex-1 px-5 py-5">
 
               {/* Succès final */}
               {allDone ? (
@@ -1401,11 +1494,11 @@ export default function Landing({
                   </div>
                   <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-left w-full space-y-2.5">
                     <div className="flex justify-between text-xs font-sans">
-                      <span className="text-slate-500">Époux 1</span>
+                      <span className="text-slate-500">Futur Époux</span>
                       <span className="font-bold text-slate-800">{editS1 || spouse1Name}</span>
                     </div>
                     <div className="flex justify-between text-xs font-sans">
-                      <span className="text-slate-500">Époux 2</span>
+                      <span className="text-slate-500">Future Épouse</span>
                       <span className="font-bold text-slate-800">{editS2 || spouse2Name}</span>
                     </div>
                     <div className="flex justify-between text-xs font-sans">
@@ -1551,7 +1644,7 @@ export default function Landing({
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Tél. époux 1</label>
+                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Tél. Époux</label>
                             <input value={editPhone1} onChange={e => handlePhoneChange(e.target.value, setEditPhone1)} onBlur={() => checkPhone1.triggerVerification()} placeholder="+225 07 00 00 00"
                               style={getBordureStyle(checkPhone1.statut)}
                               className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
@@ -1562,7 +1655,7 @@ export default function Landing({
                             )}
                           </div>
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Tél. époux 2</label>
+                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Tél. Épouse</label>
                             <input value={editPhone2} onChange={e => handlePhoneChange(e.target.value, setEditPhone2)} onBlur={() => checkPhone2.triggerVerification()} placeholder="+225 07 00 00 00"
                               style={getBordureStyle(checkPhone2.statut)}
                               className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
@@ -1576,7 +1669,7 @@ export default function Landing({
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Type de pièce époux 1 *</label>
+                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Type de pièce Époux *</label>
                             <select value={editCniType1} onChange={e => setEditCniType1(e.target.value as any)}
                               className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans">
                               <option value="CNI">CNI</option>
@@ -1584,7 +1677,7 @@ export default function Landing({
                             </select>
                           </div>
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Type de pièce époux 2 *</label>
+                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Type de pièce Épouse *</label>
                             <select value={editCniType2} onChange={e => setEditCniType2(e.target.value as any)}
                               className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans">
                               <option value="CNI">CNI</option>
@@ -1594,7 +1687,7 @@ export default function Landing({
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">N° Pièce époux 1 *</label>
+                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">N° Pièce Époux *</label>
                             <input required value={editCni1} onChange={e => {
                               setEditCni1(e.target.value);
                               if (dossierDuplicateError) setDossierDuplicateError(null);
@@ -1608,7 +1701,7 @@ export default function Landing({
                             )}
                           </div>
                           <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">N° Pièce époux 2 *</label>
+                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">N° Pièce Épouse *</label>
                             <input required value={editCni2} onChange={e => {
                               setEditCni2(e.target.value);
                               if (dossierDuplicateError) setDossierDuplicateError(null);
@@ -1773,9 +1866,9 @@ export default function Landing({
                             badgeBg = "bg-rose-100 text-rose-800";
                             badgeText = "Rejeté ❌";
                           } else if (status === 'uploading') {
-                            cardBg = "bg-sky-50/20 border-sky-200 hover:bg-sky-50/40 hover:border-sky-300 animate-pulse";
+                            cardBg = "bg-sky-50/20 border-sky-200 hover:bg-sky-50/40 hover:border-sky-300";
                             badgeBg = "bg-sky-100 text-sky-850";
-                            badgeText = "Reçu / En analyse ⏳";
+                            badgeText = "Reçu / Transmis 📄";
                           }
 
                           return (
@@ -1807,7 +1900,9 @@ export default function Landing({
                                       <AlertCircle className="w-3.5 h-3.5" strokeWidth={3} />
                                     </div>
                                   ) : status === 'uploading' ? (
-                                    <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin shrink-0" />
+                                    <div className="w-4.5 h-4.5 rounded-full bg-sky-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                                      <FileText className="w-2.5 h-2.5" />
+                                    </div>
                                   ) : (
                                     <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                                   )}
@@ -1851,7 +1946,7 @@ export default function Landing({
                         </button>
                       </div>
 
-                      <button onClick={() => { setShowParcours(false); setTab('dossier'); }}
+                      <button onClick={handleDepositNow}
                         className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-bold hover:bg-primary/5 cursor-pointer transition-all">
                         📤 Déposer mes documents maintenant
                       </button>
@@ -1886,14 +1981,29 @@ export default function Landing({
                       <div>
                         <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Date souhaitée</label>
                         <div className="p-1 bg-neutral-50 rounded-2xl border border-neutral-200">
-                          <input type="date" value={chosenDate} onChange={e => setChosenDate(e.target.value)} min={new Date().toISOString().split('T')[0]}
-                            className="w-full border-0 rounded-xl p-3.5 text-sm bg-transparent focus:outline-none text-slate-800 font-sans cursor-pointer" />
+                          <input 
+                            type="date" 
+                            value={chosenDate} 
+                            onChange={e => handleWeddingDateChange(e.target.value)} 
+                            min={(() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() + 30);
+                              return d.toISOString().split('T')[0];
+                            })()}
+                            className="w-full border-0 rounded-xl p-3.5 text-sm bg-transparent focus:outline-none text-slate-800 font-sans cursor-pointer font-bold" 
+                          />
                         </div>
+                        {dateError && (
+                          <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[10px] leading-relaxed font-semibold flex items-start gap-2 text-left">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                            <span>{dateError}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-2">Créneau horaire</label>
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-3 gap-2.5">
                           {generateSlots(capacity).map(time => {
                             const isOccupied = chosenDate && selectedMairie ? allDossiers.some(d =>
                               d.id !== dossierId &&
@@ -1928,8 +2038,8 @@ export default function Landing({
 
                       <div className="flex gap-3">
                         <button onClick={() => setActiveStep(3)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
-                        <button disabled={!chosenDate || !chosenTime} onClick={handleStep4Submit}
-                          className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all ${chosenDate && chosenTime ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}>
+                        <button disabled={!chosenDate || !chosenTime || !!dateError} onClick={handleStep4Submit}
+                          className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all ${chosenDate && chosenTime && !dateError ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}>
                           Confirmer l'option ✓
                         </button>
                       </div>
@@ -2022,9 +2132,10 @@ export default function Landing({
                 </button>
               </div>
             )}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+    </AnimatePresence>
 
       {/* Modal de récupération de dossier */}
       <AnimatePresence>
@@ -2190,7 +2301,7 @@ export default function Landing({
       <style>{`
         @keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes fadeSlideIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes fadeSlideIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes bounceIn { 0% { transform: scale(0.7); opacity: 0; } 70% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

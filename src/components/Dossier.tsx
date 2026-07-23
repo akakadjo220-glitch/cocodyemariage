@@ -701,18 +701,19 @@ export default function Dossier({
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setSelfieError("L'accès à la caméra n'est pas disponible sur ce navigateur ou contexte. Utilisez Chrome ou Safari en HTTPS.");
+      fileSelfieInputRef.current?.click();
       return;
     }
 
     try {
       let stream: MediaStream;
       try {
+        // Enforce front selfie camera ('user')
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
         });
       } catch (firstErr) {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       }
       setWebcamStream(stream);
       setWebcamActive(true);
@@ -722,14 +723,11 @@ export default function Dossier({
         }
       });
     } catch (err: any) {
-      console.warn("Webcam not accessible:", err);
-      const errName = err?.name || '';
-      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-        setSelfieError("L'accès direct à la caméra est bloqué par votre navigateur. Cliquez sur le bouton ci-dessous pour prendre une photo avec votre téléphone.");
-      } else if (errName === 'NotFoundError') {
-        setSelfieError("Aucune caméra en direct détectée. Cliquez sur le bouton ci-dessous pour prendre ou importer votre selfie.");
+      console.warn("Webcam direct mode unavailable, fallback to mobile camera file input:", err);
+      if (fileSelfieInputRef.current) {
+        fileSelfieInputRef.current.click();
       } else {
-        setSelfieError("Accès webcam indisponible. Cliquez sur le bouton ci-dessous pour utiliser l'appareil photo de votre téléphone.");
+        setSelfieError("L'accès à la caméra est restreint par votre navigateur.");
       }
     }
   };
@@ -1719,18 +1717,9 @@ export default function Dossier({
 
             {/* Error or Status banner */}
             {selfieError && (
-              <div className="w-full p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-semibold leading-relaxed flex flex-col gap-2.5">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <span>{selfieError}</span>
-                </div>
-                <button
-                  onClick={() => fileSelfieInputRef.current?.click()}
-                  className="w-full py-2.5 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                >
-                  <Camera className="w-4 h-4 text-accent" />
-                  <span>📱 Prendre ma photo (Appareil Téléphone / Galerie)</span>
-                </button>
+              <div className="w-full p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-semibold leading-relaxed flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{selfieError}</span>
               </div>
             )}
 
@@ -1743,20 +1732,13 @@ export default function Dossier({
 
             <canvas ref={canvasRef} className="hidden" />
 
-            {/* Webcam / File input Buttons */}
+            {/* Main Action Buttons (Single main button for taking a selfie) */}
             <div className="flex flex-wrap gap-2.5 justify-center w-full mt-1">
               {!webcamActive && !capturedSelfieBase64 && !isAnalyzingSelfie && (
                 <>
-                  <button onClick={startWebcam} className="px-4 py-2.5 bg-primary text-white border border-primary/20 rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                  <button onClick={startWebcam} className="px-5 py-3 bg-primary text-white border border-primary/20 rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center gap-2 cursor-pointer shadow-md">
                     <Camera className="w-4 h-4 text-accent" />
-                    <span>Activer ma webcam</span>
-                  </button>
-                  <button
-                    onClick={() => fileSelfieInputRef.current?.click()}
-                    className="px-4 py-2.5 bg-slate-800 text-white border border-slate-700 rounded-xl font-sans text-xs font-bold hover:bg-slate-900 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                  >
-                    <UploadCloud className="w-4 h-4 text-accent" />
-                    <span>📱 Photo Téléphone / Selfie</span>
+                    <span>📷 Prendre mon selfie</span>
                   </button>
                   <button
                     onClick={async () => {

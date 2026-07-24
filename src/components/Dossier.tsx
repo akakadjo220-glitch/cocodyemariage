@@ -697,7 +697,7 @@ export default function Dossier({
     }
   }, [webcamActive, webcamStream]);
 
-  // Webcam capture functions for selfie
+  // Webcam capture functions for selfie (optimisé basse résolution pour smartphone)
   const startWebcam = async () => {
     setSelfieError(null);
     setCapturedSelfieBase64(null);
@@ -712,22 +712,32 @@ export default function Dossier({
       return;
     }
 
-    try {
-      let stream: MediaStream;
-      try {
-        // Request front selfie camera
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user' }
-        });
-      } catch (err1) {
-        console.warn("facingMode 'user' fallback to default video:", err1);
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      }
+    // Essais successifs de contraintes légères pour compatibilité mobile maximale
+    const constraintsList: MediaStreamConstraints[] = [
+      { video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 360 } } },
+      { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } },
+      { video: { facingMode: 'user' } },
+      { video: { width: { ideal: 480 }, height: { ideal: 360 } } },
+      { video: true }
+    ];
 
+    let stream: MediaStream | null = null;
+    let lastError: any = null;
+
+    for (const constraints of constraintsList) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (stream) break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (stream) {
       setWebcamStream(stream);
       setWebcamActive(true);
-    } catch (err: any) {
-      console.error("getUserMedia error:", err);
+    } else {
+      console.error("getUserMedia error:", lastError);
       setSelfieError("Accès à la caméra refusé. Veuillez autoriser la caméra dans votre navigateur.");
     }
   };
@@ -744,12 +754,28 @@ export default function Dossier({
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+
+      // Redimensionnement max 480px pour photo super légère et rapide
+      const maxDim = 480;
+      let w = video.videoWidth || 640;
+      let h = video.videoHeight || 480;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL('image/png');
+        ctx.drawImage(video, 0, 0, w, h);
+        // Compression JPEG 60% ultra-légère (30-50 Ko max)
+        const base64 = canvas.toDataURL('image/jpeg', 0.6);
         setCapturedSelfieBase64(base64);
         stopWebcam();
       }

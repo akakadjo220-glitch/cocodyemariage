@@ -697,7 +697,7 @@ export default function Dossier({
     }
   }, [webcamActive, webcamStream]);
 
-  // Webcam capture functions for selfie (optimisé basse résolution pour smartphone)
+  // Webcam capture functions for selfie (Didit-style single getUserMedia + enumerateDevices)
   const startWebcam = async () => {
     setSelfieError(null);
     setCapturedSelfieBase64(null);
@@ -712,33 +712,44 @@ export default function Dossier({
       return;
     }
 
-    // Essais successifs de contraintes légères pour compatibilité mobile maximale
-    const constraintsList: MediaStreamConstraints[] = [
-      { video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 360 } } },
-      { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } },
-      { video: { facingMode: 'user' } },
-      { video: { width: { ideal: 480 }, height: { ideal: 360 } } },
-      { video: true }
-    ];
+    try {
+      let frontCameraDeviceId: string | undefined = undefined;
 
-    let stream: MediaStream | null = null;
-    let lastError: any = null;
-
-    for (const constraints of constraintsList) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (stream) break;
-      } catch (err) {
-        lastError = err;
+      // 1. Inspecter les périphériques pour cibler la caméra avant
+      if (navigator.mediaDevices.enumerateDevices) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(d => d.kind === 'videoinput');
+          const front = videoDevices.find(d => {
+            const label = d.label.toLowerCase();
+            return label.includes('front') || label.includes('user') || label.includes('avant') || label.includes('selfie') || label.includes('0');
+          });
+          if (front && front.deviceId) {
+            frontCameraDeviceId = front.deviceId;
+          }
+        } catch (e) {
+          console.warn("Erreur enumeration caméras:", e);
+        }
       }
-    }
 
-    if (stream) {
+      // 2. Requête unique et propre
+      const constraints: MediaStreamConstraints = frontCameraDeviceId
+        ? { video: { deviceId: { exact: frontCameraDeviceId } } }
+        : { video: { facingMode: 'user' } };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setWebcamStream(stream);
       setWebcamActive(true);
-    } else {
-      console.error("getUserMedia error:", lastError);
-      setSelfieError("Accès à la caméra refusé. Veuillez autoriser la caméra dans votre navigateur.");
+    } catch (err: any) {
+      console.warn("Échec contrainte caméra avant, tentative flux vidéo standard:", err);
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setWebcamStream(fallbackStream);
+        setWebcamActive(true);
+      } catch (fallbackErr: any) {
+        console.error("Accès caméra définitivement refusé:", fallbackErr);
+        setSelfieError("Accès à la caméra refusé. Veuillez autoriser la caméra dans votre navigateur.");
+      }
     }
   };
 

@@ -766,10 +766,10 @@ export default function Dossier({
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      // Redimensionnement max 480px pour photo super légère et rapide
-      const maxDim = 480;
-      let w = video.videoWidth || 640;
-      let h = video.videoHeight || 480;
+      // Redimensionnement HD haute netteté (max 800px)
+      const maxDim = 800;
+      let w = video.videoWidth || 800;
+      let h = video.videoHeight || 600;
       if (w > maxDim || h > maxDim) {
         if (w > h) {
           h = Math.round((h * maxDim) / w);
@@ -785,8 +785,8 @@ export default function Dossier({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, w, h);
-        // Compression JPEG 60% ultra-légère (30-50 Ko max)
-        const base64 = canvas.toDataURL('image/jpeg', 0.6);
+        // Compression JPEG 85% très nette et lumineuse
+        const base64 = canvas.toDataURL('image/jpeg', 0.85);
         setCapturedSelfieBase64(base64);
         stopWebcam();
       }

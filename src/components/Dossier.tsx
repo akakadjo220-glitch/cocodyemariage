@@ -701,22 +701,15 @@ export default function Dossier({
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setSelfieError("L'accès à la caméra n'est pas disponible sur ce navigateur. Autorisez la caméra dans les paramètres.");
+      fileSelfieInputRef.current?.click();
       return;
     }
 
     try {
-      let stream: MediaStream;
-      try {
-        // Force exact front selfie camera ('user') without ideal width/height constraints
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: 'user' } }
-        });
-      } catch (firstErr) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user' }
-        });
-      }
+      // Single getUserMedia call to preserve browser user gesture token
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' }
+      });
       setWebcamStream(stream);
       setWebcamActive(true);
       requestAnimationFrame(() => {
@@ -725,8 +718,12 @@ export default function Dossier({
         }
       });
     } catch (err: any) {
-      console.warn("Front selfie camera not accessible:", err);
-      setSelfieError("L'accès à la caméra selfie a été refusé. Autorisez la caméra frontale dans votre navigateur.");
+      console.warn("Direct front webcam stream unavailable, triggering camera/file fallback:", err);
+      if (fileSelfieInputRef.current) {
+        fileSelfieInputRef.current.click();
+      } else {
+        setSelfieError("L'accès à la caméra est bloqué dans votre navigateur. Autorisez l'accès à la caméra.");
+      }
     }
   };
 
@@ -1714,9 +1711,18 @@ export default function Dossier({
 
             {/* Error or Status banner */}
             {selfieError && (
-              <div className="w-full p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-semibold leading-relaxed flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{selfieError}</span>
+              <div className="w-full p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-semibold leading-relaxed flex flex-col gap-2.5">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{selfieError}</span>
+                </div>
+                <button
+                  onClick={() => fileSelfieInputRef.current?.click()}
+                  className="w-full py-2.5 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                >
+                  <Camera className="w-4 h-4 text-accent" />
+                  <span>📷 Choisir / Importer mon selfie</span>
+                </button>
               </div>
             )}
 

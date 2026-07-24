@@ -701,19 +701,21 @@ export default function Dossier({
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      fileSelfieInputRef.current?.click();
+      setSelfieError("L'accès à la caméra n'est pas disponible sur ce navigateur. Autorisez la caméra dans les paramètres.");
       return;
     }
 
     try {
       let stream: MediaStream;
       try {
-        // Enforce front selfie camera ('user')
+        // Force exact front selfie camera ('user') without ideal width/height constraints
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+          video: { facingMode: { exact: 'user' } }
         });
       } catch (firstErr) {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' }
+        });
       }
       setWebcamStream(stream);
       setWebcamActive(true);
@@ -723,12 +725,8 @@ export default function Dossier({
         }
       });
     } catch (err: any) {
-      console.warn("Webcam direct mode unavailable, fallback to mobile camera file input:", err);
-      if (fileSelfieInputRef.current) {
-        fileSelfieInputRef.current.click();
-      } else {
-        setSelfieError("L'accès à la caméra est restreint par votre navigateur.");
-      }
+      console.warn("Front selfie camera not accessible:", err);
+      setSelfieError("L'accès à la caméra selfie a été refusé. Autorisez la caméra frontale dans votre navigateur.");
     }
   };
 
@@ -1710,7 +1708,6 @@ export default function Dossier({
               ref={fileSelfieInputRef}
               type="file"
               accept="image/*"
-              capture="user"
               className="hidden"
               onChange={handleMobileSelfieFileChange}
             />

@@ -701,15 +701,27 @@ export default function Dossier({
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setSelfieError("L'accès à la caméra n'est pas disponible sur ce navigateur. Autorisez la caméra dans vos paramètres.");
+      // No getUserMedia API — open native camera/gallery chooser directly
+      fileSelfieInputRef.current?.click();
       return;
     }
 
     try {
-      // Single getUserMedia call with facingMode: 'user' to request front selfie camera
+      // Request front selfie camera via getUserMedia
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user' }
       });
+
+      // Verify it's actually the front camera; if not, stop & retry without constraint
+      const track = stream.getVideoTracks()[0];
+      const settings = track?.getSettings?.();
+      if (settings?.facingMode && settings.facingMode !== 'user') {
+        // Got rear camera instead — stop it and open native chooser
+        stream.getTracks().forEach(t => t.stop());
+        fileSelfieInputRef.current?.click();
+        return;
+      }
+
       setWebcamStream(stream);
       setWebcamActive(true);
       requestAnimationFrame(() => {
@@ -718,8 +730,9 @@ export default function Dossier({
         }
       });
     } catch (err: any) {
-      console.warn("Direct front webcam stream unavailable:", err);
-      setSelfieError("L'accès à la caméra a été refusé. Autorisez la caméra dans les paramètres de votre navigateur.");
+      console.warn("getUserMedia denied, opening native camera/gallery chooser:", err);
+      // Permission denied or camera unavailable — open native chooser seamlessly
+      fileSelfieInputRef.current?.click();
     }
   };
 

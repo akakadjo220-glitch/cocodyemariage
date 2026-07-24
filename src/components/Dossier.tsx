@@ -690,6 +690,13 @@ export default function Dossier({
     };
   };
 
+  // Automatically attach stream to video element when active
+  useEffect(() => {
+    if (webcamActive && webcamStream && videoRef.current) {
+      attachStreamToVideo(videoRef.current, webcamStream);
+    }
+  }, [webcamActive, webcamStream]);
+
   // Webcam capture functions for selfie
   const startWebcam = async () => {
     setSelfieError(null);
@@ -701,38 +708,27 @@ export default function Dossier({
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      // No getUserMedia API — open native camera/gallery chooser directly
-      fileSelfieInputRef.current?.click();
+      setSelfieError("L'accès à la caméra n'est pas disponible sur ce navigateur.");
       return;
     }
 
     try {
-      // Request front selfie camera via getUserMedia
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' }
-      });
-
-      // Verify it's actually the front camera; if not, stop & retry without constraint
-      const track = stream.getVideoTracks()[0];
-      const settings = track?.getSettings?.();
-      if (settings?.facingMode && settings.facingMode !== 'user') {
-        // Got rear camera instead — stop it and open native chooser
-        stream.getTracks().forEach(t => t.stop());
-        fileSelfieInputRef.current?.click();
-        return;
+      let stream: MediaStream;
+      try {
+        // Request front selfie camera
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' }
+        });
+      } catch (err1) {
+        console.warn("facingMode 'user' fallback to default video:", err1);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
       }
 
       setWebcamStream(stream);
       setWebcamActive(true);
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          attachStreamToVideo(videoRef.current, stream);
-        }
-      });
     } catch (err: any) {
-      console.warn("getUserMedia denied, opening native camera/gallery chooser:", err);
-      // Permission denied or camera unavailable — open native chooser seamlessly
-      fileSelfieInputRef.current?.click();
+      console.error("getUserMedia error:", err);
+      setSelfieError("Accès à la caméra refusé. Veuillez autoriser la caméra dans votre navigateur.");
     }
   };
 

@@ -10,6 +10,7 @@ import { TimelineStep, PaystackConfig, PaymentInfo, DocumentInfo } from '../type
 import { ensurePhonePrefix, handlePhoneChange } from './Landing';
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
 import { CALENDRIER_RESERVATIONS_2026, checkIsOpened, getDaysRemainingStr, validateWeddingDate, getIvorianHolidays } from '../utils/calendarReservationUtils';
+import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles } from '../utils/documentProfileUtils';
 
 // Security helpers (same as Landing popup)
 const getBordureStyle = (statut: string | null) => {
@@ -924,7 +925,15 @@ export default function Timeline({
     }
   };
 
-  const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
+  const dynamicRequiredDocs = getRequiredDocsForProfiles(DEFAULT_SPOUSE_PROFILE, DEFAULT_SPOUSE_PROFILE);
+  const stepStatuses = dynamicRequiredDocs.map(doc => {
+    const d = documents.find(x => x.id === doc.id);
+    if (!d) return { status: 'pending' };
+    if (d.status === 'verified') return { status: 'verified' };
+    if (d.fileName || d.status === 'uploading') return { status: 'uploading' };
+    if (d.status === 'rejected') return { status: 'rejected' };
+    return { status: 'pending' };
+  });
   const allRequiredUploaded = stepStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
   const allRequiredDocsVerified = stepStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
   const missingDocsCount = stepStatuses.filter(s => s.status === 'pending' || s.status === 'rejected').length;

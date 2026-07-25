@@ -3,6 +3,7 @@ import { Calendar, CheckSquare, UploadCloud, CreditCard, ChevronRight, Heart, Ca
 import { motion, AnimatePresence } from 'motion/react';
 import { getMairies, MairieInfo, getDossiers, findDossierByQuery, getPaystackConfig, sendOpenwaWhatsapp, DossierInfo, getCapacityForDate, checkDuplicateSpouse, logDuplicateAttempt, updateDossierWeddingDate } from '../services/dbService';
 import { TimelineStep, DocumentInfo } from '../types';
+import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles } from '../utils/documentProfileUtils';
 import { supabase } from '../supabaseClient';
 
 export const ensurePhonePrefix = (val: string): string => {
@@ -502,114 +503,64 @@ export default function Landing({
     return slots;
   };
 
-  const getDocStatusDetailed = (stepId: number): { status: 'verified' | 'rejected' | 'uploading' | 'pending'; message?: string } => {
-    if (!documents || documents.length === 0) return { status: 'pending' };
+  const [epouxProfile, setEpouxProfile] = useState<SpouseProfile>(DEFAULT_SPOUSE_PROFILE);
+  const [epouseProfile, setEpouseProfile] = useState<SpouseProfile>(DEFAULT_SPOUSE_PROFILE);
 
-    const currentDossier = allDossiers.find(d => d.id === dossierId);
-
-    const findStatus = (id: string) => {
-      const doc = documents.find(d => d.id === id);
-      if (!doc) return 'pending';
-      if (doc.status === 'verified') return 'verified';
-      if (doc.status === 'rejected') return 'rejected';
-      if (doc.fileName || doc.status === 'uploading') return 'uploading';
-      return 'pending';
-    };
-
-    const getMessage = (id: string) => {
-      const doc = documents.find(d => d.id === id);
-      return doc?.aiAnalysis?.motif || doc?.rejectionReason || '';
-    };
-
-    switch (stepId) {
-      case 1: { // CNI Époux
-        const s = findStatus('doc1');
-        return { status: s, message: s === 'rejected' ? getMessage('doc1') : undefined };
-      }
-      case 2: { // Selfie Époux
-        const attempts = currentDossier?.epoux_face_attempts ?? 0;
-        const verified = currentDossier?.epoux_identite_verifiee === true;
-        const hasUrl = !!currentDossier?.epoux_selfie_url;
-        
-        if (hasUrl && (verified || attempts >= 3)) {
-          return { status: 'verified' };
-        }
-        if (attempts >= 3 && !verified) {
-          return { status: 'rejected', message: "Contrôle facial non concordant après 3 essais." };
-        }
-        if (hasUrl && !verified) {
-          return { status: 'uploading' };
-        }
-        return { status: 'pending' };
-      }
-      case 3: { // Extrait Époux
-        const s = findStatus('doc2');
-        return { status: s, message: s === 'rejected' ? getMessage('doc2') : undefined };
-      }
-      case 4: { // CNI Épouse
-        const s = findStatus('doc1_f');
-        return { status: s, message: s === 'rejected' ? getMessage('doc1_f') : undefined };
-      }
-      case 5: { // Selfie Épouse
-        const attempts = currentDossier?.epouse_face_attempts ?? 0;
-        const verified = currentDossier?.epouse_identite_verifiee === true;
-        const hasUrl = !!currentDossier?.epouse_selfie_url;
-        
-        if (hasUrl && (verified || attempts >= 3)) {
-          return { status: 'verified' };
-        }
-        if (attempts >= 3 && !verified) {
-          return { status: 'rejected', message: "Contrôle facial non concordant après 3 essais." };
-        }
-        if (hasUrl && !verified) {
-          return { status: 'uploading' };
-        }
-        return { status: 'pending' };
-      }
-      case 6: { // Extrait Épouse
-        const s = findStatus('doc2_f');
-        return { status: s, message: s === 'rejected' ? getMessage('doc2_f') : undefined };
-      }
-      case 7: { // Autres docs (Justificatifs + Témoins)
-        const s3 = findStatus('doc3');
-        const s3_f = findStatus('doc3_f');
-        const s5 = findStatus('doc5');
-        const s9 = findStatus('doc9');
-        
-        const isUploaded = (s: string) => s === 'verified' || s === 'uploading';
-
-        const allV = s3 === 'verified' && s3_f === 'verified' && s5 === 'verified' && s9 === 'verified';
-        if (allV) return { status: 'verified' };
-        
-        if (s3 === 'rejected') return { status: 'rejected', message: `Justif Époux : ${getMessage('doc3')}` };
-        if (s3_f === 'rejected') return { status: 'rejected', message: `Justif Épouse : ${getMessage('doc3_f')}` };
-        if (s5 === 'rejected') return { status: 'rejected', message: `Témoin 1 : ${getMessage('doc5')}` };
-        if (s9 === 'rejected') return { status: 'rejected', message: `Témoin 2 : ${getMessage('doc9')}` };
-        
-        const allUploaded = isUploaded(s3) && isUploaded(s3_f) && isUploaded(s5) && isUploaded(s9);
-        if (allUploaded) {
-          return { status: 'uploading' };
-        }
-
-        const missing: string[] = [];
-        if (!isUploaded(s3)) missing.push("Justif. Époux");
-        if (!isUploaded(s3_f)) missing.push("Justif. Épouse");
-        if (!isUploaded(s5)) missing.push("CNI Témoin 1");
-        if (!isUploaded(s9)) missing.push("CNI Témoin 2");
-
-        return { 
-          status: 'pending', 
-          message: missing.length === 4 ? undefined : `Pièces manquantes (${4 - missing.length}/4 fournies) : ${missing.join(', ')}` 
-        };
-      }
-      default:
-        return { status: 'pending' };
+  const getDocStatusById = (id: string): { status: 'verified' | 'rejected' | 'uploading' | 'pending'; message?: string } => {
+    if (id === 'selfie_epoux') {
+      const currentDossier = allDossiers.find(d => d.id === dossierId);
+      const attempts = currentDossier?.epoux_face_attempts ?? 0;
+      const verified = currentDossier?.epoux_identite_verifiee === true;
+      const hasUrl = !!currentDossier?.epoux_selfie_url;
+      if (hasUrl && (verified || attempts >= 3)) return { status: 'verified' };
+      if (attempts >= 3 && !verified) return { status: 'rejected', message: "Contrôle facial non concordant après 3 essais." };
+      if (hasUrl && !verified) return { status: 'uploading' };
+      return { status: 'pending' };
     }
+
+    if (id === 'selfie_epouse') {
+      const currentDossier = allDossiers.find(d => d.id === dossierId);
+      const attempts = currentDossier?.epouse_face_attempts ?? 0;
+      const verified = currentDossier?.epouse_identite_verifiee === true;
+      const hasUrl = !!currentDossier?.epouse_selfie_url;
+      if (hasUrl && (verified || attempts >= 3)) return { status: 'verified' };
+      if (attempts >= 3 && !verified) return { status: 'rejected', message: "Contrôle facial non concordant après 3 essais." };
+      if (hasUrl && !verified) return { status: 'uploading' };
+      return { status: 'pending' };
+    }
+
+    if (!documents || documents.length === 0) return { status: 'pending' };
+    const doc = documents.find(d => d.id === id);
+    if (!doc) return { status: 'pending' };
+    if (doc.status === 'verified') return { status: 'verified' };
+    if (doc.status === 'rejected') return { status: 'rejected', message: doc.aiAnalysis?.motif || doc.rejectionReason || '' };
+    if (doc.fileName || doc.status === 'uploading') return { status: 'uploading' };
+    return { status: 'pending' };
   };
 
-  const handleDocumentAction = (stepId: number) => {
+  const getDocStatusDetailed = (stepId: number) => {
+    if (stepId === 1) return getDocStatusById('doc1');
+    if (stepId === 2) return getDocStatusById('selfie_epoux');
+    if (stepId === 3) return getDocStatusById('doc2');
+    if (stepId === 4) return getDocStatusById('doc1_f');
+    if (stepId === 5) return getDocStatusById('selfie_epouse');
+    if (stepId === 6) return getDocStatusById('doc2_f');
+    return getDocStatusById('doc3');
+  };
+
+  const handleDocumentAction = (stepIdOrDocId: number | string) => {
     if (setDossierActiveStep) {
-      setDossierActiveStep(stepId);
+      if (typeof stepIdOrDocId === 'number') {
+        setDossierActiveStep(stepIdOrDocId);
+      } else {
+        if (stepIdOrDocId === 'doc1') setDossierActiveStep(1);
+        else if (stepIdOrDocId === 'selfie_epoux') setDossierActiveStep(2);
+        else if (stepIdOrDocId === 'doc2') setDossierActiveStep(3);
+        else if (stepIdOrDocId === 'doc1_f') setDossierActiveStep(4);
+        else if (stepIdOrDocId === 'selfie_epouse') setDossierActiveStep(5);
+        else if (stepIdOrDocId === 'doc2_f') setDossierActiveStep(6);
+        else setDossierActiveStep(7);
+      }
     }
     setTab('dossier');
     if (typeof setShowParcours === 'function') {
@@ -618,12 +569,12 @@ export default function Landing({
   };
 
   const handleDepositNow = () => {
-    const firstUnfinishedDoc = REQUIRED_DOCS.find(doc => {
-      const { status } = getDocStatusDetailed(doc.id);
+    const firstUnfinishedDoc = dynamicRequiredDocs.find(doc => {
+      const { status } = getDocStatusById(doc.id);
       return status !== 'verified';
     });
 
-    const targetStep = firstUnfinishedDoc ? firstUnfinishedDoc.id : 1;
+    const targetStep = firstUnfinishedDoc ? 7 : 1;
 
     if (setDossierActiveStep) {
       setDossierActiveStep(targetStep);
@@ -634,9 +585,16 @@ export default function Landing({
     }
   };
 
-  const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
-  const allRequiredUploaded = stepStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
-  const missingDocsCount = stepStatuses.filter(s => s.status === 'pending' || s.status === 'rejected').length;
+  const dynamicRequiredDocs = getRequiredDocsForProfiles(epouxProfile, epouseProfile);
+
+  const allRequiredUploaded = dynamicRequiredDocs.every(doc => {
+    const s = getDocStatusById(doc.id).status;
+    return s === 'verified' || s === 'uploading';
+  });
+  const missingDocsCount = dynamicRequiredDocs.filter(doc => {
+    const s = getDocStatusById(doc.id).status;
+    return s === 'pending' || s === 'rejected';
+  }).length;
 
   // Sync automatic completedSteps whenever documents or dossier state updates
   useEffect(() => {
@@ -649,13 +607,15 @@ export default function Landing({
       const isReservationPaid = targetDossier?.frais_reservation_paye === true;
       const isFinalPaid = targetDossier?.status === 'scheduled' || targetDossier?.status === 'paid';
 
-      const allDocStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
-      const isApproved = allDocStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
+      const isApproved = dynamicRequiredDocs.every(doc => {
+        const s = getDocStatusById(doc.id).status;
+        return s === 'verified' || s === 'uploading';
+      });
 
       const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
       setCompletedSteps(done);
     }
-  }, [showParcours, documents, allDossiers, selectedMairieId, weddingDate, spouse1Name, spouse2Name, dossierId]);
+  }, [showParcours, documents, allDossiers, selectedMairieId, weddingDate, spouse1Name, spouse2Name, dossierId, epouxProfile, epouseProfile]);
 
   // Charger les mairies réelles et dossiers depuis la DB au montage
   useEffect(() => {
@@ -1867,10 +1827,82 @@ export default function Landing({
                         </div>
                       </div>
 
-                      <label className="block text-[11px] font-bold text-slate-650 uppercase tracking-widest">Documents requis</label>
+                      {/* Situation & Statut des futur(e)s époux (Sélecteur dynamique de profil) */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5 font-sans text-left">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>⚖️ Situation &amp; Statut des futur(e)s époux</span>
+                          </span>
+                          <span className="text-[9.5px] text-slate-400">Ajuste les pièces requises</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          {/* Profil Époux */}
+                          <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1.5">
+                            <span className="font-bold text-slate-800 text-[10.5px] block truncate">🧑 Époux ({spouse1Name || 'Époux'})</span>
+                            <div className="grid grid-cols-3 gap-1 text-[9.5px]">
+                              <div>
+                                <label className="block text-[8.5px] text-slate-400 mb-0.5">État civil</label>
+                                <select value={epouxProfile.maritalStatus} onChange={e => setEpouxProfile({...epouxProfile, maritalStatus: e.target.value as any})} className="w-full p-1 border rounded bg-slate-50 font-semibold text-slate-700">
+                                  <option value="celibataire">Célibataire</option>
+                                  <option value="veuf">Veuf</option>
+                                  <option value="divorce">Divorcé</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[8.5px] text-slate-400 mb-0.5">Statut pro</label>
+                                <select value={epouxProfile.professionType} onChange={e => setEpouxProfile({...epouxProfile, professionType: e.target.value as any})} className="w-full p-1 border rounded bg-slate-50 font-semibold text-slate-700">
+                                  <option value="civil">Civil</option>
+                                  <option value="militaire">Militaire / Force de l'ordre</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[8.5px] text-slate-400 mb-0.5">Nationalité</label>
+                                <select value={epouxProfile.nationalityType} onChange={e => setEpouxProfile({...epouxProfile, nationalityType: e.target.value as any})} className="w-full p-1 border rounded bg-slate-50 font-semibold text-slate-700">
+                                  <option value="ivoirien">Ivoirien</option>
+                                  <option value="etranger_dispense">Étranger (FR/ML)</option>
+                                  <option value="etranger_autre">Étranger (Autre)</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Profil Épouse */}
+                          <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-1.5">
+                            <span className="font-bold text-slate-800 text-[10.5px] block truncate">👩 Épouse ({spouse2Name || 'Épouse'})</span>
+                            <div className="grid grid-cols-3 gap-1 text-[9.5px]">
+                              <div>
+                                <label className="block text-[8.5px] text-slate-400 mb-0.5">État civil</label>
+                                <select value={epouseProfile.maritalStatus} onChange={e => setEpouseProfile({...epouseProfile, maritalStatus: e.target.value as any})} className="w-full p-1 border rounded bg-slate-50 font-semibold text-slate-700">
+                                  <option value="celibataire">Célibataire</option>
+                                  <option value="veuf">Veuve</option>
+                                  <option value="divorce">Divorcée</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[8.5px] text-slate-400 mb-0.5">Statut pro</label>
+                                <select value={epouseProfile.professionType} onChange={e => setEpouseProfile({...epouseProfile, professionType: e.target.value as any})} className="w-full p-1 border rounded bg-slate-50 font-semibold text-slate-700">
+                                  <option value="civil">Civile</option>
+                                  <option value="militaire">Militaire / Force de l'ordre</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[8.5px] text-slate-400 mb-0.5">Nationalité</label>
+                                <select value={epouseProfile.nationalityType} onChange={e => setEpouseProfile({...epouseProfile, nationalityType: e.target.value as any})} className="w-full p-1 border rounded bg-slate-50 font-semibold text-slate-700">
+                                  <option value="ivoirien">Ivoirienne</option>
+                                  <option value="etranger_dispense">Étrangère (FR/ML)</option>
+                                  <option value="etranger_autre">Étrangère (Autre)</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <label className="block text-[11px] font-bold text-slate-650 uppercase tracking-widest text-left">Documents requis selon profil</label>
                       <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
-                        {REQUIRED_DOCS.map((doc, i) => {
-                          const { status, message } = getDocStatusDetailed(doc.id);
+                        {dynamicRequiredDocs.map((doc, i) => {
+                          const { status, message } = getDocStatusById(doc.id);
                           
                           let cardBg = "bg-neutral-50 border-neutral-200 hover:border-primary/45 hover:bg-neutral-50/80";
                           let badgeBg = "bg-neutral-250 text-slate-500";
@@ -1901,7 +1933,7 @@ export default function Landing({
                                   <span className="text-base shrink-0 group-hover:scale-110 transition-transform">{doc.icon}</span>
                                   <div className="text-left min-w-0">
                                     <span className={`font-sans font-bold text-[11px] block leading-tight ${status === 'verified' ? 'text-emerald-950 line-through decoration-emerald-500/40' : 'text-slate-800'}`}>
-                                      {doc.label}
+                                      {doc.label} {doc.isSpecial && <span className="text-[9px] text-amber-700 bg-amber-100 px-1 py-0.2 rounded ml-1 font-semibold">Spécifique</span>}
                                     </span>
                                     <span className="font-sans text-[10px] text-slate-400 block mt-0.5 leading-normal truncate">{doc.desc}</span>
                                   </div>

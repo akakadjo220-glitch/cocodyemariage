@@ -187,9 +187,9 @@ export default function Landing({
 }: LandingProps) {
   const [showParcours, setShowParcours] = useState(false);
   const [openDocSection, setOpenDocSection] = useState<'commun' | 'cas' | null>(null);
-  const [selectedMonthSim, setSelectedMonthSim] = useState<string>('07');
-  const [precheckConfirmed, setPrecheckConfirmed] = useState(false);
-  const [profileConfirmed, setProfileConfirmed] = useState(false);
+  const hasExistingNames = Boolean(spouse1Name?.trim() || spouse2Name?.trim() || dossierId);
+  const [precheckConfirmed, setPrecheckConfirmed] = useState(hasExistingNames);
+  const [profileConfirmed, setProfileConfirmed] = useState(hasExistingNames);
 
   const checkIsOpened = (ouvertureIso: string) => {
     const openingDate = new Date(ouvertureIso);

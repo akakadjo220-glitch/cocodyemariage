@@ -37,6 +37,7 @@ const getDossierMsgColor = (statut: string | null) => {
 };
 import { DocumentInfo, AiAnalysisResult } from '../types';
 import { INITIAL_DOCUMENTS } from '../data';
+import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles } from '../utils/documentProfileUtils';
 import {
   uploadDocumentFile,
   checkDuplicateDocumentNumber,
@@ -2047,91 +2048,63 @@ export default function Dossier({
                   </p>
                 </div>
 
-                {/* 1. Justificatifs généraux et Témoins */}
-                <div className="space-y-3">
-                  <h4 className="font-serif font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                    <span>📑 Justificatifs Généraux &amp; Témoins</span>
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {documents
-                      .filter(doc => ['doc3', 'doc3_f', 'doc5', 'doc9'].includes(doc.id))
-                      .map(doc => {
-                        const isUploaded = !!doc.fileName;
-                        return (
-                          <div key={doc.id} className={`p-4 rounded-xl border flex flex-col gap-3 ${isUploaded ? 'bg-emerald-50/30 border-emerald-250' : 'bg-neutral-50 border-neutral-200'}`}>
-                            <div className="flex justify-between items-start">
-                              <div className="text-left">
-                                <span className="font-sans font-bold text-xs text-slate-800 block">{doc.name}</span>
-                                <span className="font-sans text-[10px] text-slate-400 leading-relaxed block mt-0.5">{doc.description}</span>
-                              </div>
-                              <span className={`px-2 py-0.5 rounded-full font-sans text-[9px] font-bold shrink-0 ${isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-200 text-slate-500'}`}>
-                                {isUploaded ? 'Téléversé ✓' : 'À fournir'}
-                              </span>
-                            </div>
+                {/* 1. Justificatifs requis selon la situation du couple */}
+                {(() => {
+                  const requiredMetas = getRequiredDocsForProfiles(DEFAULT_SPOUSE_PROFILE, DEFAULT_SPOUSE_PROFILE);
+                  const step7Ids = requiredMetas
+                    .filter(d => !['doc1', 'doc2', 'doc1_f', 'doc2_f', 'selfie_epoux', 'selfie_epouse'].includes(d.id))
+                    .map(d => d.id);
 
-                            {isUploaded ? (
-                              <div className="flex justify-between items-center text-xs font-sans p-2 bg-white rounded-xl border border-neutral-100">
-                                <span className="truncate max-w-[80%] font-semibold text-slate-600">📄 {doc.fileName}</span>
-                                <button onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border border-none cursor-pointer">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <button onClick={() => setShowFileUploadModal(doc.id)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                                <UploadCloud className="w-4 h-4" />
-                                <span>Téléverser</span>
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-serif font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                          <span>📑 Justificatifs Requis selon Profil</span>
+                        </h4>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {step7Ids.length} pièce(s) requise(s)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {documents
+                          .filter(doc => step7Ids.includes(doc.id))
+                          .map(doc => {
+                            const meta = requiredMetas.find(m => m.id === doc.id);
+                            const isUploaded = !!doc.fileName;
+                            return (
+                              <div key={doc.id} className={`p-4 rounded-xl border flex flex-col gap-3 ${isUploaded ? 'bg-emerald-50/30 border-emerald-250' : 'bg-neutral-50 border-neutral-200'}`}>
+                                <div className="flex justify-between items-start">
+                                  <div className="text-left">
+                                    <span className="font-sans font-bold text-xs text-slate-800 block">
+                                      {meta?.label || doc.name} {meta?.isSpecial && <span className="text-[9px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded ml-1 font-semibold">Spécifique</span>}
+                                    </span>
+                                    <span className="font-sans text-[10px] text-slate-400 leading-relaxed block mt-0.5">{meta?.desc || doc.description}</span>
+                                  </div>
+                                  <span className={`px-2 py-0.5 rounded-full font-sans text-[9px] font-bold shrink-0 ${isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-200 text-slate-500'}`}>
+                                    {isUploaded ? 'Téléversé ✓' : 'À fournir'}
+                                  </span>
+                                </div>
 
-                {/* 2. Documents supplémentaires pour cas particuliers */}
-                <div className="space-y-3 pt-2 border-t border-dashed border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-serif font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                      <span>⚖️ Pièces spécifiques (Veuf, Divorcé, Militaire, Étranger)</span>
-                    </h4>
-                    <span className="text-[10px] font-bold text-slate-400">Optionnel selon situation</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {documents
-                      .filter(doc => ['doc_deces', 'doc_divorce', 'doc_viduite', 'doc_dispense', 'doc_militaire_presence', 'doc_militaire_autorisation', 'doc_etranger_certif', 'doc_etranger_capacite', 'doc_etranger_sejour', 'doc_etranger_consulaire'].includes(doc.id))
-                      .map(doc => {
-                        const isUploaded = !!doc.fileName;
-                        return (
-                          <div key={doc.id} className={`p-4 rounded-xl border flex flex-col gap-3 ${isUploaded ? 'bg-emerald-50/30 border-emerald-250' : 'bg-neutral-50/60 border-neutral-200'}`}>
-                            <div className="flex justify-between items-start">
-                              <div className="text-left">
-                                <span className="font-sans font-bold text-xs text-slate-800 block">{doc.name}</span>
-                                <span className="font-sans text-[10px] text-slate-400 leading-relaxed block mt-0.5">{doc.description}</span>
+                                {isUploaded ? (
+                                  <div className="flex justify-between items-center text-xs font-sans p-2 bg-white rounded-xl border border-neutral-100">
+                                    <span className="truncate max-w-[80%] font-semibold text-slate-600">📄 {doc.fileName}</span>
+                                    <button onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border border-none cursor-pointer">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => setShowFileUploadModal(doc.id)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                                    <UploadCloud className="w-4 h-4" />
+                                    <span>Téléverser</span>
+                                  </button>
+                                )}
                               </div>
-                              <span className={`px-2 py-0.5 rounded-full font-sans text-[9px] font-bold shrink-0 ${isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100/60 text-amber-700'}`}>
-                                {isUploaded ? 'Téléversé ✓' : 'Si applicable'}
-                              </span>
-                            </div>
-
-                            {isUploaded ? (
-                              <div className="flex justify-between items-center text-xs font-sans p-2 bg-white rounded-xl border border-neutral-100">
-                                <span className="truncate max-w-[80%] font-semibold text-slate-600">📄 {doc.fileName}</span>
-                                <button onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border border-none cursor-pointer">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <button onClick={() => setShowFileUploadModal(doc.id)} className="py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-                                <UploadCloud className="w-4 h-4" />
-                                <span>Téléverser</span>
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 3. Zone de téléversement libre pour cas spécifiques NON PRÉVUS */}
                 <div className="p-5 rounded-2xl bg-gradient-to-r from-violet-500/5 via-primary/5 to-amber-500/5 border border-primary/20 space-y-4 shadow-sm">

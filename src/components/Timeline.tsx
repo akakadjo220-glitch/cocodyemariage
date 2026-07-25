@@ -924,7 +924,7 @@ export default function Timeline({
     }
   };
 
-  const stepStatuses = REQUIRED_DOCS.filter(doc => doc.id <= 6).map(doc => getDocStatusDetailed(doc.id));
+  const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
   const allRequiredUploaded = stepStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
   const allRequiredDocsVerified = stepStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
   const missingDocsCount = stepStatuses.filter(s => s.status === 'pending' || s.status === 'rejected').length;

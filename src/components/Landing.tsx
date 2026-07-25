@@ -189,6 +189,7 @@ export default function Landing({
   const [openDocSection, setOpenDocSection] = useState<'commun' | 'cas' | null>(null);
   const [selectedMonthSim, setSelectedMonthSim] = useState<string>('07');
   const [precheckConfirmed, setPrecheckConfirmed] = useState(false);
+  const [profileConfirmed, setProfileConfirmed] = useState(false);
 
   const checkIsOpened = (ouvertureIso: string) => {
     const openingDate = new Date(ouvertureIso);
@@ -708,6 +709,7 @@ export default function Landing({
 
     if (dossierId) {
       setPrecheckConfirmed(true);
+      setProfileConfirmed(true);
     }
 
     setCompletedSteps(done);
@@ -1590,13 +1592,122 @@ export default function Landing({
                           })()}
                         </div>
                       </div>
+                    ) : !profileConfirmed ? (
+                      /* ── Sous-étape 2 : Situation & Statut des futur(e)s époux (Fenetre dédiée épurée) ── */
+                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl shrink-0">⚖️</div>
+                          <div className="text-left">
+                            <h4 className="font-serif font-bold text-slate-900 text-base">Situation &amp; Statut des futur(e)s époux</h4>
+                            <p className="font-sans text-xs text-slate-400">Déclarez le statut civil et professionnel pour préparer automatiquement la liste exacte de vos pièces requises.</p>
+                          </div>
+                        </div>
+
+                        {/* Cadre identique au design de la maquette utilisateur */}
+                        <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 space-y-3 font-sans text-left shadow-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                              <span>⚖️ SITUATION &amp; STATUT DES FUTUR(E)S ÉPOUX</span>
+                            </span>
+                            <span className="text-[10.5px] text-slate-400">Ajuste les pièces requises</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            {/* Profil Époux */}
+                            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                              <span className="font-bold text-slate-800 text-[11px] block truncate">🧑 Époux ({spouse1Name || editS1 || 'Époux'})</span>
+                              <div className="grid grid-cols-3 gap-1.5 text-[9.5px]">
+                                <div>
+                                  <label className="block text-[8.5px] text-slate-400 mb-1">État civil</label>
+                                  <select value={epouxProfile.maritalStatus} onChange={e => setEpouxProfile({...epouxProfile, maritalStatus: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <option value="celibataire">Célibataire</option>
+                                    <option value="veuf">Veuf</option>
+                                    <option value="divorce">Divorcé</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[8.5px] text-slate-400 mb-1">Statut pro</label>
+                                  <select value={epouxProfile.professionType} onChange={e => setEpouxProfile({...epouxProfile, professionType: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <option value="civil">Civil</option>
+                                    <option value="militaire">Militaire / Force de l'ordre</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[8.5px] text-slate-400 mb-1">Nationalité</label>
+                                  <select value={epouxProfile.nationalityType} onChange={e => setEpouxProfile({...epouxProfile, nationalityType: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <option value="ivoirien">Ivoirien</option>
+                                    <option value="etranger_dispense">Étranger (FR/ML)</option>
+                                    <option value="etranger_autre">Étranger (Autre)</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Profil Épouse */}
+                            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                              <span className="font-bold text-slate-800 text-[11px] block truncate">👩 Épouse ({spouse2Name || editS2 || 'Épouse'})</span>
+                              <div className="grid grid-cols-3 gap-1.5 text-[9.5px]">
+                                <div>
+                                  <label className="block text-[8.5px] text-slate-400 mb-1">État civil</label>
+                                  <select value={epouseProfile.maritalStatus} onChange={e => setEpouseProfile({...epouseProfile, maritalStatus: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <option value="celibataire">Célibataire</option>
+                                    <option value="veuf">Veuve</option>
+                                    <option value="divorce">Divorcée</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[8.5px] text-slate-400 mb-1">Statut pro</label>
+                                  <select value={epouseProfile.professionType} onChange={e => setEpouseProfile({...epouseProfile, professionType: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <option value="civil">Civile</option>
+                                    <option value="militaire">Militaire / Force de l'ordre</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[8.5px] text-slate-400 mb-1">Nationalité</label>
+                                  <select value={epouseProfile.nationalityType} onChange={e => setEpouseProfile({...epouseProfile, nationalityType: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <option value="ivoirien">Ivoirienne</option>
+                                    <option value="etranger_dispense">Étrangère (FR/ML)</option>
+                                    <option value="etranger_autre">Étrangère (Autre)</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setPrecheckConfirmed(false)}
+                            className="px-4 py-3.5 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all"
+                          >
+                            ← Retour
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProfileConfirmed(true)}
+                            className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md hover:shadow-lg"
+                          >
+                            <span>Continuer vers les identités →</span>
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <form onSubmit={handleStep1Submit} className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 rounded-2xl bg-violet-100 flex items-center justify-center text-2xl shrink-0">👤</div>
-                        <div>
-                          <h4 className="font-serif font-bold text-slate-900 text-base">Création du dossier</h4>
-                          <p className="font-sans text-xs text-slate-400">Renseignez l'identité des futurs époux pour initialiser le dossier civil.</p>
+                        <div className="flex-1 flex items-center justify-between">
+                          <div>
+                            <h4 className="font-serif font-bold text-slate-900 text-base">Création du dossier</h4>
+                            <p className="font-sans text-xs text-slate-400">Renseignez l'identité des futurs époux pour initialiser le dossier civil.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setProfileConfirmed(false)}
+                            className="text-[10.5px] font-semibold text-primary hover:underline bg-primary/5 px-2.5 py-1 rounded-lg border border-primary/20 cursor-pointer shrink-0"
+                          >
+                            ⚙️ Modifier situation
+                          </button>
                         </div>
                       </div>
 

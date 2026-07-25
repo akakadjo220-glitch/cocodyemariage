@@ -634,9 +634,28 @@ export default function Landing({
     }
   };
 
-  const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
-  const allRequiredUploaded = stepStatuses.every(s => s.status !== 'pending' && s.status !== 'rejected');
+  const stepStatuses = REQUIRED_DOCS.filter(doc => doc.id <= 6).map(doc => getDocStatusDetailed(doc.id));
+  const allRequiredUploaded = stepStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
   const missingDocsCount = stepStatuses.filter(s => s.status === 'pending' || s.status === 'rejected').length;
+
+  // Sync automatic completedSteps whenever documents or dossier state updates
+  useEffect(() => {
+    if (showParcours) {
+      const hasNames = Boolean(spouse1Name?.trim() && spouse2Name?.trim());
+      const hasMairie = Boolean(selectedMairieId);
+      const hasDate = Boolean(weddingDate);
+
+      const targetDossier = allDossiers.find(d => d.id === dossierId);
+      const isReservationPaid = targetDossier?.frais_reservation_paye === true;
+      const isFinalPaid = targetDossier?.status === 'scheduled' || targetDossier?.status === 'paid';
+
+      const mandatoryDocStatuses = REQUIRED_DOCS.filter(doc => doc.id <= 6).map(doc => getDocStatusDetailed(doc.id));
+      const isApproved = mandatoryDocStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
+
+      const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+      setCompletedSteps(done);
+    }
+  }, [showParcours, documents, allDossiers, selectedMairieId, weddingDate, spouse1Name, spouse2Name, dossierId]);
 
   // Charger les mairies réelles et dossiers depuis la DB au montage
   useEffect(() => {
@@ -704,8 +723,8 @@ export default function Landing({
     const isReservationPaid = targetDossier?.frais_reservation_paye === true;
     const isFinalPaid = targetDossier?.status === 'scheduled' || targetDossier?.status === 'paid';
 
-    const stepStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
-    const isApproved = stepStatuses.every(s => s.status === 'verified');
+    const mandatoryDocStatuses = REQUIRED_DOCS.filter(doc => doc.id <= 6).map(doc => getDocStatusDetailed(doc.id));
+    const isApproved = mandatoryDocStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
 
     // Pré-remplir avec les données existantes
     setEditS1(spouse1Name || '');

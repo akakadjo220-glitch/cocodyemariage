@@ -988,27 +988,25 @@ export default function Timeline({
     } else if (step.id === 5) {
       title = "Confirmation & Paiement";
       icon = "CreditCard";
-      const isPaid = paymentInfo?.status === 'success' || currentDossier?.status === 'scheduled' || currentDossier?.status === 'paid';
-      const isMairieValidated = currentDossier?.status === 'scheduled' || currentDossier?.status === 'paid';
       const isReservationPaid = currentDossier?.frais_reservation_paye === true;
-      const allStep5Complete = isReservationPaid && isMairieValidated && isPaid;
+      const isCaissePaid = currentDossier?.frais_timbre_paye === true;
+      const allStep5Complete = isReservationPaid && isCaissePaid;
 
       status = currentDossier?.wedding_date
         ? (allStep5Complete ? ('completed' as const) : ('active' as const))
         : ('upcoming' as const);
       desc = allStep5Complete
-        ? "Frais de confirmation réglés avec succès."
-        : "Réglez les frais de réservation en ligne pour valider votre créneau.";
+        ? "Frais de confirmation et droits de célébration réglés."
+        : "Réglez vos frais de célébration en caisse de mairie.";
       details = allStep5Complete
-        ? "Votre paiement a été traité et votre créneau de célébration est officiellement verrouillé."
-        : "Réglez vos frais de réservation (2 500 FCFA) par Mobile Money ou carte pour bloquer définitivement le créneau.";
+        ? "Vos paiements ont été traités et votre célébration est officiellement confirmée."
+        : `Veuillez régler les droits de célébration (${(systemParams?.frais_timbre_montant || 100000).toLocaleString('fr-FR')} FCFA) à la caisse de la mairie lors de votre rendez-vous.`;
     } else if (step.id === 6) {
       title = "Célébration d'Union";
       icon = "HeartHandshake";
-      const isPaid = paymentInfo?.status === 'success' || currentDossier?.status === 'scheduled' || currentDossier?.status === 'paid';
-      const isMairieValidated = currentDossier?.status === 'scheduled' || currentDossier?.status === 'paid';
       const isReservationPaid = currentDossier?.frais_reservation_paye === true;
-      const allStep5Complete = isReservationPaid && isMairieValidated && isPaid;
+      const isCaissePaid = currentDossier?.frais_timbre_paye === true;
+      const allStep5Complete = isReservationPaid && isCaissePaid;
 
       status = allStep5Complete ? ('active' as const) : ('upcoming' as const);
       desc = "Célébration officielle de votre mariage civil en mairie.";
@@ -1832,7 +1830,7 @@ export default function Timeline({
                     </div>
                   </div>
                 ) : (
-                  paymentInfo?.status !== 'success' ? (
+                  currentDossier?.frais_timbre_paye !== true ? (
                     <div className="flex flex-col gap-4 animate-fade-in">
                       <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800">
                         <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1842,23 +1840,28 @@ export default function Timeline({
                       <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-200 rounded-2xl flex flex-col gap-4 text-left shadow-sm">
                         <div className="flex items-center gap-2 text-amber-850 font-bold text-sm">
                           <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                          <span>Paiement des Droits Légaux Municipaux</span>
+                          <span>Droits Municipaux de Célébration (Encaissement Physique)</span>
                         </div>
                         <p className="font-sans text-xs text-slate-655 leading-relaxed font-semibold">
-                          Après publication des bans de 10 jours sans opposition, vous devez acquitter le montant des droits civils municipaux de célébration :
+                          Après la vérification et la validation de vos documents originaux lors de votre rendez-vous, vous devez vous acquitter des frais de célébration directement à la caisse de la mairie :
                         </p>
 
                         <div className="p-4 bg-white border border-amber-200/60 rounded-xl flex justify-between items-center shadow-inner-sm">
                           <div>
-                            <span className="font-sans text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">Droits de célébration</span>
-                            <span className="font-serif font-bold text-amber-700 text-lg mt-0.5 block">100 000 FCFA</span>
+                            <span className="font-sans text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">Montant à régler en caisse</span>
+                            <span className="font-serif font-bold text-amber-700 text-lg mt-0.5 block">{(systemParams?.frais_timbre_montant || 100000).toLocaleString('fr-FR')} FCFA</span>
                           </div>
-                          <button
-                            onClick={(e) => startFinalPayment(e)}
-                            className="bg-primary hover:bg-primary-container text-white py-2.5 px-5 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all shadow-md cursor-pointer border border-primary/20 flex items-center gap-1"
-                          >
-                            Payer via Paystack
-                          </button>
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-250 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+                            Attente de paiement en caisse
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 bg-slate-100 rounded-xl text-[10px] font-medium leading-relaxed text-slate-600">
+                          <p className="font-bold text-slate-800">💡 Comment procéder ?</p>
+                          <p className="mt-1">
+                            L'agent d'état civil imprimera votre bulletin de caisse lors de votre visite. Présentez ce bulletin à la caisse municipale pour effectuer le règlement de {(systemParams?.frais_timbre_montant || 100000).toLocaleString('fr-FR')} FCFA. Dès encaissement par l'agent, votre dossier passera automatiquement au statut approuvé.
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1866,10 +1869,10 @@ export default function Timeline({
                     <div className="p-5 bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-250 rounded-2xl flex flex-col gap-3 text-left shadow-sm animate-fade-in">
                       <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
                         <Check className="w-5 h-5 text-emerald-600 shrink-0 animate-scale-in" />
-                        <span>Tout est en règle !</span>
+                        <span>Paiement validé par la Mairie !</span>
                       </div>
                       <p className="font-sans text-xs text-slate-655 leading-relaxed font-semibold">
-                        Frais de réservation et droits de célébration municipaux réglés avec succès. Votre créneau horaire est définitivement confirmé pour la cérémonie.
+                        Vos droits de célébration de {(systemParams?.frais_timbre_montant || 100000).toLocaleString('fr-FR')} FCFA ont été encaissés avec succès par la caisse municipale. Votre dossier est officiellement approuvé pour la célébration.
                       </p>
                       <div className="flex justify-end mt-2">
                         <button

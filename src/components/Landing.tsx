@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, CheckSquare, UploadCloud, CreditCard, ChevronRight, Heart, CalendarCheck, Sparkles, Check, Loader2, Search, X, AlertCircle, UserPlus, FileText, Building, CheckCircle2, Landmark, ChevronUp, ChevronDown, BookOpen, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getMairies, MairieInfo, getDossiers, findDossierByQuery, getPaystackConfig, sendOpenwaWhatsapp, DossierInfo, getCapacityForDate, checkDuplicateSpouse, logDuplicateAttempt, updateDossierWeddingDate } from '../services/dbService';
+import { getMairies, MairieInfo, getDossiers, findDossierByQuery, getPaystackConfig, sendOpenwaWhatsapp, DossierInfo, getCapacityForDate, checkDuplicateSpouse, logDuplicateAttempt, updateDossierWeddingDate, getSystemParameters, SystemParameters } from '../services/dbService';
 import { TimelineStep, DocumentInfo } from '../types';
 import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles } from '../utils/documentProfileUtils';
 import { supabase } from '../supabaseClient';
@@ -81,7 +81,7 @@ const STEPS_META = [
   { id: 2, icon: '🏛️', label: 'Choix de la mairie', short: 'Mairie' },
   { id: 3, icon: '📁', label: 'Dépôt des documents', short: 'Documents' },
   { id: 4, icon: '📅', label: 'Option de date', short: 'Date' },
-  { id: 5, icon: '💳', label: 'Confirmation & Paiement physique', short: 'Paiement' },
+  { id: 5, icon: '💳', label: 'Paiement en ligne (2 500 F) & RDV', short: 'Paiement' },
   { id: 6, icon: '💍', label: 'Célébration', short: 'Célébration' },
 ];
 
@@ -190,6 +190,7 @@ export default function Landing({
   setAutoOpenParcoursStep,
 }: LandingProps) {
   const [showParcours, setShowParcours] = useState(false);
+  const [simulatedReservationPaid, setSimulatedReservationPaid] = useState(false);
   const [openDocSection, setOpenDocSection] = useState<'commun' | 'cas' | null>(null);
   const [selectedMonthSim, setSelectedMonthSim] = useState<string>('07');
   const hasExistingNames = Boolean(spouse1Name?.trim() || spouse2Name?.trim() || dossierId);
@@ -435,6 +436,7 @@ export default function Landing({
   // État final
   const [allDone, setAllDone] = useState(false);
   const [capacity, setCapacity] = useState<number>(15);
+  const [systemParams, setSystemParams] = useState<SystemParameters | null>(null);
 
   useEffect(() => {
     async function loadCapacity() {
@@ -643,19 +645,21 @@ export default function Landing({
     }
   }, [showParcours, documents, allDossiers, selectedMairieId, weddingDate, spouse1Name, spouse2Name, dossierId, epouxProfile, epouseProfile]);
 
-  // Charger les mairies réelles et dossiers depuis la DB au montage
+  // Charger les mairies réelles, dossiers et paramètres système depuis la DB au montage
   useEffect(() => {
     async function loadMairiesAndDossiers() {
       setMairiesLoading(true);
       try {
-        const [mairiesData, dossiersData] = await Promise.all([
+        const [mairiesData, dossiersData, paramsData] = await Promise.all([
           getMairies(),
-          getDossiers()
+          getDossiers(),
+          getSystemParameters()
         ]);
         setMairies(mairiesData.filter(m => m.is_active));
         setAllDossiers(dossiersData);
+        setSystemParams(paramsData);
       } catch (err) {
-        console.warn("Failed to load mairies/dossiers", err);
+        console.warn("Failed to load mairies/dossiers/parameters", err);
       } finally {
         setMairiesLoading(false);
       }
@@ -1066,6 +1070,15 @@ export default function Landing({
               },
               {
                 num: 2,
+                title: 'Choisissez votre mairie',
+                icon: Building,
+                color: 'bg-indigo-500',
+                light: 'bg-indigo-50 border-indigo-200',
+                text: 'text-indigo-600',
+                desc: 'Sélectionnez la mairie de célébration pour votre union civile. L\'accès est instantané.',
+              },
+              {
+                num: 3,
                 title: 'Déposez vos documents',
                 icon: FileText,
                 color: 'bg-amber-500',
@@ -1074,53 +1087,35 @@ export default function Landing({
                 desc: 'Photographiez votre pièce d\'identité, prenez un selfie, et ajoutez votre extrait de naissance. La vérification IA est automatique en quelques secondes (reconnaissance faciale, OCR, authenticité).',
               },
               {
-                num: 3,
-                title: 'Choisissez votre date',
+                num: 4,
+                title: 'Choisissez votre date & heure',
                 icon: Calendar,
                 color: 'bg-emerald-500',
                 light: 'bg-emerald-50 border-emerald-200',
                 text: 'text-emerald-600',
-                desc: 'Sélectionnez le jour et l\'heure de votre mariage parmi les créneaux disponibles. Les célébrations ont lieu du mercredi au samedi. Chaque salle est décalée de 15 minutes pour éviter les attentes.',
+                desc: 'Sélectionnez le jour et l\'heure de votre mariage parmi les créneaux disponibles. Les célébrations ont lieu du mercredi au samedi.',
                 badges: ['Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
                 badgeColor: 'border-emerald-200 text-emerald-700'
               },
               {
-                num: 4,
-                title: 'Payez 2 500 FCFA',
+                num: 5,
+                title: `Paiement en ligne (${(systemParams?.frais_reservation_montant || 2500).toLocaleString('fr-FR')} FCFA)`,
                 icon: CreditCard,
                 color: 'bg-blue-500',
                 light: 'bg-blue-50 border-blue-200',
                 text: 'text-blue-600',
-                desc: 'Ce paiement confirme votre réservation et vous donne un reçu numérique avec QR Code. Payable par Wave, Orange Money, MTN, Moov ou carte bancaire. La date et la salle sont alors verrouillées provisoirement.',
+                desc: `Réglez les frais plateforme de réservation de ${(systemParams?.frais_reservation_montant || 2500).toLocaleString('fr-FR')} FCFA. Dès le paiement validé, le système vous attribue automatiquement votre rendez-vous physique.`,
                 badges: ['Wave', 'Orange Money', 'MTN', 'Moov', 'Carte bancaire'],
                 badgeColor: 'border-blue-200 text-blue-700'
               },
               {
-                num: 5,
-                title: 'Rendez-vous à la mairie',
-                icon: Building,
-                color: 'bg-indigo-500',
-                light: 'bg-indigo-50 border-indigo-200',
-                text: 'text-indigo-600',
-                desc: 'Vous recevez automatiquement une date de rendez-vous (J-15 avant le mariage). Présentez-vous avec vos documents originaux et votre reçu QR Code. Une reprogrammation est possible (limitée à 3 fois).',
-              },
-              {
                 num: 6,
-                title: 'Réglez les droits de mariage',
-                icon: Landmark,
+                title: 'Rendez-vous physique & Célébration',
+                icon: Heart,
                 color: 'bg-purple-500',
                 light: 'bg-purple-50 border-purple-200',
                 text: 'text-purple-600',
-                desc: 'Sur place, l\'agent scanne votre QR Code, contrôle vos documents originaux puis vous oriente vers la caisse pour régler les droits de mariage (100 000 FCFA). Les bans sont publiés 10 jours avant la cérémonie.',
-              },
-              {
-                num: 7,
-                title: 'Votre mariage est confirmé',
-                icon: Heart,
-                color: 'bg-rose-500',
-                light: 'bg-rose-50 border-rose-200',
-                text: 'text-rose-600',
-                desc: 'Après vérification et publication des bans sans opposition, votre date est définitivement validée. Félicitations ! Vous recevrez une notification de confirmation par WhatsApp.',
+                desc: `Présentez-vous le jour de votre rendez-vous pour faire valider vos originaux physiques et régler les droits municipaux de célébration (${(systemParams?.frais_timbre_montant || 100000).toLocaleString('fr-FR')} FCFA) à la caisse de la mairie avant le jour J.`,
               }
             ].map((step) => {
               const Icon = step.icon;
@@ -1360,7 +1355,7 @@ export default function Landing({
               <CreditCard className="w-8 h-8 text-[#c5a368]" />
               <div>
                 <p className="text-xs text-[#c5a368] uppercase tracking-wider font-bold">Étape 4 — En ligne</p>
-                <p className="font-serif text-3xl font-bold text-slate-800 mt-1">2 500 <span className="text-base font-normal text-slate-500">FCFA</span></p>
+                <p className="font-serif text-3xl font-bold text-slate-800 mt-1">{(systemParams?.frais_reservation_montant || 2500).toLocaleString('fr-FR')} <span className="text-base font-normal text-slate-500">FCFA</span></p>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   Frais de réservation / confirmation du créneau. Non remboursables en cas d'absence injustifiée.
                 </p>
@@ -1378,7 +1373,7 @@ export default function Landing({
               <Landmark className="w-8 h-8 text-primary" />
               <div>
                 <p className="text-xs text-primary uppercase tracking-wider font-bold">Étape 6 — Sur place</p>
-                <p className="font-serif text-3xl font-bold text-slate-800 mt-1">100 000 <span className="text-base font-normal text-slate-500">FCFA</span></p>
+                <p className="font-serif text-3xl font-bold text-slate-800 mt-1">{(systemParams?.frais_timbre_montant || 100000).toLocaleString('fr-FR')} <span className="text-base font-normal text-slate-500">FCFA</span></p>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   Droits de mariage municipal. Réglés à la caisse de la mairie de Cocody le jour du rendez-vous physique.
                 </p>
@@ -2194,34 +2189,108 @@ export default function Landing({
                       </div>
                     )}
 
-                    {/* ── ÉTAPE 5 : Confirmation & Paiement physique ── */}
+                    {/* ── ÉTAPE 5 : Confirmation & Paiement ── */}
                     {activeStep === 5 && (
-                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                      <div className="space-y-4 text-left font-sans text-xs animate-fade-in" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
                         <div className="flex items-center gap-3 mb-4">
-                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl shrink-0">🏛️</div>
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl shrink-0">💳</div>
                           <div>
-                            <h4 className="font-serif font-bold text-slate-900 text-base">Confirmation &amp; Paiement</h4>
-                            <p className="font-sans text-xs text-slate-400">Présentation des originaux et règlement physique à la mairie.</p>
+                            <h4 className="font-serif font-bold text-slate-900 text-base">Confirmation &amp; Paiement en ligne</h4>
+                            <p className="font-sans text-xs text-slate-400">Règlement des frais plateforme pour valider votre créneau.</p>
                           </div>
                         </div>
 
-                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
-                          <p className="font-sans text-xs text-amber-800 leading-relaxed font-semibold">
-                            Pour valider définitivement votre union, présentez-vous sous 7 jours à la mairie choisie muni de vos justificatifs originaux.
-                          </p>
-                          <div className="border-t border-amber-200 pt-3 flex justify-between items-center text-xs font-sans">
-                            <span className="font-bold text-slate-700">Droits municipaux à régler</span>
-                            <span className="font-serif font-bold text-amber-700">50 000 XOF</span>
-                          </div>
-                        </div>
+                        {!simulatedReservationPaid ? (
+                          <div className="space-y-4">
+                            <div className="p-4 bg-slate-50 border border-neutral-200 rounded-2xl flex flex-col gap-3">
+                              <p className="font-sans text-xs text-slate-600 leading-relaxed font-semibold">
+                                Pour verrouiller provisoirement votre créneau de célébration civile du <strong>{chosenDate ? new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : 'programmé'}</strong>, veuillez vous acquitter des frais de confirmation :
+                              </p>
+                              <div className="flex justify-between items-center text-xs font-sans border-t border-neutral-200 pt-2.5">
+                                <span className="font-bold text-slate-700">Frais de réservation (en ligne)</span>
+                                <span className="font-serif font-bold text-primary">{(systemParams?.frais_reservation_montant || 2500).toLocaleString('fr-FR')} FCFA</span>
+                              </div>
+                            </div>
 
-                        <div className="flex gap-3">
-                          <button onClick={() => setActiveStep(4)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
-                          <button onClick={() => { completeStep(5); setActiveStep(6); }}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all">
-                            Continuer → Célébration
-                          </button>
-                        </div>
+                            <div className="flex flex-col gap-2">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Mode de paiement en ligne :</label>
+                              <div className="grid grid-cols-2 gap-2 text-xs font-sans">
+                                {['Orange Money', 'Wave', 'MTN Money', 'Carte Bancaire'].map((m, idx) => (
+                                  <div key={idx} className="p-2 border border-neutral-200 rounded-xl text-center font-bold text-slate-700 bg-white shadow-sm">
+                                    {m}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                              <button onClick={() => setActiveStep(4)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
+                              <button
+                                onClick={() => setSimulatedReservationPaid(true)}
+                                className="flex-1 py-3 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all text-center flex items-center justify-center gap-1.5"
+                              >
+                                Payer {(systemParams?.frais_reservation_montant || 2500).toLocaleString('fr-FR')} FCFA
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="p-3 bg-emerald-50 border border-emerald-250 rounded-xl flex items-center gap-2 text-emerald-800">
+                              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span className="font-semibold text-[11px]">Frais de confirmation réglés ({(systemParams?.frais_reservation_montant || 2500).toLocaleString('fr-FR')} FCFA)</span>
+                            </div>
+
+                            <div className="p-4 bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-200 rounded-2xl flex flex-col gap-3">
+                              <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs uppercase tracking-wider">
+                                <Building className="w-4 h-4 text-indigo-600 shrink-0" />
+                                <span>Votre Rendez-vous Physique Attribué</span>
+                              </div>
+                              <p className="font-sans text-xs text-slate-600 leading-relaxed font-semibold">
+                                Présentez-vous à la mairie pour la vérification physique des documents originaux :
+                              </p>
+                              <div className="bg-white border border-indigo-100 rounded-xl p-3 grid grid-cols-2 gap-3 text-xs font-sans">
+                                <div>
+                                  <span className="text-slate-400 text-[9px] font-bold block uppercase tracking-wider">Date du rendez-vous</span>
+                                  <span className="font-bold text-slate-800 block mt-0.5">
+                                    {chosenDate ? (() => {
+                                      const testDate = new Date(chosenDate);
+                                      testDate.setDate(testDate.getDate() - 15);
+                                      if (testDate.getDay() === 0) testDate.setDate(testDate.getDate() - 2);
+                                      if (testDate.getDay() === 6) testDate.setDate(testDate.getDate() - 1);
+                                      return testDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+                                    })() : "24 Octobre 2026"}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 text-[9px] font-bold block uppercase tracking-wider">Heure du rendez-vous</span>
+                                  <span className="font-bold text-slate-800 block mt-0.5">09h30</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-4 bg-amber-50 border border-amber-250 rounded-2xl flex flex-col gap-2">
+                              <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span>Droits de Célébration (Caisse Physique)</span>
+                              </div>
+                              <p className="font-sans text-xs text-slate-600 leading-relaxed font-semibold">
+                                Remarque importante : Lors de ce rendez-vous physique, après validation de vos documents par l'agent, vous devrez vous acquitter des frais suivants :
+                              </p>
+                              <div className="bg-white border border-amber-200/50 rounded-xl p-3 flex justify-between items-center text-xs font-sans shadow-sm">
+                                <span className="font-bold text-slate-700">Frais à régler en caisse physique</span>
+                                <span className="font-serif font-bold text-amber-700">{(systemParams?.frais_timbre_montant || 100000).toLocaleString('fr-FR')} FCFA</span>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                              <button onClick={() => setSimulatedReservationPaid(false)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">Retour</button>
+                              <button onClick={() => { completeStep(5); setActiveStep(6); }}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all">
+                                Continuer → Célébration
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         <button onClick={() => { setShowParcours(false); setTab('timeline'); }}
                           className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-bold hover:bg-primary/5 cursor-pointer transition-all">

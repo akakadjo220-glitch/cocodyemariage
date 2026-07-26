@@ -25,7 +25,7 @@ import {
   approveAndNotifyCouple, computeRdvFromWeddingDate, toggleMairieExamUnlock,
   getMairieAgents, createMairieAgent, toggleMairieAgentActive, deleteMairieAgent,
   getSalles, addSalle, updateSalle, deleteSalle, getCreneauxBloques, addCreneauBloque,
-  deleteCreneauBloque, getSystemParameters, updateSystemParameters, confirmMairieAppointment,
+  deleteCreneauBloque, getSystemParameters, updateSystemParameters, confirmMairieAppointment, recordCaissePaymentInDb,
   SystemParameters,
   getOcrFeedbackDataset, exportOcrDatasetJsonl, clearOcrFeedbackDataset
 } from '../services/dbService';
@@ -419,7 +419,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
     ]);
     setMairies(dbMairies);
     const countEnhancedDossiers = await computeDossiersWithCounts(dbDossiers);
-    setDossiers(countEnhancedDossiers);
+    const validDossiers = countEnhancedDossiers.filter(d => d.id !== '__system_rooms_config__');
+    setDossiers(validDossiers);
     setPartners(dbPartners);
     setPartnerContacts(dbContacts);
     setNotificationLogs(notifLogs);
@@ -753,12 +754,13 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       });
 
       const countEnhancedDossiers = await computeDossiersWithCounts(dbDossiers);
+      const validDossiers = countEnhancedDossiers.filter(d => d.id !== '__system_rooms_config__');
 
       setDossiers(prev => {
         const prevClean = prev.map(d => ({ id: d.id, status: d.status, wedding_date: d.wedding_date, isComplete: d.isComplete, mairie_exam_unlocked: d.mairie_exam_unlocked }));
-        const currentClean = countEnhancedDossiers.map(d => ({ id: d.id, status: d.status, wedding_date: d.wedding_date, isComplete: d.isComplete, mairie_exam_unlocked: d.mairie_exam_unlocked }));
+        const currentClean = validDossiers.map(d => ({ id: d.id, status: d.status, wedding_date: d.wedding_date, isComplete: d.isComplete, mairie_exam_unlocked: d.mairie_exam_unlocked }));
         const hasChanged = JSON.stringify(prevClean) !== JSON.stringify(currentClean);
-        return hasChanged ? countEnhancedDossiers : prev;
+        return hasChanged ? validDossiers : prev;
       });
 
       setPartners(prev => {
@@ -1458,6 +1460,24 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
         loadData();
       } else {
         addNotification("Erreur lors de la confirmation du rendez-vous.", "warning");
+      }
+    } catch (err) {
+      console.error(err);
+      addNotification("Une erreur est survenue.", "warning");
+    }
+  };
+
+  const handlePrintCaisseReceipt = async (dossierId: string) => {
+    try {
+      const res = await recordCaissePaymentInDb(dossierId);
+      if (res) {
+        addNotification("Le paiement en caisse a été enregistré !", "success");
+        await loadData();
+        setTimeout(() => {
+          window.print();
+        }, 150);
+      } else {
+        addNotification("Erreur lors de l'enregistrement du paiement.", "warning");
       }
     } catch (err) {
       console.error(err);
@@ -2686,10 +2706,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   };
 
   const renderMairieFinanceView = () => {
-    const mairiePayments = allPayments.filter(p => p.mairieId === activeMairieId && p.status === 'success');
-    const totalCollected = mairiePayments.reduce((sum, p) => sum + p.amount, 0);
-    const paidCount = mairiePayments.length;
-    const pendingCount = dossiers.filter(d => d.mairie_id === activeMairieId && d.status === 'approved' && !mairiePayments.some(p => p.dossierId === d.id)).length;
+    const paidCount = dossiers.filter(d => d.mairie_id === activeMairieId && d.frais_timbre_paye === true).length;
+    const totalCollected = paidCount * (paramTimbrePrice || 100000);
+    const pendingCount = dossiers.filter(d => d.mairie_id === activeMairieId && d.frais_timbre_paye !== true).length;
 
     const openReceipt = (pay: PaymentInfo) => {
       const matchedDossier = dossiers.find(d => d.id === pay.dossierId);
@@ -2794,9 +2813,11 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   };
 
   const renderSuperadminFinanceView = () => {
-    const successfulPayments = allPayments.filter(p => p.status === 'success');
-    const totalCollectedGlobal = successfulPayments.reduce((sum, p) => sum + p.amount, 0);
-    const totalTransactions = successfulPayments.length;
+    const totalPlatform = dossiers.filter(d => d.frais_reservation_paye === true).length * (paystackAmount || 2500);
+    const totalCaisse = dossiers.filter(d => d.frais_timbre_paye === true).length * (paramTimbrePrice || 100000);
+    const totalCollectedGlobal = totalPlatform + totalCaisse;
+    
+    const totalTransactions = dossiers.filter(d => d.frais_reservation_paye === true).length + dossiers.filter(d => d.frais_timbre_paye === true).length;
     const averageTicket = totalTransactions > 0 ? Math.round(totalCollectedGlobal / totalTransactions) : 0;
 
     const openReceipt = (pay: PaymentInfo) => {
@@ -2812,13 +2833,11 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
     // Calculate revenue per Mairie for SVG chart
     const mairieRevenueMap: { [key: string]: number } = {};
-    mairies.forEach(m => { mairieRevenueMap[m.id] = 0; });
-    successfulPayments.forEach(p => {
-      if (mairieRevenueMap[p.mairieId] !== undefined) {
-        mairieRevenueMap[p.mairieId] += p.amount;
-      } else {
-        mairieRevenueMap[p.mairieId] = p.amount;
-      }
+    mairies.forEach(m => {
+      const mDossiers = dossiers.filter(d => d.mairie_id === m.id);
+      const platformRec = mDossiers.filter(d => d.frais_reservation_paye === true).length * (paystackAmount || 2500);
+      const caisseRec = mDossiers.filter(d => d.frais_timbre_paye === true).length * (paramTimbrePrice || 100000);
+      mairieRevenueMap[m.id] = platformRec + caisseRec;
     });
 
     const mairiesData = mairies.map(m => ({
@@ -3732,7 +3751,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
               <div>
                 <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Plateforme ({((paystackAmount || 2500)).toLocaleString('fr-FR')} F)</span>
                 <span className="font-serif text-xl font-bold text-emerald-700">
-                  {((dossiers.filter(d => d.payment_status === 'paid' || d.status !== 'draft').length) * (paystackAmount || 2500)).toLocaleString('fr-FR')} F
+                  {((dossiers.filter(d => d.frais_reservation_paye === true).length) * (paystackAmount || 2500)).toLocaleString('fr-FR')} F
                 </span>
               </div>
             </div>
@@ -3744,7 +3763,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
               <div>
                 <span className="text-secondary/70 text-[10px] font-bold uppercase tracking-wider block">Recettes Caisse ({((paramTimbrePrice || 100000)).toLocaleString('fr-FR')} F)</span>
                 <span className="font-serif text-xl font-bold text-purple-700">
-                  {((dossiers.filter(d => d.physical_verified || d.status === 'approved' || d.status === 'celebrated').length) * (paramTimbrePrice || 100000)).toLocaleString('fr-FR')} F
+                  {((dossiers.filter(d => d.frais_timbre_paye === true).length) * (paramTimbrePrice || 100000)).toLocaleString('fr-FR')} F
                 </span>
               </div>
             </div>
@@ -3975,9 +3994,11 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
             <>
               {/* Global Financial Stats row */}
               {(() => {
-                const successfulPayments = allPayments.filter(p => p.status === 'success');
-                const totalCollectedGlobal = successfulPayments.reduce((sum, p) => sum + p.amount, 0);
-                const totalTransactions = successfulPayments.length;
+                const totalPlatform = dossiers.filter(d => d.frais_reservation_paye === true).length * (paystackAmount || 2500);
+                const totalCaisse = dossiers.filter(d => d.frais_timbre_paye === true).length * (paramTimbrePrice || 100000);
+                const totalCollectedGlobal = totalPlatform + totalCaisse;
+                
+                const totalTransactions = dossiers.filter(d => d.frais_reservation_paye === true).length + dossiers.filter(d => d.frais_timbre_paye === true).length;
                 const averageTicket = totalTransactions > 0 ? Math.round(totalCollectedGlobal / totalTransactions) : 0;
 
                 return (
@@ -4323,7 +4344,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                           <th className="py-3 px-4">Mairie Assignée</th>
                           <th className="py-3 px-4">Futurs Conjoints</th>
                           <th className="py-3 px-4">Date célébration</th>
-                          <th className="py-3 px-4 text-center">Statut Civil</th>
+                          <th className="py-3 px-4 text-center">Frais en ligne ({((paystackAmount || 2500)).toLocaleString('fr-FR')} F)</th>
                           <th className="py-3 px-4 text-center">Bypass Statut (Contrôle Total)</th>
                           <th className="py-3 px-4 text-right">Actions</th>
                         </tr>
@@ -4347,13 +4368,12 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                               </td>
                               <td className="py-4 px-4 text-secondary">{dossier.wedding_date || 'Non planifiée'}</td>
                               <td className="py-4 px-4 text-center">
-                                <span className={`px-2.5 py-1 rounded-full font-sans text-[9px] font-bold block mx-auto w-fit uppercase tracking-wide border ${dossier.status === 'celebrated'
-                                    ? 'bg-purple-50 text-purple-800 border-purple-200'
-                                    : dossier.status === 'approved'
-                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                                <span className={`px-2.5 py-1 rounded-full font-sans text-[9px] font-bold block mx-auto w-fit uppercase tracking-wide border ${
+                                  dossier.frais_reservation_paye === true
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-amber-50 text-amber-800 border-amber-200'
                                   }`}>
-                                  {dossier.status === 'celebrated' ? 'Célébré' : dossier.status === 'approved' ? 'Prêt' : 'À réviser'}
+                                  {dossier.frais_reservation_paye === true ? '✅ Payé' : '⏳ Non payé'}
                                 </span>
                               </td>
                               <td className="py-4 px-4 text-center">
@@ -6350,12 +6370,10 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 <div className="flex flex-col gap-6 w-full">
                   {/* Financial Stats row */}
                   {(() => {
-                    const mairiePayments = allPayments.filter(p => p.mairieId === activeMairieId && p.status === 'success');
-                    const caisseRecorded = mairiePayments.reduce((sum, p) => sum + p.amount, 0);
-                    const physicalBulletinsCount = dossiers.filter(d => d.mairie_id === activeMairieId && (d.physical_verified || d.status === 'approved' || d.status === 'celebrated')).length;
-                    const caisseTotalEst = caisseRecorded > 0 ? caisseRecorded : physicalBulletinsCount * (paramTimbrePrice || 100000);
+                    const physicalBulletinsCount = dossiers.filter(d => d.mairie_id === activeMairieId && d.frais_timbre_paye === true).length;
+                    const caisseTotalEst = physicalBulletinsCount * (paramTimbrePrice || 100000);
                     
-                    const onlineDossiersCount = dossiers.filter(d => d.mairie_id === activeMairieId && (d.payment_status === 'paid' || d.status !== 'draft')).length;
+                    const onlineDossiersCount = dossiers.filter(d => d.mairie_id === activeMairieId && d.frais_reservation_paye === true).length;
                     const onlineTotalEst = onlineDossiersCount * (paystackAmount || 2500);
 
                     return (
@@ -6582,13 +6600,15 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                                 <span className={`shrink-0 px-2.5 py-1 rounded-full font-sans text-[10px] font-bold uppercase tracking-wide border ${
                                   hasActiveOpp
                                     ? 'bg-rose-100 text-rose-800 border-rose-200'
-                                    : dossier.status === 'celebrated'
-                                      ? 'bg-purple-50 text-purple-800 border-purple-200'
-                                      : dossier.status === 'approved'
-                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : dossier.frais_reservation_paye !== true
+                                      ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                      : dossier.status === 'celebrated'
+                                        ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                        : dossier.status === 'approved'
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                          : 'bg-amber-50 text-amber-800 border-amber-200'
                                 }`}>
-                                  {hasActiveOpp ? 'Contesté ⚠️' : dossier.status === 'celebrated' ? 'Célébré' : dossier.status === 'approved' ? 'Approuvé' : 'À réviser'}
+                                  {hasActiveOpp ? 'Contesté ⚠️' : dossier.frais_reservation_paye !== true ? 'Brouillon' : dossier.status === 'celebrated' ? 'Célébré' : dossier.status === 'approved' ? 'Approuvé' : 'À réviser'}
                                 </span>
                               </div>
                               <div className="flex items-center gap-1.5 text-xs text-secondary border-t border-neutral-100 pt-2 text-left">
@@ -6706,13 +6726,15 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                                     <span className={`px-2.5 py-1 rounded-full font-sans text-[10px] font-bold block mx-auto w-fit uppercase tracking-wide border ${
                                       hasActiveOpp
                                         ? 'bg-rose-100 text-rose-800 border-rose-200'
-                                        : dossier.status === 'celebrated'
-                                          ? 'bg-purple-50 text-purple-800 border-purple-200'
-                                          : dossier.status === 'approved'
-                                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                                        : dossier.frais_reservation_paye !== true
+                                          ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                          : dossier.status === 'celebrated'
+                                            ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                            : dossier.status === 'approved'
+                                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                              : 'bg-amber-50 text-amber-800 border-amber-200'
                                     }`}>
-                                      {hasActiveOpp ? 'Contesté ⚠️' : dossier.status === 'celebrated' ? 'Célébré' : dossier.status === 'approved' ? 'Prêt / Approuvé' : 'À réviser'}
+                                      {hasActiveOpp ? 'Contesté ⚠️' : dossier.frais_reservation_paye !== true ? 'Brouillon' : dossier.status === 'celebrated' ? 'Célébré' : dossier.status === 'approved' ? 'Prêt / Approuvé' : 'À réviser'}
                                     </span>
                                   </td>
                                   <td className="py-4 px-4 text-right">
@@ -9954,7 +9976,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                   Fermer
                 </button>
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => handlePrintCaisseReceipt(showBulletinCaisseDossier.id)}
                   className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-md hover:shadow cursor-pointer flex items-center gap-1.5"
                 >
                   <Printer className="w-4 h-4 shrink-0" />

@@ -110,6 +110,7 @@ interface TimelineProps {
   dossierActiveStep: number;
   setDossierActiveStep: (step: number) => void;
   addNotification?: (message: string) => void;
+  onOpenParcoursStep?: (step: number) => void;
 }
 
 export default function Timeline({
@@ -134,7 +135,8 @@ export default function Timeline({
   spouse2Cni = '',
   dossierActiveStep,
   setDossierActiveStep,
-  addNotification
+  addNotification,
+  onOpenParcoursStep
 }: TimelineProps) {
   const hasNames = spouse1Name.trim() && spouse2Name.trim();
   const [selectedMairie, setSelectedMairie] = useState<string | null>(selectedMairieName || null);
@@ -1422,7 +1424,13 @@ export default function Timeline({
 
               {allRequiredUploaded ? (
                 <button
-                  onClick={() => changeGuidedStep(4)}
+                  onClick={() => {
+                    if (onOpenParcoursStep) {
+                      onOpenParcoursStep(4);
+                    } else {
+                      changeGuidedStep(4);
+                    }
+                  }}
                   className="bg-primary hover:bg-primary-container text-white py-2.5 px-5 rounded-xl font-extrabold uppercase text-[10px] tracking-wider transition-all shadow-md cursor-pointer border border-primary/20 flex items-center gap-1"
                 >
                   Continuer → Option de date

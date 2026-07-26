@@ -72,6 +72,8 @@ interface LandingProps {
   dossierActiveStep?: number;
   setDossierActiveStep?: (step: number) => void;
   isInitialLoading?: boolean;
+  autoOpenParcoursStep?: number | null;
+  setAutoOpenParcoursStep?: (step: number | null) => void;
 }
 
 const STEPS_META = [
@@ -184,6 +186,8 @@ export default function Landing({
   dossierActiveStep,
   setDossierActiveStep,
   isInitialLoading = false,
+  autoOpenParcoursStep,
+  setAutoOpenParcoursStep,
 }: LandingProps) {
   const [showParcours, setShowParcours] = useState(false);
   const [openDocSection, setOpenDocSection] = useState<'commun' | 'cas' | null>(null);
@@ -343,15 +347,18 @@ export default function Landing({
 
   // États du wizard
   const [localActiveStep, setLocalActiveStep] = useState(1);
-  const activeStep = dossierActiveStep || localActiveStep;
+  const activeStep = Math.min(Math.max(localActiveStep || 1, 1), 6);
   const setActiveStep = (step: number | ((prev: number) => number)) => {
     const nextStep = typeof step === 'function' ? step(activeStep) : step;
-    setLocalActiveStep(nextStep);
+    const clamped = Math.min(Math.max(nextStep, 1), 6);
+    setLocalActiveStep(clamped);
     if (setDossierActiveStep) {
-      setDossierActiveStep(nextStep);
+      setDossierActiveStep(clamped);
     }
   };
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [epouxProfile, setEpouxProfile] = useState<SpouseProfile>(DEFAULT_SPOUSE_PROFILE);
+  const [epouseProfile, setEpouseProfile] = useState<SpouseProfile>(DEFAULT_SPOUSE_PROFILE);
 
   // Données Step 1 - Noms
   const [editS1, setEditS1] = useState('');
@@ -505,12 +512,10 @@ export default function Landing({
     return slots;
   };
 
-  const [epouxProfile, setEpouxProfile] = useState<SpouseProfile>(DEFAULT_SPOUSE_PROFILE);
-  const [epouseProfile, setEpouseProfile] = useState<SpouseProfile>(DEFAULT_SPOUSE_PROFILE);
-
   const getDocStatusById = (id: string): { status: 'verified' | 'rejected' | 'uploading' | 'pending'; message?: string } => {
+    const currentDossier = allDossiers.find(d => d.id === dossierId);
+
     if (id === 'selfie_epoux') {
-      const currentDossier = allDossiers.find(d => d.id === dossierId);
       const attempts = currentDossier?.epoux_face_attempts ?? 0;
       const verified = currentDossier?.epoux_identite_verifiee === true;
       const hasUrl = !!currentDossier?.epoux_selfie_url;
@@ -521,7 +526,6 @@ export default function Landing({
     }
 
     if (id === 'selfie_epouse') {
-      const currentDossier = allDossiers.find(d => d.id === dossierId);
       const attempts = currentDossier?.epouse_face_attempts ?? 0;
       const verified = currentDossier?.epouse_identite_verifiee === true;
       const hasUrl = !!currentDossier?.epouse_selfie_url;
@@ -529,6 +533,19 @@ export default function Landing({
       if (attempts >= 3 && !verified) return { status: 'rejected', message: "Contrôle facial non concordant après 3 essais." };
       if (hasUrl && !verified) return { status: 'uploading' };
       return { status: 'pending' };
+    }
+
+    if (id === 'doc1' && (currentDossier?.epoux_cni_url || currentDossier?.epoux_cni_valide)) {
+      return { status: 'verified' };
+    }
+    if (id === 'doc2' && (currentDossier?.epoux_extrait_url || currentDossier?.epoux_extrait_valide)) {
+      return { status: 'verified' };
+    }
+    if (id === 'doc1_f' && (currentDossier?.epouse_cni_url || currentDossier?.epouse_cni_valide)) {
+      return { status: 'verified' };
+    }
+    if (id === 'doc2_f' && (currentDossier?.epouse_extrait_url || currentDossier?.epouse_extrait_valide)) {
+      return { status: 'verified' };
     }
 
     if (!documents || documents.length === 0) return { status: 'pending' };
@@ -601,11 +618,18 @@ export default function Landing({
   // Sync automatic completedSteps whenever documents or dossier state updates
   useEffect(() => {
     if (showParcours) {
-      const hasNames = Boolean(spouse1Name?.trim() && spouse2Name?.trim());
-      const hasMairie = Boolean(selectedMairieId);
-      const hasDate = Boolean(weddingDate);
-
       const targetDossier = allDossiers.find(d => d.id === dossierId);
+
+      const s1Name = spouse1Name?.trim() || targetDossier?.spouse1_name?.trim() || editS1.trim();
+      const s2Name = spouse2Name?.trim() || targetDossier?.spouse2_name?.trim() || editS2.trim();
+      const hasNames = Boolean((s1Name && s2Name) || dossierId);
+
+      const mId = selectedMairieId || targetDossier?.mairie_id || selectedMairie;
+      const hasMairie = Boolean(mId);
+
+      const wDate = weddingDate || targetDossier?.wedding_date || chosenDate;
+      const hasDate = Boolean(wDate);
+
       const isReservationPaid = targetDossier?.frais_reservation_paye === true;
       const isFinalPaid = targetDossier?.status === 'scheduled' || targetDossier?.status === 'paid';
 
@@ -676,37 +700,65 @@ export default function Landing({
   };
 
   // Initialiser le wizard selon l'état réel du dossier à chaque ouverture du popup
-  const openParcours = () => {
-    const hasNames = Boolean(spouse1Name?.trim() && spouse2Name?.trim());
-    const hasMairie = Boolean(selectedMairieId);
-    const hasDate = Boolean(weddingDate);
-
+  const openParcours = (overrideStep?: number) => {
     const targetDossier = allDossiers.find(d => d.id === dossierId);
+
+    const s1Name = spouse1Name?.trim() || targetDossier?.spouse1_name?.trim() || editS1.trim();
+    const s2Name = spouse2Name?.trim() || targetDossier?.spouse2_name?.trim() || editS2.trim();
+    const hasNames = Boolean((s1Name && s2Name) || dossierId);
+
+    const mId = selectedMairieId || targetDossier?.mairie_id || selectedMairie;
+    const hasMairie = Boolean(mId);
+
+    const wDate = weddingDate || targetDossier?.wedding_date || chosenDate;
+    const hasDate = Boolean(wDate);
+
     const isReservationPaid = targetDossier?.frais_reservation_paye === true;
     const isFinalPaid = targetDossier?.status === 'scheduled' || targetDossier?.status === 'paid';
 
-    const allDocStatuses = REQUIRED_DOCS.map(doc => getDocStatusDetailed(doc.id));
-    const isApproved = allDocStatuses.every(s => s.status === 'verified' || s.status === 'uploading');
+    const isApproved = dynamicRequiredDocs.every(doc => {
+      const s = getDocStatusById(doc.id).status;
+      return s === 'verified' || s === 'uploading';
+    });
+
+
 
     // Pré-remplir avec les données existantes
-    setEditS1(spouse1Name || '');
-    setEditS2(spouse2Name || '');
-    setEditPhone1(spouse1Phone ? ensurePhonePrefix(spouse1Phone) : '+225 ');
-    setEditPhone2(spouse2Phone ? ensurePhonePrefix(spouse2Phone) : '+225 ');
-    setEditBirthdate1(spouse1Birthdate || '');
-    setEditBirthdate2(spouse2Birthdate || '');
-    setEditCni1(spouse1Cni || '');
-    setEditCni2(spouse2Cni || '');
-    setEditCniType1(spouse1CniType || 'CNI');
-    setEditCniType2(spouse2CniType || 'CNI');
-    setSelectedMairie(selectedMairieId || null);
+    const s1 = spouse1Name || targetDossier?.spouse1_name || '';
+    const s2 = spouse2Name || targetDossier?.spouse2_name || '';
+    const p1 = spouse1Phone || targetDossier?.spouse1_phone || '';
+    const p2 = spouse2Phone || targetDossier?.spouse2_phone || '';
+    const b1 = spouse1Birthdate || targetDossier?.spouse1_birthdate || '';
+    const b2 = spouse2Birthdate || targetDossier?.spouse2_birthdate || '';
+    const c1 = spouse1Cni || targetDossier?.spouse1_cni || '';
+    const c2 = spouse2Cni || targetDossier?.spouse2_cni || '';
+    const ctype1 = spouse1CniType || targetDossier?.spouse1_cni_type || 'CNI';
+    const ctype2 = spouse2CniType || targetDossier?.spouse2_cni_type || 'CNI';
+
+    setEditS1(s1);
+    setEditS2(s2);
+    setEditPhone1(p1 ? ensurePhonePrefix(p1) : '+225 ');
+    setEditPhone2(p2 ? ensurePhonePrefix(p2) : '+225 ');
+    setEditBirthdate1(b1);
+    setEditBirthdate2(b2);
+    setEditCni1(c1);
+    setEditCni2(c2);
+    setEditCniType1(ctype1);
+    setEditCniType2(ctype2);
+    setSelectedMairie(mId || null);
 
     // Pré-remplir la date et l'heure
-    const parsed = parseWeddingDate(weddingDate || '');
+    const parsed = parseWeddingDate(wDate || '');
     setChosenDate(parsed.date);
+    if (parsed.time) setChosenTime(parsed.time);
+
     // Initialiser étapes complétées et étape active selon avancement réel
     const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
-    const startStep = getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+    const requestedStep = typeof overrideStep === 'number' ? overrideStep : undefined;
+    const startStep = requestedStep || getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+    const safeStartStep = Math.min(Math.max(startStep, 1), 6);
+
+
 
     if (dossierId) {
       setPrecheckConfirmed(true);
@@ -714,10 +766,19 @@ export default function Landing({
     }
 
     setCompletedSteps(done);
-    setActiveStep(startStep);
+    setActiveStep(safeStartStep);
 
     setShowParcours(true);
   };
+
+  useEffect(() => {
+    if (autoOpenParcoursStep !== null && autoOpenParcoursStep !== undefined) {
+      openParcours(autoOpenParcoursStep);
+      if (setAutoOpenParcoursStep) {
+        setAutoOpenParcoursStep(null);
+      }
+    }
+  }, [autoOpenParcoursStep]);
 
   const completeStep = (step: number) => {
     setCompletedSteps(prev => prev.includes(step) ? prev : [...prev, step]);
@@ -1411,7 +1472,7 @@ export default function Landing({
                       {dossierId && spouse1Name ? (
                         <span className="font-medium text-primary">{spouse1Name} & {spouse2Name}</span>
                       ) : (
-                        `Étape ${activeStep} sur ${STEPS_META.length} — ${activeStep === 2 ? 'Choix de la salle' : STEPS_META[activeStep - 1].label}`
+                        `Étape ${activeStep} sur ${STEPS_META.length} — ${activeStep === 2 ? 'Choix de la salle' : (STEPS_META[Math.min(Math.max(activeStep - 1, 0), STEPS_META.length - 1)]?.label || '')}`
                       )}
                     </p>
                   </div>
@@ -1428,14 +1489,15 @@ export default function Landing({
                     return (
                       <React.Fragment key={s.id}>
                         <button
-                          onClick={() => isDone && setActiveStep(s.id)}
-                          className={`flex flex-col items-center gap-1 shrink-0 transition-all duration-200 ${isDone ? 'cursor-pointer' : 'cursor-default'}`}
+                          onClick={() => (isDone || s.id <= activeStep) && setActiveStep(s.id)}
+                          className={`flex flex-col items-center gap-1 shrink-0 transition-all duration-200 ${isDone || s.id <= activeStep ? 'cursor-pointer' : 'cursor-default'}`}
                         >
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base border-2 transition-all duration-300 ${isDone ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' :
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base border-2 transition-all duration-300 ${
                             isActive ? 'bg-primary border-primary text-white shadow-md scale-110' :
-                              'bg-neutral-100 border-neutral-200 text-slate-400'
-                            }`}>
-                            {isDone ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{s.id}</span>}
+                            isDone ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' :
+                            'bg-neutral-100 border-neutral-200 text-slate-400'
+                          }`}>
+                            {isActive ? <span className="text-xs font-bold">{s.id}</span> : isDone ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{s.id}</span>}
                           </div>
                           <span className={`text-[8px] font-bold whitespace-nowrap ${isActive ? 'text-primary' : isDone ? 'text-emerald-600' : 'text-slate-400'}`}>
                             {s.short}

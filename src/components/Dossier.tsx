@@ -527,8 +527,6 @@ export default function Dossier({
         const remIds = ['doc3', 'doc3_f', 'doc5', 'doc9'];
         const remDocs = documents.filter(d => remIds.includes(d.id));
         return remDocs.length > 0 && remDocs.every(d => d.status === 'verified' || !!d.fileName);
-      case 8: // Calendrier
-        return !!dossierDetails?.wedding_date;
       default:
         return false;
     }
@@ -558,7 +556,6 @@ export default function Dossier({
         else if (!isStepCompleted(5)) initialStep = 5;
         else if (!isStepCompleted(6)) initialStep = 6;
         else if (!isStepCompleted(7)) initialStep = 7;
-        else if (!isStepCompleted(8)) initialStep = 8;
         setActiveStep(initialStep);
       }
     }
@@ -1868,11 +1865,11 @@ export default function Dossier({
           </h2>
         </div>
         <p className="font-sans text-xs md:text-sm text-slate-500 max-w-2xl leading-relaxed mt-0.5">
-          Téléversez vos pièces administratives et passez le contrôle de ressemblance faciale selfie. Suivez les 8 étapes pour déverrouiller la réservation de votre date de célébration.
+          Téléversez vos pièces administratives et passez le contrôle de ressemblance faciale selfie. Suivez les 7 étapes de justificatifs pour préparer l'instruction de votre dossier.
         </p>
       </motion.section>
 
-      {/* 8-step wizard stepper navigation */}
+      {/* 7-step wizard stepper navigation */}
       <div className="flex items-center gap-1.5 pb-4 overflow-x-auto scrollbar-hide border-b border-accent/15 select-none">
         {[
           { id: 1, label: "CNI Époux", desc: "Pièce d'identité" },
@@ -1881,8 +1878,7 @@ export default function Dossier({
           { id: 4, label: "CNI Épouse", desc: "Pièce d'identité" },
           { id: 5, label: "Selfie Épouse", desc: "Contrôle facial" },
           { id: 6, label: "Extrait Épouse", desc: "Naissance" },
-          { id: 7, label: "Autres docs", desc: "Justificatifs" },
-          { id: 8, label: "Calendrier", desc: "Célébration" }
+          { id: 7, label: "Autres docs", desc: "Justificatifs" }
         ].map((step) => {
           const isCompleted = isStepCompleted(step.id);
           const isActive = activeStep === step.id;
@@ -2160,121 +2156,22 @@ export default function Dossier({
                 </div>
 
                 {isStepCompleted(7) && (
-                  <button onClick={() => setActiveStep(8)} className="py-3 px-6 bg-primary text-white rounded-xl font-sans text-xs font-bold hover:bg-primary-container shadow-md transition-all self-start flex items-center gap-1">
-                    <span>Étape suivante : Calendrier &amp; Réservation</span>
-                    <ArrowRight className="w-4 h-4 text-accent" />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Step 8: Calendrier */}
-            {activeStep === 8 && (
-              <div className="space-y-5">
-                <div className="bg-sky-50/50 p-4 border border-sky-200 rounded-2xl">
-                  <p className="font-sans text-xs text-sky-900 leading-relaxed font-semibold">
-                    📅 <strong>Étape 8 : Sélection de votre date de mariage civil</strong><br />
-                    Toutes vos pièces d'identité et justificatifs biométriques sont conformes. Veuillez réserver votre date et créneau horaire officiel de célébration.
-                  </p>
-                </div>
-
-                {dossierDetails?.wedding_date ? (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-3xl mx-auto shadow-md">💍</div>
-                    <h3 className="font-serif text-xl font-bold text-emerald-800">Date de célébration confirmée !</h3>
-                    <p className="font-sans text-sm text-slate-600">
-                      Votre mariage civil est réservé pour le : <span className="font-bold text-slate-800">{dossierDetails.wedding_date}</span>.
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center space-y-4 shadow-sm mt-6">
+                    <div className="w-14 h-14 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-2xl mx-auto shadow-sm">🎉</div>
+                    <h3 className="font-serif text-lg font-bold text-emerald-900">Instruction biométrique 100% complétée !</h3>
+                    <p className="font-sans text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                      Toutes vos pièces justificatives et contrôles faciaux sont validés par l'officier civil. Vous pouvez maintenant réserver la date officielle de votre célébration.
                     </p>
-                    <div className="p-4 bg-white/70 border border-emerald-200 rounded-xl text-left max-w-sm mx-auto text-xs font-medium space-y-2">
-                      <p className="font-bold text-slate-700">Rappels pour le Jour J :</p>
-                      <p className="text-slate-600">✓ Présentez-vous 15 min avant le créneau réservé.</p>
-                      <p className="text-slate-600">✓ Munissez-vous des pièces d'identité originales.</p>
-                      <p className="text-slate-600">✓ La présence des deux témoins officiels est requise.</p>
-                    </div>
-                    <button onClick={() => setTab('dashboard')} className="py-2.5 px-6 bg-emerald-600 text-white rounded-xl font-sans text-xs font-bold hover:bg-emerald-700 transition-all cursor-pointer">
-                      Aller vers le tableau de bord
+                    <button
+                      onClick={() => {
+                        if (setDossierActiveStep) setDossierActiveStep(4);
+                        setTab('timeline');
+                      }}
+                      className="py-3.5 px-6 bg-emerald-600 text-white rounded-xl font-sans text-xs font-bold hover:bg-emerald-700 transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
+                    >
+                      <span>Passer à l'étape 4 : Choix de la date de célébration →</span>
                     </button>
                   </div>
-                ) : (
-                  <form onSubmit={handleBookingSubmit} className="space-y-5 bg-white p-6 rounded-2xl border border-neutral-200 shadow-md max-w-lg text-left">
-                    <div className="p-3 bg-[#fdfbf7] border border-[#c5a368]/30 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-between gap-2 shadow-sm mb-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">🏛️</span>
-                        <span className="font-bold text-slate-800">{selectedMairieName || dossierDetails?.mairie_nom || 'Mairie de Cocody'}</span>
-                      </div>
-                      <span className="text-[10px] text-primary bg-primary/10 px-2.5 py-0.5 rounded-full font-bold uppercase">Salle de l'Union</span>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Date de célébration souhaitée</label>
-                      <div className="p-1 bg-neutral-50 rounded-xl border border-neutral-200">
-                        <input 
-                          type="date" 
-                          value={chosenDate} 
-                          onChange={e => handleWeddingDateChange(e.target.value)} 
-                          min={(() => {
-                            const d = new Date();
-                            d.setDate(d.getDate() + 30);
-                            return d.toISOString().split('T')[0];
-                          })()}
-                          className="w-full border-0 rounded-xl p-3 text-xs bg-transparent focus:outline-none text-slate-800 font-sans cursor-pointer font-bold" 
-                          required 
-                        />
-                      </div>
-                      
-                      {dateError && (
-                        <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[10px] leading-relaxed font-semibold flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
-                          <span>{dateError}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {!dateError && chosenDate && (
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Créneau horaire libre (30 min par mariage)</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {generateSlots(capacity).map(time => {
-                            const subTime = time.val.replace(':', 'h');
-                            const isOccupied = chosenDate && dossierDetails?.mairie_id ? allDossiers.some(d =>
-                              d.id !== dossierId &&
-                              d.mairie_id === dossierDetails.mairie_id &&
-                              d.wedding_date === `${new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à ${subTime}`
-                            ) : false;
-
-                          return (
-                            <button
-                              key={time.val}
-                              disabled={isOccupied}
-                              onClick={() => !isOccupied && setChosenTime(time.val)}
-                              type="button"
-                              className={`p-2 rounded-xl border flex flex-col items-center gap-0.5 text-center cursor-pointer transition-all ${isOccupied
-                                ? 'bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed'
-                                : chosenTime === time.val
-                                  ? 'border-primary bg-primary/5 shadow-sm font-bold scale-[1.02]'
-                                  : 'border-neutral-100 hover:border-primary/20 bg-white'
-                                }`}
-                            >
-                              <span className="font-sans font-bold text-xs text-slate-800">
-                                {time.label}
-                              </span>
-                              <span className="text-[7px] text-slate-400 block uppercase font-bold tracking-wider">
-                                {isOccupied ? "Occupé" : time.desc}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    )}
-
-                    <button type="submit" disabled={!chosenDate || !chosenTime}
-                      className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-white transition-all flex items-center justify-center gap-1.5 ${chosenDate && chosenTime ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                        }`}>
-                      <Calendar className="w-4 h-4" />
-                      <span>Réserver mon créneau de mariage civil</span>
-                    </button>
-                  </form>
                 )}
               </div>
             )}

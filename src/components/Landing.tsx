@@ -347,13 +347,10 @@ export default function Landing({
 
   // États du wizard
   const [localActiveStep, setLocalActiveStep] = useState(1);
-  const activeStep = dossierActiveStep || localActiveStep;
+  const activeStep = localActiveStep;
   const setActiveStep = (step: number | ((prev: number) => number)) => {
     const nextStep = typeof step === 'function' ? step(activeStep) : step;
     setLocalActiveStep(nextStep);
-    if (setDossierActiveStep) {
-      setDossierActiveStep(nextStep);
-    }
   };
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 

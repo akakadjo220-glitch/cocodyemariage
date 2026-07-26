@@ -154,6 +154,7 @@ interface DossierProps {
   selectedMairieName?: string | null;
   weddingDate?: string;
   onWeddingDateSelected?: (dateStr: string) => void;
+  onOpenParcoursStep?: (step: number) => void;
 }
 
 export default function Dossier({
@@ -173,10 +174,11 @@ export default function Dossier({
   onUpdateNames,
   activeStep,
   setActiveStep,
-  selectedMairieId,
-  selectedMairieName,
+  selectedMairieId = null,
+  selectedMairieName = '',
   weddingDate,
-  onWeddingDateSelected
+  onWeddingDateSelected,
+  onOpenParcoursStep,
 }: DossierProps) {
   const [dossierDetails, setDossierDetails] = useState<DossierInfo | null>(null);
 
@@ -2164,8 +2166,12 @@ export default function Dossier({
                     </p>
                     <button
                       onClick={() => {
-                        if (setDossierActiveStep) setDossierActiveStep(4);
-                        setTab('timeline');
+                        if (onOpenParcoursStep) {
+                          onOpenParcoursStep(4);
+                        } else {
+                          setActiveStep(4);
+                          setTab('landing');
+                        }
                       }}
                       className="py-3.5 px-6 bg-emerald-600 text-white rounded-xl font-sans text-xs font-bold hover:bg-emerald-700 transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
                     >

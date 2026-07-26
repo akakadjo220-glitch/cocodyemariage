@@ -115,8 +115,14 @@ export default function App() {
   const [timelineSteps, setTimelineSteps] = useState<TimelineStep[]>(INITIAL_TIMELINE_STEPS);
   const [notifications, setNotifications] = useState<AlertNotification[]>(INITIAL_NOTIFICATIONS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [verifyDossierId, setVerifyDossierId] = useState<string | null>(null);
   const [dossierActiveStep, setDossierActiveStep] = useState<number>(1);
+  const [forceOpenParcoursStep, setForceOpenParcoursStep] = useState<number | null>(null);
+
+  const handleOpenParcoursAtStep = (step: number) => {
+    setDossierActiveStep(step);
+    setForceOpenParcoursStep(step);
+    setTab('landing');
+  };
 
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(() => {
     const localId = sessionStorage.getItem('e_mariage_dossier_id');
@@ -811,6 +817,8 @@ export default function App() {
                 spouse2Cni={spouse2Cni}
                 dossierActiveStep={dossierActiveStep}
                 setDossierActiveStep={setDossierActiveStep}
+                forceOpenParcoursStep={forceOpenParcoursStep}
+                setForceOpenParcoursStep={setForceOpenParcoursStep}
               />
             )}
 
@@ -836,6 +844,7 @@ export default function App() {
                 selectedMairieName={selectedMairieName}
                 weddingDate={weddingDate}
                 onWeddingDateSelected={handleWeddingDateSelected}
+                onOpenParcoursStep={handleOpenParcoursAtStep}
               />
             )}
 

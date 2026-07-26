@@ -72,6 +72,8 @@ interface LandingProps {
   dossierActiveStep?: number;
   setDossierActiveStep?: (step: number) => void;
   isInitialLoading?: boolean;
+  forceOpenParcoursStep?: number | null;
+  setForceOpenParcoursStep?: (step: number | null) => void;
 }
 
 const STEPS_META = [
@@ -184,6 +186,8 @@ export default function Landing({
   dossierActiveStep,
   setDossierActiveStep,
   isInitialLoading = false,
+  forceOpenParcoursStep,
+  setForceOpenParcoursStep,
 }: LandingProps) {
   const [showParcours, setShowParcours] = useState(false);
   const [openDocSection, setOpenDocSection] = useState<'commun' | 'cas' | null>(null);
@@ -191,6 +195,20 @@ export default function Landing({
   const hasExistingNames = Boolean(spouse1Name?.trim() || spouse2Name?.trim() || dossierId);
   const [precheckConfirmed, setPrecheckConfirmed] = useState(hasExistingNames);
   const [profileConfirmed, setProfileConfirmed] = useState(hasExistingNames);
+
+  useEffect(() => {
+    if (forceOpenParcoursStep) {
+      setPrecheckConfirmed(true);
+      setProfileConfirmed(true);
+      if (typeof setActiveStep === 'function') {
+        setActiveStep(forceOpenParcoursStep);
+      }
+      setShowParcours(true);
+      if (setForceOpenParcoursStep) {
+        setForceOpenParcoursStep(null);
+      }
+    }
+  }, [forceOpenParcoursStep]);
 
   const checkIsOpened = (ouvertureIso: string) => {
     const openingDate = new Date(ouvertureIso);

@@ -196,20 +196,6 @@ export default function Landing({
   const [precheckConfirmed, setPrecheckConfirmed] = useState(hasExistingNames);
   const [profileConfirmed, setProfileConfirmed] = useState(hasExistingNames);
 
-  useEffect(() => {
-    if (forceOpenParcoursStep) {
-      setPrecheckConfirmed(true);
-      setProfileConfirmed(true);
-      if (typeof setActiveStep === 'function') {
-        setActiveStep(forceOpenParcoursStep);
-      }
-      setShowParcours(true);
-      if (setForceOpenParcoursStep) {
-        setForceOpenParcoursStep(null);
-      }
-    }
-  }, [forceOpenParcoursStep]);
-
   const checkIsOpened = (ouvertureIso: string) => {
     const openingDate = new Date(ouvertureIso);
     const now = new Date();
@@ -370,6 +356,18 @@ export default function Landing({
     }
   };
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (forceOpenParcoursStep) {
+      setPrecheckConfirmed(true);
+      setProfileConfirmed(true);
+      setActiveStep(forceOpenParcoursStep);
+      setShowParcours(true);
+      if (setForceOpenParcoursStep) {
+        setForceOpenParcoursStep(null);
+      }
+    }
+  }, [forceOpenParcoursStep]);
 
   // Données Step 1 - Noms
   const [editS1, setEditS1] = useState('');

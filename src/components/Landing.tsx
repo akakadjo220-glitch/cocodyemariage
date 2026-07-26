@@ -72,8 +72,6 @@ interface LandingProps {
   dossierActiveStep?: number;
   setDossierActiveStep?: (step: number) => void;
   isInitialLoading?: boolean;
-  forceOpenParcoursStep?: number | null;
-  setForceOpenParcoursStep?: (step: number | null) => void;
 }
 
 const STEPS_META = [
@@ -132,10 +130,10 @@ const getBordureStyle = (statut: string | null) => {
   return {
     borderColor:
       statut === 'disponible' ? '#22c55e' :
-      statut === 'doublon'    ? '#ef4444' :
-      statut === 'invalide'   ? '#f97316' :
-      statut === 'verification' ? '#3b82f6' :
-      '#d1d5db',
+        statut === 'doublon' ? '#ef4444' :
+          statut === 'invalide' ? '#f97316' :
+            statut === 'verification' ? '#3b82f6' :
+              '#d1d5db',
     borderWidth: 2,
     borderStyle: 'solid'
   };
@@ -143,9 +141,9 @@ const getBordureStyle = (statut: string | null) => {
 
 const getIcone = (statut: string | null) =>
   statut === 'verification' ? '🔍' :
-  statut === 'disponible'   ? '✅' :
-  statut === 'doublon'      ? '❌' :
-  statut === 'invalide'     ? '⚠️' : '';
+    statut === 'disponible' ? '✅' :
+      statut === 'doublon' ? '❌' :
+        statut === 'invalide' ? '⚠️' : '';
 
 const getMessageColor = (statut: string | null) => {
   switch (statut) {
@@ -186,8 +184,6 @@ export default function Landing({
   dossierActiveStep,
   setDossierActiveStep,
   isInitialLoading = false,
-  forceOpenParcoursStep,
-  setForceOpenParcoursStep,
 }: LandingProps) {
   const [showParcours, setShowParcours] = useState(false);
   const [openDocSection, setOpenDocSection] = useState<'commun' | 'cas' | null>(null);
@@ -356,6 +352,18 @@ export default function Landing({
     }
   };
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (forceOpenParcoursStep) {
+      setPrecheckConfirmed(true);
+      setProfileConfirmed(true);
+      setActiveStep(forceOpenParcoursStep);
+      setShowParcours(true);
+      if (setForceOpenParcoursStep) {
+        setForceOpenParcoursStep(null);
+      }
+    }
+  }, [forceOpenParcoursStep]);
 
   // Données Step 1 - Noms
   const [editS1, setEditS1] = useState('');
@@ -680,7 +688,7 @@ export default function Landing({
   };
 
   // Initialiser le wizard selon l'état réel du dossier à chaque ouverture du popup
-  const openParcours = (targetStepOverride?: number) => {
+  const openParcours = () => {
     const hasNames = Boolean(spouse1Name?.trim() && spouse2Name?.trim());
     const hasMairie = Boolean(selectedMairieId);
     const hasDate = Boolean(weddingDate);
@@ -710,33 +718,18 @@ export default function Landing({
     setChosenDate(parsed.date);
     // Initialiser étapes complétées et étape active selon avancement réel
     const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
-    const startStep = targetStepOverride || getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+    const startStep = getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
 
-    let finalCompleted = done;
-    if (targetStepOverride && targetStepOverride > 1) {
-      const prevSteps = Array.from({ length: targetStepOverride - 1 }, (_, i) => i + 1);
-      finalCompleted = Array.from(new Set([...done, ...prevSteps]));
-    }
-
-    if (dossierId || targetStepOverride) {
+    if (dossierId) {
       setPrecheckConfirmed(true);
       setProfileConfirmed(true);
     }
 
-    setCompletedSteps(finalCompleted);
+    setCompletedSteps(done);
     setActiveStep(startStep);
 
     setShowParcours(true);
   };
-
-  useEffect(() => {
-    if (forceOpenParcoursStep) {
-      openParcours(forceOpenParcoursStep);
-      if (setForceOpenParcoursStep) {
-        setForceOpenParcoursStep(null);
-      }
-    }
-  }, [forceOpenParcoursStep, dossierId]);
 
   const completeStep = (step: number) => {
     setCompletedSteps(prev => prev.includes(step) ? prev : [...prev, step]);
@@ -771,7 +764,7 @@ export default function Landing({
     e.preventDefault();
     setDossierDuplicateError(null);
     if (!editS1.trim() || !editS2.trim() || !editCni1.trim() || !editCni2.trim()) return;
-    
+
     setSubmitting(true);
     try {
       const duplicateRes = await checkDuplicateSpouse(
@@ -868,21 +861,21 @@ export default function Landing({
       {/* Hero Section */}
       <section className="w-full relative min-h-[500px] flex items-center justify-center overflow-hidden px-6 lg:px-12 py-12 rounded-3xl mt-2 select-none border border-[#c5a368]/30 bg-white/60 backdrop-blur-md shadow-lg text-left transition-all duration-300">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
-        
+
         <div className="relative z-20 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          
+
           {/* Left Column: Easy instructions & prominent buttons */}
           <div className="lg:col-span-7 flex flex-col gap-6">
             <div className="inline-flex items-center gap-2 bg-[#fdfbf7] border border-[#c5a368]/40 text-primary px-4 py-1.5 rounded-full w-fit shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-sans text-[10px] font-bold uppercase tracking-widest text-[#b20052]">Service d'État Civil Officiel — Cocody</span>
             </div>
-            
+
             <h2 className="font-serif text-3xl sm:text-5xl lg:text-6.5xl text-slate-900 leading-tight tracking-tight font-bold">
               Votre mariage civil <br />
               <span className="text-rose-gradient italic font-semibold">simple et rapide</span> en ligne.
             </h2>
-            
+
             <p className="font-sans text-xs sm:text-sm text-slate-600 leading-relaxed max-w-xl">
               Pas besoin de vous déplacer pour réserver ! Remplissez votre dossier en ligne en quelques minutes, déposez vos pièces d'identité et choisissez l'heure qui vous convient le mieux.
             </p>
@@ -925,7 +918,7 @@ export default function Landing({
             {!isInitialLoading && !dossierId && (
               <div className="flex flex-col gap-3.5 max-w-lg mt-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  
+
                   {/* Choice 1: Start new */}
                   <button
                     onClick={openParcours}
@@ -952,7 +945,7 @@ export default function Landing({
                   </button>
 
                 </div>
-                
+
                 <div className="flex items-center justify-center sm:justify-start gap-1 text-[10px] text-slate-400 font-medium">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span>Prend moins de 5 minutes · Accessible sur tous les téléphones</span>
@@ -964,7 +957,7 @@ export default function Landing({
           {/* Right Column: Beautiful image illustration */}
           <div className="lg:col-span-5 flex items-center justify-center relative mt-6 lg:mt-0 select-none">
             <div className="absolute inset-0 bg-gradient-to-tr from-rose-400/20 to-amber-300/20 rounded-3xl blur-2xl opacity-75 scale-95 pointer-events-none" />
-            
+
             <div className="relative border-4 border-white bg-white rounded-3xl overflow-hidden shadow-2xl w-full max-w-sm aspect-[4/3] lg:aspect-square">
               <img
                 src="/accueil_mc.webp"
@@ -972,7 +965,7 @@ export default function Landing({
                 className="w-full h-full object-cover object-top hover:scale-103 transition-transform duration-700"
                 referrerPolicy="no-referrer"
               />
-              
+
               {/* Overlay Badge */}
               <div className="absolute bottom-4 left-4 bg-slate-900/85 backdrop-blur-md border border-white/20 text-white rounded-2xl px-4 py-2.5 flex items-center gap-2 shadow-lg">
                 <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-xs">
@@ -985,7 +978,7 @@ export default function Landing({
               </div>
             </div>
           </div>
-          
+
         </div>
       </section>
 
@@ -1173,11 +1166,10 @@ export default function Landing({
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Ouverture des réservations :</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          isOpened 
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isOpened
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                             : 'bg-amber-50 border-amber-200 text-amber-700'
-                        }`}>
+                          }`}>
                           {isOpened ? '🟢 Ouvertes' : `⏳ Bientôt (${remaining || 'Fermé'})`}
                         </span>
                       </div>
@@ -1205,22 +1197,20 @@ export default function Landing({
                     key={slot.id}
                     type="button"
                     onClick={() => setSelectedMonthSim(slot.id)}
-                    className={`text-left rounded-xl p-4 border transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[120px] shadow-sm hover:shadow-md ${
-                      isSelected 
-                        ? 'bg-white border-[#c5a368] ring-2 ring-[#c5a368]/20' 
+                    className={`text-left rounded-xl p-4 border transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[120px] shadow-sm hover:shadow-md ${isSelected
+                        ? 'bg-white border-[#c5a368] ring-2 ring-[#c5a368]/20'
                         : 'bg-white/80 hover:bg-white border-[#c5a368]/20 hover:border-[#c5a368]/50'
-                    }`}
+                      }`}
                   >
                     <div>
                       <div className="flex justify-between items-start gap-1">
                         <h4 className="font-serif font-bold text-slate-800 text-xs sm:text-sm">
                           {slot.moisCélébration}
                         </h4>
-                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded border whitespace-nowrap ${
-                          isOpened 
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
+                        <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded border whitespace-nowrap ${isOpened
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
                             : 'bg-amber-50 border-amber-250 text-amber-600'
-                        }`}>
+                          }`}>
                           {isOpened ? 'Ouvert' : remaining || 'Bientôt'}
                         </span>
                       </div>
@@ -1235,7 +1225,7 @@ export default function Landing({
                 );
               })}
             </div>
-            
+
             {/* Stamp / Legend footnote */}
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] text-slate-500 border-t border-neutral-100 pt-4">
               <div className="flex items-center gap-1.5 font-bold">
@@ -1417,835 +1407,833 @@ export default function Landing({
               className="relative bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"
               onClick={e => e.stopPropagation()}
             >
-            {/* Drag handle mobile */}
-            <div className="flex justify-center pt-3 pb-0 sm:hidden shrink-0">
-              <div className="w-10 h-1 rounded-full bg-neutral-200" />
-            </div>
-
-            {/* Header */}
-            <div className="px-5 pt-4 pb-0 shrink-0">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="font-serif text-lg font-bold text-slate-900">
-                    {dossierId ? 'Continuer votre parcours' : 'Votre parcours de mariage'}
-                  </h3>
-                  <p className="font-sans text-xs text-slate-400 mt-0.5">
-                    {dossierId && spouse1Name ? (
-                      <span className="font-medium text-primary">{spouse1Name} & {spouse2Name}</span>
-                    ) : (
-                      `Étape ${activeStep} sur ${STEPS_META.length} — ${activeStep === 2 ? 'Choix de la salle' : STEPS_META[activeStep - 1].label}`
-                    )}
-                  </p>
-                </div>
-                {!allDone && (
-                  <button onClick={() => setShowParcours(false)} className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-slate-500 cursor-pointer text-xs font-bold transition-all">✕</button>
-                )}
+              {/* Drag handle mobile */}
+              <div className="flex justify-center pt-3 pb-0 sm:hidden shrink-0">
+                <div className="w-10 h-1 rounded-full bg-neutral-200" />
               </div>
 
-              {/* Stepper */}
-              <div className="flex items-center gap-0 pb-3 overflow-x-auto scrollbar-hide">
-                {STEPS_META.map((s, idx) => {
-                  const isDone = completedSteps.includes(s.id);
-                  const isActive = activeStep === s.id;
-                  return (
-                    <React.Fragment key={s.id}>
-                      <button
-                        onClick={() => isDone && setActiveStep(s.id)}
-                        className={`flex flex-col items-center gap-1 shrink-0 transition-all duration-200 ${isDone ? 'cursor-pointer' : 'cursor-default'}`}
-                      >
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base border-2 transition-all duration-300 ${isDone ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' :
-                          isActive ? 'bg-primary border-primary text-white shadow-md scale-110' :
-                            'bg-neutral-100 border-neutral-200 text-slate-400'
-                          }`}>
-                          {isDone ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{s.id}</span>}
-                        </div>
-                        <span className={`text-[8px] font-bold whitespace-nowrap ${isActive ? 'text-primary' : isDone ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {s.short}
-                        </span>
-                      </button>
-                      {idx < STEPS_META.length - 1 && (
-                        <div className={`flex-1 h-0.5 mx-1 rounded-full transition-all duration-500 ${completedSteps.includes(s.id) ? 'bg-emerald-400' : 'bg-neutral-200'}`} />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-
-              {/* Barre de progression */}
-              <div className="w-full h-1 bg-neutral-100 rounded-full mt-1">
-                <div
-                  className="h-full bg-primary rounded-full transition-all duration-700"
-                  style={{ width: `${(completedSteps.length / STEPS_META.length) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Contenu scrollable */}
-            <div className="overflow-y-auto overflow-x-hidden flex-1 px-5 py-5">
-
-              {/* Succès final */}
-              {allDone ? (
-                <div className="py-10 text-center flex flex-col items-center gap-5" style={{ animation: 'bounceIn 0.5s ease' }}>
-                  <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center border-2 border-emerald-300 shadow-xl">
-                    <span className="text-4xl">💍</span>
-                  </div>
+              {/* Header */}
+              <div className="px-5 pt-4 pb-0 shrink-0">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h4 className="font-serif text-2xl font-bold text-emerald-800">Dossier initialisé !</h4>
-                    <p className="font-sans text-sm text-slate-500 mt-2">Votre parcours de mariage est en cours. Rendez-vous dans l'onglet Parcours pour continuer.</p>
+                    <h3 className="font-serif text-lg font-bold text-slate-900">
+                      {dossierId ? 'Continuer votre parcours' : 'Votre parcours de mariage'}
+                    </h3>
+                    <p className="font-sans text-xs text-slate-400 mt-0.5">
+                      {dossierId && spouse1Name ? (
+                        <span className="font-medium text-primary">{spouse1Name} & {spouse2Name}</span>
+                      ) : (
+                        `Étape ${activeStep} sur ${STEPS_META.length} — ${activeStep === 2 ? 'Choix de la salle' : STEPS_META[activeStep - 1].label}`
+                      )}
+                    </p>
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-left w-full space-y-2.5">
-                    <div className="flex justify-between text-xs font-sans">
-                      <span className="text-slate-500">Futur Époux</span>
-                      <span className="font-bold text-slate-800">{editS1 || spouse1Name}</span>
+                  {!allDone && (
+                    <button onClick={() => setShowParcours(false)} className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-slate-500 cursor-pointer text-xs font-bold transition-all">✕</button>
+                  )}
+                </div>
+
+                {/* Stepper */}
+                <div className="flex items-center gap-0 pb-3 overflow-x-auto scrollbar-hide">
+                  {STEPS_META.map((s, idx) => {
+                    const isDone = completedSteps.includes(s.id);
+                    const isActive = activeStep === s.id;
+                    return (
+                      <React.Fragment key={s.id}>
+                        <button
+                          onClick={() => isDone && setActiveStep(s.id)}
+                          className={`flex flex-col items-center gap-1 shrink-0 transition-all duration-200 ${isDone ? 'cursor-pointer' : 'cursor-default'}`}
+                        >
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base border-2 transition-all duration-300 ${isDone ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' :
+                            isActive ? 'bg-primary border-primary text-white shadow-md scale-110' :
+                              'bg-neutral-100 border-neutral-200 text-slate-400'
+                            }`}>
+                            {isDone ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{s.id}</span>}
+                          </div>
+                          <span className={`text-[8px] font-bold whitespace-nowrap ${isActive ? 'text-primary' : isDone ? 'text-emerald-600' : 'text-slate-400'}`}>
+                            {s.short}
+                          </span>
+                        </button>
+                        {idx < STEPS_META.length - 1 && (
+                          <div className={`flex-1 h-0.5 mx-1 rounded-full transition-all duration-500 ${completedSteps.includes(s.id) ? 'bg-emerald-400' : 'bg-neutral-200'}`} />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                {/* Barre de progression */}
+                <div className="w-full h-1 bg-neutral-100 rounded-full mt-1">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-700"
+                    style={{ width: `${(completedSteps.length / STEPS_META.length) * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Contenu scrollable */}
+              <div className="overflow-y-auto overflow-x-hidden flex-1 px-5 py-5">
+
+                {/* Succès final */}
+                {allDone ? (
+                  <div className="py-10 text-center flex flex-col items-center gap-5" style={{ animation: 'bounceIn 0.5s ease' }}>
+                    <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center border-2 border-emerald-300 shadow-xl">
+                      <span className="text-4xl">💍</span>
                     </div>
-                    <div className="flex justify-between text-xs font-sans">
-                      <span className="text-slate-500">Future Épouse</span>
-                      <span className="font-bold text-slate-800">{editS2 || spouse2Name}</span>
+                    <div>
+                      <h4 className="font-serif text-2xl font-bold text-emerald-800">Dossier initialisé !</h4>
+                      <p className="font-sans text-sm text-slate-500 mt-2">Votre parcours de mariage est en cours. Rendez-vous dans l'onglet Parcours pour continuer.</p>
                     </div>
-                    <div className="flex justify-between text-xs font-sans">
-                      <span className="text-slate-500">Mairie</span>
-                      <span className="font-bold text-slate-800">{currentMairieName}</span>
-                    </div>
-                    {chosenDate && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-left w-full space-y-2.5">
                       <div className="flex justify-between text-xs font-sans">
-                        <span className="text-slate-500">Date souhaitée</span>
-                        <span className="font-bold text-slate-800">{new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} à {chosenTime}</span>
+                        <span className="text-slate-500">Futur Époux</span>
+                        <span className="font-bold text-slate-800">{editS1 || spouse1Name}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-sans">
+                        <span className="text-slate-500">Future Épouse</span>
+                        <span className="font-bold text-slate-800">{editS2 || spouse2Name}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-sans">
+                        <span className="text-slate-500">Mairie</span>
+                        <span className="font-bold text-slate-800">{currentMairieName}</span>
+                      </div>
+                      {chosenDate && (
+                        <div className="flex justify-between text-xs font-sans">
+                          <span className="text-slate-500">Date souhaitée</span>
+                          <span className="font-bold text-slate-800">{new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} à {chosenTime}</span>
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={handleFinishAndGo} className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary-container text-white font-sans text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-lg hover:shadow-xl">
+                      <span>Voir mon parcours complet</span>
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* ── ÉTAPE 1 : Création du dossier ── */}
+                    {activeStep === 1 && (
+                      !precheckConfirmed && !dossierId ? (
+                        <div className="space-y-4 font-sans text-xs text-left" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-amber-500/10 via-primary/10 to-emerald-500/10 border border-[#c5a368]/30 rounded-2xl">
+                            <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-2xl shrink-0 shadow-sm border border-[#c5a368]/20">
+                              🗓️
+                            </div>
+                            <div>
+                              <h4 className="font-serif font-bold text-slate-900 text-base">Vérification de disponibilité</h4>
+                              <p className="font-sans text-xs text-slate-500 mt-0.5">
+                                Sélectionnez votre mois de célébration pour vérifier si les réservations sont ouvertes à la Mairie.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-2.5 p-4 bg-white border border-neutral-200 rounded-2xl shadow-sm">
+                            <label className="font-bold text-slate-800 text-xs uppercase tracking-wider font-sans">
+                              Mois de célébration souhaité *
+                            </label>
+
+                            <select
+                              value={selectedMonthSim}
+                              onChange={e => setSelectedMonthSim(e.target.value)}
+                              className="w-full border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50 font-semibold focus:border-primary focus:outline-none cursor-pointer text-xs transition-all shadow-inner-sm font-sans"
+                            >
+                              {CALENDRIER_RESERVATIONS_2026.map(slot => (
+                                <option key={slot.id} value={slot.id}>
+                                  {slot.moisCélébration} (Réservations : dès le {slot.debutReservation})
+                                </option>
+                              ))}
+                            </select>
+
+                            {/* Dynamic Status Card */}
+                            {(() => {
+                              const item = CALENDRIER_RESERVATIONS_2026.find(c => c.id === selectedMonthSim);
+                              if (!item) return null;
+                              const isOpened = checkIsOpened(item.ouvertureIso);
+                              const remaining = getDaysRemainingStr(item.ouvertureIso);
+
+                              return (
+                                <div className="mt-2 space-y-3">
+                                  <div className={`p-4 rounded-xl border flex flex-col gap-1.5 ${isOpened
+                                      ? 'bg-emerald-50/95 border-emerald-200 text-emerald-950'
+                                      : 'bg-amber-50/95 border-amber-200 text-amber-950'
+                                    }`}>
+                                    <div className="flex items-center justify-between font-bold text-xs">
+                                      <span className="flex items-center gap-1.5">
+                                        {isOpened ? '🟢 Réservations Ouvertes !' : `⏳ Réservations pas encore ouvertes`}
+                                      </span>
+                                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black ${isOpened ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                                        }`}>
+                                        {isOpened ? 'Disponible' : remaining || 'Bientôt'}
+                                      </span>
+                                    </div>
+
+                                    <p className="text-xs font-medium leading-relaxed mt-0.5">
+                                      {isOpened
+                                        ? `Bonne nouvelle ! Les réservations de mariage civil pour ${item.moisCélébration} sont ouvertes à la Mairie. Vous pouvez remplir votre dossier dès maintenant.`
+                                        : `Attention : Les réservations pour ${item.moisCélébration} n'ouvriront officiellement que le ${item.debutReservation} à la Mairie de Cocody.`}
+                                    </p>
+
+                                    <p className="text-[11px] italic opacity-85 mt-0.5">
+                                      💡 {item.conseil}
+                                    </p>
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  {isOpened ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPrecheckConfirmed(true)}
+                                      className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md hover:shadow-lg"
+                                    >
+                                      <span>Poursuivre la création du dossier →</span>
+                                    </button>
+                                  ) : (
+                                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2 text-slate-700 font-sans">
+                                      <p className="font-bold text-slate-800">Options disponibles :</p>
+                                      <div className="flex flex-col gap-1.5 text-[11px] text-slate-600">
+                                        <p>• <strong>Sélectionnez un autre mois ouvert</strong> ci-dessus pour continuer tout de suite (ex: Juillet, Août, Septembre, Octobre).</p>
+                                        <p>• <strong>Patientez jusqu'au {item.debutReservation}</strong> pour ouvrir votre dossier pour {item.moisCélébration}.</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      ) : !profileConfirmed ? (
+                        /* ── Sous-étape 2 : Situation & Statut des futur(e)s époux (Fenetre dédiée épurée) ── */
+                        <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl shrink-0">⚖️</div>
+                            <div className="text-left">
+                              <h4 className="font-serif font-bold text-slate-900 text-base">Situation &amp; Statut des futur(e)s époux</h4>
+                              <p className="font-sans text-xs text-slate-400">Déclarez le statut civil et professionnel pour préparer automatiquement la liste exacte de vos pièces requises.</p>
+                            </div>
+                          </div>
+
+                          {/* Cadre identique au design de la maquette utilisateur */}
+                          <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 space-y-3 font-sans text-left shadow-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <span>⚖️ SITUATION &amp; STATUT DES FUTUR(E)S ÉPOUX</span>
+                              </span>
+                              <span className="text-[10.5px] text-slate-400">Ajuste les pièces requises</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                              {/* Profil Époux */}
+                              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                                <span className="font-bold text-slate-800 text-[11px] block truncate">🧑 Époux ({spouse1Name || editS1 || 'Époux'})</span>
+                                <div className="grid grid-cols-3 gap-1.5 text-[9.5px]">
+                                  <div>
+                                    <label className="block text-[8.5px] text-slate-400 mb-1">État civil</label>
+                                    <select value={epouxProfile.maritalStatus} onChange={e => setEpouxProfile({ ...epouxProfile, maritalStatus: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                      <option value="celibataire">Célibataire</option>
+                                      <option value="veuf">Veuf</option>
+                                      <option value="divorce">Divorcé</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[8.5px] text-slate-400 mb-1">Statut pro</label>
+                                    <select value={epouxProfile.professionType} onChange={e => setEpouxProfile({ ...epouxProfile, professionType: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                      <option value="civil">Civil</option>
+                                      <option value="militaire">Militaire / Force de l'ordre</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[8.5px] text-slate-400 mb-1">Nationalité</label>
+                                    <select value={epouxProfile.nationalityType} onChange={e => setEpouxProfile({ ...epouxProfile, nationalityType: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                      <option value="ivoirien">Ivoirien</option>
+                                      <option value="etranger_dispense">Étranger (FR/ML)</option>
+                                      <option value="etranger_autre">Étranger (Autre)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Profil Épouse */}
+                              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                                <span className="font-bold text-slate-800 text-[11px] block truncate">👩 Épouse ({spouse2Name || editS2 || 'Épouse'})</span>
+                                <div className="grid grid-cols-3 gap-1.5 text-[9.5px]">
+                                  <div>
+                                    <label className="block text-[8.5px] text-slate-400 mb-1">État civil</label>
+                                    <select value={epouseProfile.maritalStatus} onChange={e => setEpouseProfile({ ...epouseProfile, maritalStatus: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                      <option value="celibataire">Célibataire</option>
+                                      <option value="veuf">Veuve</option>
+                                      <option value="divorce">Divorcée</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[8.5px] text-slate-400 mb-1">Statut pro</label>
+                                    <select value={epouseProfile.professionType} onChange={e => setEpouseProfile({ ...epouseProfile, professionType: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                      <option value="civil">Civile</option>
+                                      <option value="militaire">Militaire / Force de l'ordre</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[8.5px] text-slate-400 mb-1">Nationalité</label>
+                                    <select value={epouseProfile.nationalityType} onChange={e => setEpouseProfile({ ...epouseProfile, nationalityType: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                      <option value="ivoirien">Ivoirienne</option>
+                                      <option value="etranger_dispense">Étrangère (FR/ML)</option>
+                                      <option value="etranger_autre">Étrangère (Autre)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setPrecheckConfirmed(false)}
+                              className="px-4 py-3.5 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all"
+                            >
+                              ← Retour
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setProfileConfirmed(true)}
+                              className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md hover:shadow-lg"
+                            >
+                              <span>Continuer vers les identités →</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <form onSubmit={handleStep1Submit} className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-violet-100 flex items-center justify-center text-2xl shrink-0">👤</div>
+                            <div className="flex-1 flex items-center justify-between">
+                              <div>
+                                <h4 className="font-serif font-bold text-slate-900 text-base">Création du dossier</h4>
+                                <p className="font-sans text-xs text-slate-400">Renseignez l'identité des futurs époux pour initialiser le dossier civil.</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setProfileConfirmed(false)}
+                                className="text-[10.5px] font-semibold text-primary hover:underline bg-primary/5 px-2.5 py-1 rounded-lg border border-primary/20 cursor-pointer shrink-0"
+                              >
+                                ⚙️ Modifier situation
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Bandeau si dossier déjà existant */}
+                          {dossierId && (
+                            <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 flex items-center gap-2">
+                              <Check className="w-4 h-4 text-violet-500 shrink-0" />
+                              <p className="font-sans text-xs text-violet-700">Dossier <strong>#{dossierId.slice(-8).toUpperCase()}</strong> déjà créé. Vous pouvez modifier les informations ci-dessous.</p>
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Futur époux — Prénom et Nom</label>
+                              <input required value={editS1} onChange={e => setEditS1(e.target.value.toUpperCase())} placeholder="EX: KONÉ"
+                                style={{ textTransform: 'uppercase' }}
+                                className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Future épouse — Prénom et Nom</label>
+                              <input required value={editS2} onChange={e => setEditS2(e.target.value.toUpperCase())} placeholder="EX: AMY ROSINE"
+                                style={{ textTransform: 'uppercase' }}
+                                className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Tél. Époux</label>
+                                <input value={editPhone1} onChange={e => handlePhoneChange(e.target.value, setEditPhone1)} onBlur={() => checkPhone1.triggerVerification()} placeholder="+225 07 00 00 00"
+                                  style={getBordureStyle(checkPhone1.statut)}
+                                  className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
+                                {checkPhone1.message && (
+                                  <p className={`text-[10px] font-sans font-semibold mt-1 whitespace-pre-line ${getMessageColor(checkPhone1.statut)}`}>
+                                    {getIcone(checkPhone1.statut)} {checkPhone1.message}
+                                  </p>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Tél. Épouse</label>
+                                <input value={editPhone2} onChange={e => handlePhoneChange(e.target.value, setEditPhone2)} onBlur={() => checkPhone2.triggerVerification()} placeholder="+225 07 00 00 00"
+                                  style={getBordureStyle(checkPhone2.statut)}
+                                  className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
+                                {checkPhone2.message && (
+                                  <p className={`text-[10px] font-sans font-semibold mt-1 whitespace-pre-line ${getMessageColor(checkPhone2.statut)}`}>
+                                    {getIcone(checkPhone2.statut)} {checkPhone2.message}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Type de pièce Époux *</label>
+                                <select value={editCniType1} onChange={e => setEditCniType1(e.target.value as any)}
+                                  className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans">
+                                  <option value="CNI">CNI</option>
+                                  <option value="PASSEPORT">PASSEPORT</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Type de pièce Épouse *</label>
+                                <select value={editCniType2} onChange={e => setEditCniType2(e.target.value as any)}
+                                  className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans">
+                                  <option value="CNI">CNI</option>
+                                  <option value="PASSEPORT">PASSEPORT</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">N° Pièce Époux *</label>
+                                <input required value={editCni1} onChange={e => {
+                                  setEditCni1(e.target.value);
+                                  if (dossierDuplicateError) setDossierDuplicateError(null);
+                                }} onBlur={() => checkCni1.triggerVerification()} placeholder={editCniType1 === 'PASSEPORT' ? "Ex: 12BC34567" : "Ex: C012345678"}
+                                  style={{ textTransform: 'uppercase', ...getBordureStyle(checkCni1.statut) }}
+                                  className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
+                                {checkCni1.message && (
+                                  <p className={`text-[10px] font-sans font-semibold mt-1 whitespace-pre-line ${getMessageColor(checkCni1.statut)}`}>
+                                    {getIcone(checkCni1.statut)} {checkCni1.message}
+                                  </p>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">N° Pièce Épouse *</label>
+                                <input required value={editCni2} onChange={e => {
+                                  setEditCni2(e.target.value);
+                                  if (dossierDuplicateError) setDossierDuplicateError(null);
+                                }} onBlur={() => checkCni2.triggerVerification()} placeholder={editCniType2 === 'PASSEPORT' ? "Ex: 12BC34567" : "Ex: C087654321"}
+                                  style={{ textTransform: 'uppercase', ...getBordureStyle(checkCni2.statut) }}
+                                  className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
+                                {checkCni2.message && (
+                                  <p className={`text-[10px] font-sans font-semibold mt-1 whitespace-pre-line ${getMessageColor(checkCni2.statut)}`}>
+                                    {getIcone(checkCni2.statut)} {checkCni2.message}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {erreurCroisement && (
+                            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
+                              <AlertCircle className="w-4.5 h-4.5 text-rose-700 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-bold">Erreur de validation croisée</p>
+                                <p className="mt-0.5 font-semibold text-rose-800 whitespace-pre-line">{erreurCroisement}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {dossierDuplicateError && (
+                            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
+                              <AlertCircle className="w-4.5 h-4.5 text-rose-700 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-bold">Erreur de validation</p>
+                                <p className="mt-0.5 font-semibold text-rose-800">{dossierDuplicateError}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {(() => {
+                            const peutContinuer =
+                              checkPhone1.statut === 'disponible' &&
+                              checkCni1.statut === 'disponible' &&
+                              checkPhone2.statut === 'disponible' &&
+                              checkCni2.statut === 'disponible' &&
+                              !erreurCroisement &&
+                              !submitting;
+                            return (
+                              <button type="submit" disabled={!peutContinuer}
+                                style={{
+                                  opacity: peutContinuer ? 1 : 0.5,
+                                  cursor: peutContinuer ? 'pointer' : 'not-allowed'
+                                }}
+                                className="w-full py-3.5 rounded-xl text-sm font-bold text-white transition-all mt-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-container shadow-md">
+                                {submitting ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                                    <span>Validation en cours...</span>
+                                  </>
+                                ) : (
+                                  <span>Continuer → Choisir la salle de célébration</span>
+                                )}
+                              </button>
+                            );
+                          })()}
+                        </form>
+                      )
+                    )}
+
+                    {/* ── ÉTAPE 2 : Choix de la mairie (données réelles) ── */}
+                    {activeStep === 2 && (
+                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-2xl bg-sky-100 flex items-center justify-center text-2xl shrink-0">🏛️</div>
+                          <div>
+                            <h4 className="font-serif font-bold text-slate-900 text-base">Choix de la salle</h4>
+                            <p className="font-sans text-xs text-slate-400">Sélectionnez la salle où vous souhaitez célébrer votre mariage civil.</p>
+                          </div>
+                        </div>
+
+                        {/* Mairie déjà sélectionnée */}
+                        {selectedMairieId && selectedMairieName && (
+                          <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-sky-500 shrink-0" />
+                            <p className="font-sans text-xs text-sky-700">Salle actuelle : <strong>{selectedMairieName}</strong>. Vous pouvez modifier ci-dessous.</p>
+                          </div>
+                        )}
+
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest">Salle de célébration</label>
+
+                        {mairiesLoading ? (
+                          <div className="flex items-center justify-center py-8 gap-2 text-slate-400">
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span className="font-sans text-sm">Chargement des salles...</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {mairies.map(m => (
+                              <div
+                                key={m.id}
+                                onClick={() => setSelectedMairie(m.id)}
+                                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${selectedMairie === m.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-neutral-100 hover:border-primary/40 bg-white hover:shadow-sm'
+                                  }`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-sans font-bold text-sm text-slate-800 block">{m.name}</span>
+                                    <span className="text-[11px] text-slate-400">{m.region}</span>
+                                    {m.officer_name && (
+                                      <span className="text-[10px] text-slate-300 block">Officier : {m.officer_name}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className={`text-[9px] font-bold px-2 py-1 rounded-lg ${getMairieBadgeColor(m.region)}`}>
+                                      {m.region.split('-')[0].trim()}
+                                    </span>
+                                    {selectedMairie === m.id && <Check className="w-4 h-4 text-primary" />}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            {mairies.length === 0 && (
+                              <p className="text-center text-xs text-slate-400 py-3">Aucune salle disponible.</p>
+                            )}
+                          </div>
+                        )}
+
+                        <p className="text-[10px] text-slate-400 italic">ℹ️ La loi requiert que l'un des époux y réside depuis au moins 1 mois.</p>
+
+                        <div className="flex gap-3">
+                          <button onClick={() => setActiveStep(1)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
+                          <button disabled={!selectedMairie} onClick={handleStep2Submit}
+                            className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all ${selectedMairie ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}>
+                            Continuer → Dépôt des documents
+                          </button>
+                        </div>
                       </div>
                     )}
-                  </div>
-                  <button onClick={handleFinishAndGo} className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary-container text-white font-sans text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-lg hover:shadow-xl">
-                    <span>Voir mon parcours complet</span>
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* ── ÉTAPE 1 : Création du dossier ── */}
-                  {activeStep === 1 && (
-                    !precheckConfirmed && !dossierId ? (
-                      <div className="space-y-4 font-sans text-xs text-left" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                        <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-amber-500/10 via-primary/10 to-emerald-500/10 border border-[#c5a368]/30 rounded-2xl">
-                          <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-2xl shrink-0 shadow-sm border border-[#c5a368]/20">
-                            🗓️
-                          </div>
+
+                    {/* ── ÉTAPE 3 : Dépôt des documents ── */}
+                    {activeStep === 3 && (
+                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl shrink-0">📁</div>
                           <div>
-                            <h4 className="font-serif font-bold text-slate-900 text-base">Vérification de disponibilité</h4>
-                            <p className="font-sans text-xs text-slate-500 mt-0.5">
-                              Sélectionnez votre mois de célébration pour vérifier si les réservations sont ouvertes à la Mairie.
-                            </p>
+                            <h4 className="font-serif font-bold text-slate-900 text-base">Dépôt des documents</h4>
+                            <p className="font-sans text-xs text-slate-400">Téléversez vos pièces justificatives obligatoires pour instruction par l'officier civil.</p>
                           </div>
                         </div>
 
-                        <div className="flex flex-col gap-2.5 p-4 bg-white border border-neutral-200 rounded-2xl shadow-sm">
-                          <label className="font-bold text-slate-800 text-xs uppercase tracking-wider font-sans">
-                            Mois de célébration souhaité *
-                          </label>
+                        <label className="block text-[11px] font-bold text-slate-650 uppercase tracking-widest text-left">Documents requis selon profil</label>
+                        <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
+                          {dynamicRequiredDocs.map((doc, i) => {
+                            const { status, message } = getDocStatusById(doc.id);
 
-                          <select
-                            value={selectedMonthSim}
-                            onChange={e => setSelectedMonthSim(e.target.value)}
-                            className="w-full border border-neutral-300 rounded-xl px-4 py-3 bg-neutral-50 font-semibold focus:border-primary focus:outline-none cursor-pointer text-xs transition-all shadow-inner-sm font-sans"
-                          >
-                            {CALENDRIER_RESERVATIONS_2026.map(slot => (
-                              <option key={slot.id} value={slot.id}>
-                                {slot.moisCélébration} (Réservations : dès le {slot.debutReservation})
-                              </option>
-                            ))}
-                          </select>
+                            let cardBg = "bg-neutral-50 border-neutral-200 hover:border-primary/45 hover:bg-neutral-50/80";
+                            let badgeBg = "bg-neutral-250 text-slate-500";
+                            let badgeText = "À fournir";
 
-                          {/* Dynamic Status Card */}
-                          {(() => {
-                            const item = CALENDRIER_RESERVATIONS_2026.find(c => c.id === selectedMonthSim);
-                            if (!item) return null;
-                            const isOpened = checkIsOpened(item.ouvertureIso);
-                            const remaining = getDaysRemainingStr(item.ouvertureIso);
+                            if (status === 'verified') {
+                              cardBg = "bg-emerald-50/20 border-emerald-200 hover:bg-emerald-50/40 hover:border-emerald-300";
+                              badgeBg = "bg-emerald-100 text-emerald-800";
+                              badgeText = "Vérifié ✓";
+                            } else if (status === 'rejected') {
+                              cardBg = "bg-rose-50/25 border-rose-200 hover:bg-rose-50/50 hover:border-rose-300";
+                              badgeBg = "bg-rose-100 text-rose-800";
+                              badgeText = "Rejeté ❌";
+                            } else if (status === 'uploading') {
+                              cardBg = "bg-sky-50/20 border-sky-200 hover:bg-sky-50/40 hover:border-sky-300";
+                              badgeBg = "bg-sky-100 text-sky-850";
+                              badgeText = "Reçu / Transmis 📄";
+                            }
 
                             return (
-                              <div className="mt-2 space-y-3">
-                                <div className={`p-4 rounded-xl border flex flex-col gap-1.5 ${
-                                  isOpened
-                                    ? 'bg-emerald-50/95 border-emerald-200 text-emerald-950'
-                                    : 'bg-amber-50/95 border-amber-200 text-amber-950'
-                                }`}>
-                                  <div className="flex items-center justify-between font-bold text-xs">
-                                    <span className="flex items-center gap-1.5">
-                                      {isOpened ? '🟢 Réservations Ouvertes !' : `⏳ Réservations pas encore ouvertes`}
-                                    </span>
-                                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black ${
-                                      isOpened ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
-                                    }`}>
-                                      {isOpened ? 'Disponible' : remaining || 'Bientôt'}
-                                    </span>
+                              <div
+                                key={i}
+                                onClick={() => handleDocumentAction(doc.id)}
+                                className={`flex flex-col gap-1.5 p-3 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm group ${cardBg}`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="text-base shrink-0 group-hover:scale-110 transition-transform">{doc.icon}</span>
+                                    <div className="text-left min-w-0">
+                                      <span className={`font-sans font-bold text-[11px] block leading-tight ${status === 'verified' ? 'text-emerald-950 line-through decoration-emerald-500/40' : 'text-slate-800'}`}>
+                                        {doc.label} {doc.isSpecial && <span className="text-[9px] text-amber-700 bg-amber-100 px-1 py-0.2 rounded ml-1 font-semibold">Spécifique</span>}
+                                      </span>
+                                      <span className="font-sans text-[10px] text-slate-400 block mt-0.5 leading-normal truncate">{doc.desc}</span>
+                                    </div>
                                   </div>
-                                  
-                                  <p className="text-xs font-medium leading-relaxed mt-0.5">
-                                    {isOpened
-                                      ? `Bonne nouvelle ! Les réservations de mariage civil pour ${item.moisCélébration} sont ouvertes à la Mairie. Vous pouvez remplir votre dossier dès maintenant.`
-                                      : `Attention : Les réservations pour ${item.moisCélébration} n'ouvriront officiellement que le ${item.debutReservation} à la Mairie de Cocody.`}
-                                  </p>
-                                  
-                                  <p className="text-[11px] italic opacity-85 mt-0.5">
-                                    💡 {item.conseil}
-                                  </p>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className={`px-1.5 py-0.5 rounded-lg font-sans text-[8.5px] font-bold ${badgeBg}`}>
+                                      {badgeText}
+                                    </span>
+                                    {status === 'verified' ? (
+                                      <div className="w-4.5 h-4.5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-sm animate-scale-in">
+                                        <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                                      </div>
+                                    ) : status === 'rejected' ? (
+                                      <div className="w-4.5 h-4.5 rounded-full bg-rose-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                                        <AlertCircle className="w-3.5 h-3.5" strokeWidth={3} />
+                                      </div>
+                                    ) : status === 'uploading' ? (
+                                      <div className="w-4.5 h-4.5 rounded-full bg-sky-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                                        <FileText className="w-2.5 h-2.5" />
+                                      </div>
+                                    ) : (
+                                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                                    )}
+                                  </div>
                                 </div>
 
-                                {/* Action Buttons */}
-                                {isOpened ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setPrecheckConfirmed(true)}
-                                    className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md hover:shadow-lg"
-                                  >
-                                    <span>Poursuivre la création du dossier →</span>
-                                  </button>
-                                ) : (
-                                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2 text-slate-700 font-sans">
-                                    <p className="font-bold text-slate-800">Options disponibles :</p>
-                                    <div className="flex flex-col gap-1.5 text-[11px] text-slate-600">
-                                      <p>• <strong>Sélectionnez un autre mois ouvert</strong> ci-dessus pour continuer tout de suite (ex: Juillet, Août, Septembre, Octobre).</p>
-                                      <p>• <strong>Patientez jusqu'au {item.debutReservation}</strong> pour ouvrir votre dossier pour {item.moisCélébration}.</p>
-                                    </div>
+                                {status === 'rejected' && message && (
+                                  <div className="p-1.5 bg-white/95 border border-rose-200 rounded-lg text-[9.5px] font-semibold text-rose-800 leading-normal text-left font-sans shadow-sm">
+                                    ⚠️ Motif : {message}
                                   </div>
                                 )}
                               </div>
                             );
-                          })()}
-                        </div>
-                      </div>
-                    ) : !profileConfirmed ? (
-                      /* ── Sous-étape 2 : Situation & Statut des futur(e)s époux (Fenetre dédiée épurée) ── */
-                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl shrink-0">⚖️</div>
-                          <div className="text-left">
-                            <h4 className="font-serif font-bold text-slate-900 text-base">Situation &amp; Statut des futur(e)s époux</h4>
-                            <p className="font-sans text-xs text-slate-400">Déclarez le statut civil et professionnel pour préparer automatiquement la liste exacte de vos pièces requises.</p>
-                          </div>
-                        </div>
-
-                        {/* Cadre identique au design de la maquette utilisateur */}
-                        <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 space-y-3 font-sans text-left shadow-sm">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                              <span>⚖️ SITUATION &amp; STATUT DES FUTUR(E)S ÉPOUX</span>
-                            </span>
-                            <span className="text-[10.5px] text-slate-400">Ajuste les pièces requises</span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                            {/* Profil Époux */}
-                            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2 shadow-2xs">
-                              <span className="font-bold text-slate-800 text-[11px] block truncate">🧑 Époux ({spouse1Name || editS1 || 'Époux'})</span>
-                              <div className="grid grid-cols-3 gap-1.5 text-[9.5px]">
-                                <div>
-                                  <label className="block text-[8.5px] text-slate-400 mb-1">État civil</label>
-                                  <select value={epouxProfile.maritalStatus} onChange={e => setEpouxProfile({...epouxProfile, maritalStatus: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
-                                    <option value="celibataire">Célibataire</option>
-                                    <option value="veuf">Veuf</option>
-                                    <option value="divorce">Divorcé</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-[8.5px] text-slate-400 mb-1">Statut pro</label>
-                                  <select value={epouxProfile.professionType} onChange={e => setEpouxProfile({...epouxProfile, professionType: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
-                                    <option value="civil">Civil</option>
-                                    <option value="militaire">Militaire / Force de l'ordre</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-[8.5px] text-slate-400 mb-1">Nationalité</label>
-                                  <select value={epouxProfile.nationalityType} onChange={e => setEpouxProfile({...epouxProfile, nationalityType: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
-                                    <option value="ivoirien">Ivoirien</option>
-                                    <option value="etranger_dispense">Étranger (FR/ML)</option>
-                                    <option value="etranger_autre">Étranger (Autre)</option>
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Profil Épouse */}
-                            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2 shadow-2xs">
-                              <span className="font-bold text-slate-800 text-[11px] block truncate">👩 Épouse ({spouse2Name || editS2 || 'Épouse'})</span>
-                              <div className="grid grid-cols-3 gap-1.5 text-[9.5px]">
-                                <div>
-                                  <label className="block text-[8.5px] text-slate-400 mb-1">État civil</label>
-                                  <select value={epouseProfile.maritalStatus} onChange={e => setEpouseProfile({...epouseProfile, maritalStatus: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
-                                    <option value="celibataire">Célibataire</option>
-                                    <option value="veuf">Veuve</option>
-                                    <option value="divorce">Divorcée</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-[8.5px] text-slate-400 mb-1">Statut pro</label>
-                                  <select value={epouseProfile.professionType} onChange={e => setEpouseProfile({...epouseProfile, professionType: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
-                                    <option value="civil">Civile</option>
-                                    <option value="militaire">Militaire / Force de l'ordre</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-[8.5px] text-slate-400 mb-1">Nationalité</label>
-                                  <select value={epouseProfile.nationalityType} onChange={e => setEpouseProfile({...epouseProfile, nationalityType: e.target.value as any})} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
-                                    <option value="ivoirien">Ivoirienne</option>
-                                    <option value="etranger_dispense">Étrangère (FR/ML)</option>
-                                    <option value="etranger_autre">Étrangère (Autre)</option>
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2.5 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => setPrecheckConfirmed(false)}
-                            className="px-4 py-3.5 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all"
-                          >
-                            ← Retour
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setProfileConfirmed(true)}
-                            className="flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-sans text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md hover:shadow-lg"
-                          >
-                            <span>Continuer vers les identités →</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleStep1Submit} className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-violet-100 flex items-center justify-center text-2xl shrink-0">👤</div>
-                        <div className="flex-1 flex items-center justify-between">
-                          <div>
-                            <h4 className="font-serif font-bold text-slate-900 text-base">Création du dossier</h4>
-                            <p className="font-sans text-xs text-slate-400">Renseignez l'identité des futurs époux pour initialiser le dossier civil.</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setProfileConfirmed(false)}
-                            className="text-[10.5px] font-semibold text-primary hover:underline bg-primary/5 px-2.5 py-1 rounded-lg border border-primary/20 cursor-pointer shrink-0"
-                          >
-                            ⚙️ Modifier situation
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Bandeau si dossier déjà existant */}
-                      {dossierId && (
-                        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 flex items-center gap-2">
-                          <Check className="w-4 h-4 text-violet-500 shrink-0" />
-                          <p className="font-sans text-xs text-violet-700">Dossier <strong>#{dossierId.slice(-8).toUpperCase()}</strong> déjà créé. Vous pouvez modifier les informations ci-dessous.</p>
-                        </div>
-                      )}
-
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Futur époux — Prénom et Nom</label>
-                          <input required value={editS1} onChange={e => setEditS1(e.target.value.toUpperCase())} placeholder="EX: KONÉ"
-                            style={{ textTransform: 'uppercase' }}
-                            className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Future épouse — Prénom et Nom</label>
-                          <input required value={editS2} onChange={e => setEditS2(e.target.value.toUpperCase())} placeholder="EX: AMY ROSINE"
-                            style={{ textTransform: 'uppercase' }}
-                            className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Tél. Époux</label>
-                            <input value={editPhone1} onChange={e => handlePhoneChange(e.target.value, setEditPhone1)} onBlur={() => checkPhone1.triggerVerification()} placeholder="+225 07 00 00 00"
-                              style={getBordureStyle(checkPhone1.statut)}
-                              className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
-                            {checkPhone1.message && (
-                              <p className={`text-[10px] font-sans font-semibold mt-1 whitespace-pre-line ${getMessageColor(checkPhone1.statut)}`}>
-                                {getIcone(checkPhone1.statut)} {checkPhone1.message}
-                              </p>
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Tél. Épouse</label>
-                            <input value={editPhone2} onChange={e => handlePhoneChange(e.target.value, setEditPhone2)} onBlur={() => checkPhone2.triggerVerification()} placeholder="+225 07 00 00 00"
-                              style={getBordureStyle(checkPhone2.statut)}
-                              className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
-                            {checkPhone2.message && (
-                              <p className={`text-[10px] font-sans font-semibold mt-1 whitespace-pre-line ${getMessageColor(checkPhone2.statut)}`}>
-                                {getIcone(checkPhone2.statut)} {checkPhone2.message}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Type de pièce Époux *</label>
-                            <select value={editCniType1} onChange={e => setEditCniType1(e.target.value as any)}
-                              className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans">
-                              <option value="CNI">CNI</option>
-                              <option value="PASSEPORT">PASSEPORT</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Type de pièce Épouse *</label>
-                            <select value={editCniType2} onChange={e => setEditCniType2(e.target.value as any)}
-                              className="w-full border border-neutral-200 rounded-xl p-3.5 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans">
-                              <option value="CNI">CNI</option>
-                              <option value="PASSEPORT">PASSEPORT</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">N° Pièce Époux *</label>
-                            <input required value={editCni1} onChange={e => {
-                              setEditCni1(e.target.value);
-                              if (dossierDuplicateError) setDossierDuplicateError(null);
-                            }} onBlur={() => checkCni1.triggerVerification()} placeholder={editCniType1 === 'PASSEPORT' ? "Ex: 12BC34567" : "Ex: C012345678"}
-                              style={{ textTransform: 'uppercase', ...getBordureStyle(checkCni1.statut) }}
-                              className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
-                            {checkCni1.message && (
-                              <p className={`text-[10px] font-sans font-semibold mt-1 whitespace-pre-line ${getMessageColor(checkCni1.statut)}`}>
-                                {getIcone(checkCni1.statut)} {checkCni1.message}
-                              </p>
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">N° Pièce Épouse *</label>
-                            <input required value={editCni2} onChange={e => {
-                              setEditCni2(e.target.value);
-                              if (dossierDuplicateError) setDossierDuplicateError(null);
-                            }} onBlur={() => checkCni2.triggerVerification()} placeholder={editCniType2 === 'PASSEPORT' ? "Ex: 12BC34567" : "Ex: C087654321"}
-                              style={{ textTransform: 'uppercase', ...getBordureStyle(checkCni2.statut) }}
-                              className="w-full border border-neutral-200 rounded-xl p-3 text-sm focus:border-primary focus:outline-none bg-neutral-50 font-sans" />
-                            {checkCni2.message && (
-                              <p className={`text-[10px] font-sans font-semibold mt-1 whitespace-pre-line ${getMessageColor(checkCni2.statut)}`}>
-                                {getIcone(checkCni2.statut)} {checkCni2.message}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {erreurCroisement && (
-                        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
-                          <AlertCircle className="w-4.5 h-4.5 text-rose-700 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold">Erreur de validation croisée</p>
-                            <p className="mt-0.5 font-semibold text-rose-800 whitespace-pre-line">{erreurCroisement}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {dossierDuplicateError && (
-                        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-sans leading-relaxed flex items-start gap-2.5">
-                          <AlertCircle className="w-4.5 h-4.5 text-rose-700 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold">Erreur de validation</p>
-                            <p className="mt-0.5 font-semibold text-rose-800">{dossierDuplicateError}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {(() => {
-                        const peutContinuer =
-                          checkPhone1.statut === 'disponible' &&
-                          checkCni1.statut === 'disponible' &&
-                          checkPhone2.statut === 'disponible' &&
-                          checkCni2.statut === 'disponible' &&
-                          !erreurCroisement &&
-                          !submitting;
-                        return (
-                          <button type="submit" disabled={!peutContinuer}
-                            style={{
-                              opacity: peutContinuer ? 1 : 0.5,
-                              cursor: peutContinuer ? 'pointer' : 'not-allowed'
-                            }}
-                            className="w-full py-3.5 rounded-xl text-sm font-bold text-white transition-all mt-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-container shadow-md">
-                            {submitting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin text-accent" />
-                                <span>Validation en cours...</span>
-                              </>
-                            ) : (
-                              <span>Continuer → Choisir la salle de célébration</span>
-                            )}
-                          </button>
-                        );
-                      })()}
-                      </form>
-                    )
-                  )}
-
-                  {/* ── ÉTAPE 2 : Choix de la mairie (données réelles) ── */}
-                  {activeStep === 2 && (
-                    <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-sky-100 flex items-center justify-center text-2xl shrink-0">🏛️</div>
-                        <div>
-                          <h4 className="font-serif font-bold text-slate-900 text-base">Choix de la salle</h4>
-                          <p className="font-sans text-xs text-slate-400">Sélectionnez la salle où vous souhaitez célébrer votre mariage civil.</p>
-                        </div>
-                      </div>
-
-                      {/* Mairie déjà sélectionnée */}
-                      {selectedMairieId && selectedMairieName && (
-                        <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 flex items-center gap-2">
-                          <Check className="w-4 h-4 text-sky-500 shrink-0" />
-                          <p className="font-sans text-xs text-sky-700">Salle actuelle : <strong>{selectedMairieName}</strong>. Vous pouvez modifier ci-dessous.</p>
-                        </div>
-                      )}
-
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest">Salle de célébration</label>
-
-                      {mairiesLoading ? (
-                        <div className="flex items-center justify-center py-8 gap-2 text-slate-400">
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span className="font-sans text-sm">Chargement des salles...</span>
-                        </div>
-                      ) : (
-                        <div className="space-y-2.5">
-                          {mairies.map(m => (
-                            <div
-                              key={m.id}
-                              onClick={() => setSelectedMairie(m.id)}
-                              className={`p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${selectedMairie === m.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-neutral-100 hover:border-primary/40 bg-white hover:shadow-sm'
-                                }`}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <span className="font-sans font-bold text-sm text-slate-800 block">{m.name}</span>
-                                  <span className="text-[11px] text-slate-400">{m.region}</span>
-                                  {m.officer_name && (
-                                    <span className="text-[10px] text-slate-300 block">Officier : {m.officer_name}</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className={`text-[9px] font-bold px-2 py-1 rounded-lg ${getMairieBadgeColor(m.region)}`}>
-                                    {m.region.split('-')[0].trim()}
-                                  </span>
-                                  {selectedMairie === m.id && <Check className="w-4 h-4 text-primary" />}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                          {mairies.length === 0 && (
-                            <p className="text-center text-xs text-slate-400 py-3">Aucune salle disponible.</p>
-                          )}
-                        </div>
-                      )}
-
-                      <p className="text-[10px] text-slate-400 italic">ℹ️ La loi requiert que l'un des époux y réside depuis au moins 1 mois.</p>
-
-                      <div className="flex gap-3">
-                        <button onClick={() => setActiveStep(1)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
-                        <button disabled={!selectedMairie} onClick={handleStep2Submit}
-                          className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all ${selectedMairie ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}>
-                          Continuer → Dépôt des documents
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── ÉTAPE 3 : Dépôt des documents ── */}
-                  {activeStep === 3 && (
-                    <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-2xl shrink-0">📁</div>
-                        <div>
-                          <h4 className="font-serif font-bold text-slate-900 text-base">Dépôt des documents</h4>
-                          <p className="font-sans text-xs text-slate-400">Téléversez vos pièces justificatives obligatoires pour instruction par l'officier civil.</p>
-                        </div>
-                      </div>
-
-                      <label className="block text-[11px] font-bold text-slate-650 uppercase tracking-widest text-left">Documents requis selon profil</label>
-                      <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin">
-                        {dynamicRequiredDocs.map((doc, i) => {
-                          const { status, message } = getDocStatusById(doc.id);
-                          
-                          let cardBg = "bg-neutral-50 border-neutral-200 hover:border-primary/45 hover:bg-neutral-50/80";
-                          let badgeBg = "bg-neutral-250 text-slate-500";
-                          let badgeText = "À fournir";
-                          
-                          if (status === 'verified') {
-                            cardBg = "bg-emerald-50/20 border-emerald-200 hover:bg-emerald-50/40 hover:border-emerald-300";
-                            badgeBg = "bg-emerald-100 text-emerald-800";
-                            badgeText = "Vérifié ✓";
-                          } else if (status === 'rejected') {
-                            cardBg = "bg-rose-50/25 border-rose-200 hover:bg-rose-50/50 hover:border-rose-300";
-                            badgeBg = "bg-rose-100 text-rose-800";
-                            badgeText = "Rejeté ❌";
-                          } else if (status === 'uploading') {
-                            cardBg = "bg-sky-50/20 border-sky-200 hover:bg-sky-50/40 hover:border-sky-300";
-                            badgeBg = "bg-sky-100 text-sky-850";
-                            badgeText = "Reçu / Transmis 📄";
-                          }
-
-                          return (
-                            <div 
-                              key={i} 
-                              onClick={() => handleDocumentAction(doc.id)}
-                              className={`flex flex-col gap-1.5 p-3 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm group ${cardBg}`}
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <span className="text-base shrink-0 group-hover:scale-110 transition-transform">{doc.icon}</span>
-                                  <div className="text-left min-w-0">
-                                    <span className={`font-sans font-bold text-[11px] block leading-tight ${status === 'verified' ? 'text-emerald-950 line-through decoration-emerald-500/40' : 'text-slate-800'}`}>
-                                      {doc.label} {doc.isSpecial && <span className="text-[9px] text-amber-700 bg-amber-100 px-1 py-0.2 rounded ml-1 font-semibold">Spécifique</span>}
-                                    </span>
-                                    <span className="font-sans text-[10px] text-slate-400 block mt-0.5 leading-normal truncate">{doc.desc}</span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className={`px-1.5 py-0.5 rounded-lg font-sans text-[8.5px] font-bold ${badgeBg}`}>
-                                    {badgeText}
-                                  </span>
-                                  {status === 'verified' ? (
-                                    <div className="w-4.5 h-4.5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-sm animate-scale-in">
-                                      <Check className="w-3.5 h-3.5" strokeWidth={3} />
-                                    </div>
-                                  ) : status === 'rejected' ? (
-                                    <div className="w-4.5 h-4.5 rounded-full bg-rose-500 flex items-center justify-center text-white shrink-0 shadow-sm">
-                                      <AlertCircle className="w-3.5 h-3.5" strokeWidth={3} />
-                                    </div>
-                                  ) : status === 'uploading' ? (
-                                    <div className="w-4.5 h-4.5 rounded-full bg-sky-500 flex items-center justify-center text-white shrink-0 shadow-sm">
-                                      <FileText className="w-2.5 h-2.5" />
-                                    </div>
-                                  ) : (
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {status === 'rejected' && message && (
-                                <div className="p-1.5 bg-white/95 border border-rose-200 rounded-lg text-[9.5px] font-semibold text-rose-800 leading-normal text-left font-sans shadow-sm">
-                                  ⚠️ Motif : {message}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {!allRequiredUploaded && (
-                        <div className="p-3 bg-rose-50 border border-primary/20 text-primary rounded-xl text-xs font-medium leading-relaxed flex items-start gap-2.5">
-                          <span className="text-sm shrink-0 mt-0.5">⚠️</span>
-                          <div className="text-left">
-                            <p className="font-bold">Dépôt incomplet</p>
-                            <p className="text-primary/80 text-[11px] mt-0.5">
-                              Il vous reste <span className="font-bold">{missingDocsCount} document(s)</span> à ajouter dans l'onglet **Dossier** pour pouvoir déverrouiller la date et le paiement.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex gap-3">
-                        <button onClick={() => setActiveStep(2)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
-                        <button
-                          disabled={!allRequiredUploaded}
-                          onClick={handleStep3Submit}
-                          className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 ${allRequiredUploaded
-                            ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md'
-                            : 'bg-neutral-200 text-neutral-400 cursor-not-allowed border border-neutral-300/20'
-                            }`}
-                        >
-                          {!allRequiredUploaded && <span className="text-[10px]">🔒</span>}
-                          <span>Continuer → Option de date</span>
-                        </button>
-                      </div>
-
-                      <button onClick={handleDepositNow}
-                        className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-bold hover:bg-primary/5 cursor-pointer transition-all">
-                        📤 Déposer mes documents maintenant
-                      </button>
-                    </div>
-                  )}
-
-                  {/* ── ÉTAPE 4 : Option de date ── */}
-                  {activeStep === 4 && (
-                    <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-2xl shrink-0">📅</div>
-                        <div>
-                          <h4 className="font-serif font-bold text-slate-900 text-base">Option de date</h4>
-                          <p className="font-sans text-xs text-slate-400">Consultez les créneaux libres et posez une option de réservation.</p>
-                        </div>
-                      </div>
-
-                      {weddingDate && (
-                        <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex items-center gap-2">
-                          <Check className="w-4 h-4 text-primary shrink-0" />
-                          <p className="font-sans text-xs text-primary">Date actuelle : <strong>{weddingDate}</strong>. Vous pouvez modifier ci-dessous.</p>
-                        </div>
-                      )}
-
-                      {currentMairieName && (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 rounded-xl border border-neutral-100">
-                          <span className="text-sm">🏛️</span>
-                          <span className="font-sans text-xs text-slate-600 font-medium">{currentMairieName}</span>
-                        </div>
-                      )}
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Date souhaitée</label>
-                        <div className="p-1 bg-neutral-50 rounded-2xl border border-neutral-200">
-                          <input 
-                            type="date" 
-                            value={chosenDate} 
-                            onChange={e => handleWeddingDateChange(e.target.value)} 
-                            min={(() => {
-                              const d = new Date();
-                              d.setDate(d.getDate() + 30);
-                              return d.toISOString().split('T')[0];
-                            })()}
-                            className="w-full border-0 rounded-xl p-3.5 text-sm bg-transparent focus:outline-none text-slate-800 font-sans cursor-pointer font-bold" 
-                          />
-                        </div>
-                        {dateError && (
-                          <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[10px] leading-relaxed font-semibold flex items-start gap-2 text-left">
-                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
-                            <span>{dateError}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-2">Créneau horaire</label>
-                        <div className="grid grid-cols-3 gap-2.5">
-                          {generateSlots(capacity).map(time => {
-                            const isOccupied = chosenDate && selectedMairie ? allDossiers.some(d =>
-                              d.id !== dossierId &&
-                              d.mairie_id === selectedMairie &&
-                              d.wedding_date === `${new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à ${time.val.replace(':', 'h')}`
-                            ) : false;
-
-                            return (
-                              <button
-                                key={time.val}
-                                disabled={isOccupied}
-                                onClick={() => !isOccupied && setChosenTime(time.val)}
-                                type="button"
-                                className={`p-1.5 rounded-xl border flex flex-col items-center gap-0.5 text-center cursor-pointer transition-all ${isOccupied
-                                  ? 'bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed'
-                                  : chosenTime === time.val
-                                    ? 'border-primary bg-primary/5 shadow-sm font-bold scale-[1.02]'
-                                    : 'border-neutral-100 hover:border-primary/20 bg-white'
-                                  }`}
-                              >
-                                <span className="font-sans font-bold text-xs text-slate-800">
-                                  {time.label} {isOccupied && " (Occupé)"}
-                                </span>
-                                <span className="text-[8px] text-slate-400">
-                                  {isOccupied ? "Non disponible" : time.desc}
-                                </span>
-                              </button>
-                            );
                           })}
                         </div>
-                      </div>
 
-                      <div className="flex gap-3">
-                        <button onClick={() => setActiveStep(3)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
-                        <button disabled={!chosenDate || !chosenTime || !!dateError} onClick={handleStep4Submit}
-                          className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all ${chosenDate && chosenTime && !dateError ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}>
-                          Confirmer l'option ✓
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── ÉTAPE 5 : Confirmation & Paiement physique ── */}
-                  {activeStep === 5 && (
-                    <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl shrink-0">🏛️</div>
-                        <div>
-                          <h4 className="font-serif font-bold text-slate-900 text-base">Confirmation &amp; Paiement</h4>
-                          <p className="font-sans text-xs text-slate-400">Présentation des originaux et règlement physique à la mairie.</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
-                        <p className="font-sans text-xs text-amber-800 leading-relaxed font-semibold">
-                          Pour valider définitivement votre union, présentez-vous sous 7 jours à la mairie choisie muni de vos justificatifs originaux.
-                        </p>
-                        <div className="border-t border-amber-200 pt-3 flex justify-between items-center text-xs font-sans">
-                          <span className="font-bold text-slate-700">Droits municipaux à régler</span>
-                          <span className="font-serif font-bold text-amber-700">50 000 XOF</span>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <button onClick={() => setActiveStep(4)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
-                        <button onClick={() => { completeStep(5); setActiveStep(6); }}
-                          className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all">
-                          Continuer → Célébration
-                        </button>
-                      </div>
-
-                      <button onClick={() => { setShowParcours(false); setTab('timeline'); }}
-                        className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-bold hover:bg-primary/5 cursor-pointer transition-all">
-                        📅 Voir le compte à rebours de réservation
-                      </button>
-                    </div>
-                  )}
-
-                  {/* ── ÉTAPE 6 : Rendez-vous & Célébration ── */}
-                  {activeStep === 6 && (
-                    <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-2xl shrink-0">💍</div>
-                        <div>
-                          <h4 className="font-serif font-bold text-slate-900 text-base">Rendez-vous & Célébration</h4>
-                          <p className="font-sans text-xs text-slate-400">Célébration officielle devant Monsieur le Maire et signature des registres.</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 text-center space-y-3">
-                        <div className="text-4xl">🎊</div>
-                        <h5 className="font-serif font-bold text-rose-800 text-lg">Votre dossier est prêt !</h5>
-                        <p className="font-sans text-xs text-slate-600 leading-relaxed">
-                          Le jour J, venez munis des originaux de vos pièces d'identité à la mairie de célébration. L'officier de l'État Civil procédera officiellement à votre union.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        {["🪪 Originaux des pièces d'identité", "👥 Présence des 2 témoins obligatoire", "✅ Dossier complet et validé", "💍 Bagues de mariage (optionnel)"].map((item, i) => (
-                          <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-neutral-50">
-                            <span className="font-sans text-xs text-slate-700">{item}</span>
+                        {!allRequiredUploaded && (
+                          <div className="p-3 bg-rose-50 border border-primary/20 text-primary rounded-xl text-xs font-medium leading-relaxed flex items-start gap-2.5">
+                            <span className="text-sm shrink-0 mt-0.5">⚠️</span>
+                            <div className="text-left">
+                              <p className="font-bold">Dépôt incomplet</p>
+                              <p className="text-primary/80 text-[11px] mt-0.5">
+                                Il vous reste <span className="font-bold">{missingDocsCount} document(s)</span> à ajouter dans l'onglet **Dossier** pour pouvoir déverrouiller la date et le paiement.
+                              </p>
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        )}
 
-                      <div className="flex gap-3">
-                        <button onClick={() => setActiveStep(5)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
-                        <button onClick={() => { completeStep(6); setAllDone(true); }}
-                          className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all">
-                          Finaliser mon dossier 🎊
+                        <div className="flex gap-3">
+                          <button onClick={() => setActiveStep(2)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
+                          <button
+                            disabled={!allRequiredUploaded}
+                            onClick={handleStep3Submit}
+                            className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 ${allRequiredUploaded
+                              ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md'
+                              : 'bg-neutral-200 text-neutral-400 cursor-not-allowed border border-neutral-300/20'
+                              }`}
+                          >
+                            {!allRequiredUploaded && <span className="text-[10px]">🔒</span>}
+                            <span>Continuer → Option de date</span>
+                          </button>
+                        </div>
+
+                        <button onClick={handleDepositNow}
+                          className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-bold hover:bg-primary/5 cursor-pointer transition-all">
+                          📤 Déposer mes documents maintenant
                         </button>
                       </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                    )}
 
-            {/* Footer : Parcours détaillé */}
-            {!allDone && (
-              <div className="px-5 pb-5 pt-3 border-t border-neutral-100 shrink-0">
-                <button onClick={() => { setShowParcours(false); setTab('timeline'); }}
-                  className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-sans text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all">
-                  <span>Voir le parcours détaillé complet</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                    {/* ── ÉTAPE 4 : Option de date ── */}
+                    {activeStep === 4 && (
+                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-2xl shrink-0">📅</div>
+                          <div>
+                            <h4 className="font-serif font-bold text-slate-900 text-base">Option de date</h4>
+                            <p className="font-sans text-xs text-slate-400">Consultez les créneaux libres et posez une option de réservation.</p>
+                          </div>
+                        </div>
+
+                        {weddingDate && (
+                          <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-primary shrink-0" />
+                            <p className="font-sans text-xs text-primary">Date actuelle : <strong>{weddingDate}</strong>. Vous pouvez modifier ci-dessous.</p>
+                          </div>
+                        )}
+
+                        {currentMairieName && (
+                          <div className="flex items-center gap-2 px-3 py-2 bg-neutral-50 rounded-xl border border-neutral-100">
+                            <span className="text-sm">🏛️</span>
+                            <span className="font-sans text-xs text-slate-600 font-medium">{currentMairieName}</span>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-1.5">Date souhaitée</label>
+                          <div className="p-1 bg-neutral-50 rounded-2xl border border-neutral-200">
+                            <input
+                              type="date"
+                              value={chosenDate}
+                              onChange={e => handleWeddingDateChange(e.target.value)}
+                              min={(() => {
+                                const d = new Date();
+                                d.setDate(d.getDate() + 30);
+                                return d.toISOString().split('T')[0];
+                              })()}
+                              className="w-full border-0 rounded-xl p-3.5 text-sm bg-transparent focus:outline-none text-slate-800 font-sans cursor-pointer font-bold"
+                            />
+                          </div>
+                          {dateError && (
+                            <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[10px] leading-relaxed font-semibold flex items-start gap-2 text-left">
+                              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                              <span>{dateError}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-2">Créneau horaire</label>
+                          <div className="grid grid-cols-3 gap-2.5">
+                            {generateSlots(capacity).map(time => {
+                              const isOccupied = chosenDate && selectedMairie ? allDossiers.some(d =>
+                                d.id !== dossierId &&
+                                d.mairie_id === selectedMairie &&
+                                d.wedding_date === `${new Date(chosenDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à ${time.val.replace(':', 'h')}`
+                              ) : false;
+
+                              return (
+                                <button
+                                  key={time.val}
+                                  disabled={isOccupied}
+                                  onClick={() => !isOccupied && setChosenTime(time.val)}
+                                  type="button"
+                                  className={`p-1.5 rounded-xl border flex flex-col items-center gap-0.5 text-center cursor-pointer transition-all ${isOccupied
+                                    ? 'bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed'
+                                    : chosenTime === time.val
+                                      ? 'border-primary bg-primary/5 shadow-sm font-bold scale-[1.02]'
+                                      : 'border-neutral-100 hover:border-primary/20 bg-white'
+                                    }`}
+                                >
+                                  <span className="font-sans font-bold text-xs text-slate-800">
+                                    {time.label} {isOccupied && " (Occupé)"}
+                                  </span>
+                                  <span className="text-[8px] text-slate-400">
+                                    {isOccupied ? "Non disponible" : time.desc}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button onClick={() => setActiveStep(3)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
+                          <button disabled={!chosenDate || !chosenTime || !!dateError} onClick={handleStep4Submit}
+                            className={`flex-1 py-3 rounded-xl text-sm font-bold text-white transition-all ${chosenDate && chosenTime && !dateError ? 'bg-primary hover:bg-primary-container cursor-pointer shadow-md' : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'}`}>
+                            Confirmer l'option ✓
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── ÉTAPE 5 : Confirmation & Paiement physique ── */}
+                    {activeStep === 5 && (
+                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl shrink-0">🏛️</div>
+                          <div>
+                            <h4 className="font-serif font-bold text-slate-900 text-base">Confirmation &amp; Paiement</h4>
+                            <p className="font-sans text-xs text-slate-400">Présentation des originaux et règlement physique à la mairie.</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+                          <p className="font-sans text-xs text-amber-800 leading-relaxed font-semibold">
+                            Pour valider définitivement votre union, présentez-vous sous 7 jours à la mairie choisie muni de vos justificatifs originaux.
+                          </p>
+                          <div className="border-t border-amber-200 pt-3 flex justify-between items-center text-xs font-sans">
+                            <span className="font-bold text-slate-700">Droits municipaux à régler</span>
+                            <span className="font-serif font-bold text-amber-700">50 000 XOF</span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button onClick={() => setActiveStep(4)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
+                          <button onClick={() => { completeStep(5); setActiveStep(6); }}
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all">
+                            Continuer → Célébration
+                          </button>
+                        </div>
+
+                        <button onClick={() => { setShowParcours(false); setTab('timeline'); }}
+                          className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-bold hover:bg-primary/5 cursor-pointer transition-all">
+                          📅 Voir le compte à rebours de réservation
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ── ÉTAPE 6 : Rendez-vous & Célébration ── */}
+                    {activeStep === 6 && (
+                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-2xl shrink-0">💍</div>
+                          <div>
+                            <h4 className="font-serif font-bold text-slate-900 text-base">Rendez-vous & Célébration</h4>
+                            <p className="font-sans text-xs text-slate-400">Célébration officielle devant Monsieur le Maire et signature des registres.</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 text-center space-y-3">
+                          <div className="text-4xl">🎊</div>
+                          <h5 className="font-serif font-bold text-rose-800 text-lg">Votre dossier est prêt !</h5>
+                          <p className="font-sans text-xs text-slate-600 leading-relaxed">
+                            Le jour J, venez munis des originaux de vos pièces d'identité à la mairie de célébration. L'officier de l'État Civil procédera officiellement à votre union.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          {["🪪 Originaux des pièces d'identité", "👥 Présence des 2 témoins obligatoire", "✅ Dossier complet et validé", "💍 Bagues de mariage (optionnel)"].map((item, i) => (
+                            <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-neutral-50">
+                              <span className="font-sans text-xs text-slate-700">{item}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button onClick={() => setActiveStep(5)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
+                          <button onClick={() => { completeStep(6); setAllDone(true); }}
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all">
+                            Finaliser mon dossier 🎊
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            )}
+
+              {/* Footer : Parcours détaillé */}
+              {!allDone && (
+                <div className="px-5 pb-5 pt-3 border-t border-neutral-100 shrink-0">
+                  <button onClick={() => { setShowParcours(false); setTab('timeline'); }}
+                    className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-sans text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all">
+                    <span>Voir le parcours détaillé complet</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
 
       {/* Modal de récupération de dossier */}
       <AnimatePresence>

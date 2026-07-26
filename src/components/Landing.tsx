@@ -615,10 +615,14 @@ export default function Landing({
         return s === 'verified' || s === 'uploading';
       });
 
-      const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+      let done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+      if (localActiveStep > 1) {
+        const prevSteps = Array.from({ length: localActiveStep - 1 }, (_, i) => i + 1);
+        done = Array.from(new Set([...done, ...prevSteps]));
+      }
       setCompletedSteps(done);
     }
-  }, [showParcours, documents, allDossiers, selectedMairieId, weddingDate, spouse1Name, spouse2Name, dossierId, epouxProfile, epouseProfile]);
+  }, [showParcours, documents, allDossiers, selectedMairieId, weddingDate, spouse1Name, spouse2Name, dossierId, epouxProfile, epouseProfile, localActiveStep]);
 
   // Charger les mairies réelles et dossiers depuis la DB au montage
   useEffect(() => {

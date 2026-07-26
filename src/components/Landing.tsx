@@ -357,18 +357,6 @@ export default function Landing({
   };
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
-  useEffect(() => {
-    if (forceOpenParcoursStep) {
-      setPrecheckConfirmed(true);
-      setProfileConfirmed(true);
-      setActiveStep(forceOpenParcoursStep);
-      setShowParcours(true);
-      if (setForceOpenParcoursStep) {
-        setForceOpenParcoursStep(null);
-      }
-    }
-  }, [forceOpenParcoursStep]);
-
   // Données Step 1 - Noms
   const [editS1, setEditS1] = useState('');
   const [editS2, setEditS2] = useState('');
@@ -692,7 +680,7 @@ export default function Landing({
   };
 
   // Initialiser le wizard selon l'état réel du dossier à chaque ouverture du popup
-  const openParcours = () => {
+  const openParcours = (targetStepOverride?: number) => {
     const hasNames = Boolean(spouse1Name?.trim() && spouse2Name?.trim());
     const hasMairie = Boolean(selectedMairieId);
     const hasDate = Boolean(weddingDate);
@@ -722,18 +710,33 @@ export default function Landing({
     setChosenDate(parsed.date);
     // Initialiser étapes complétées et étape active selon avancement réel
     const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
-    const startStep = getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+    const startStep = targetStepOverride || getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
 
-    if (dossierId) {
+    let finalCompleted = done;
+    if (targetStepOverride && targetStepOverride > 1) {
+      const prevSteps = Array.from({ length: targetStepOverride - 1 }, (_, i) => i + 1);
+      finalCompleted = Array.from(new Set([...done, ...prevSteps]));
+    }
+
+    if (dossierId || targetStepOverride) {
       setPrecheckConfirmed(true);
       setProfileConfirmed(true);
     }
 
-    setCompletedSteps(done);
+    setCompletedSteps(finalCompleted);
     setActiveStep(startStep);
 
     setShowParcours(true);
   };
+
+  useEffect(() => {
+    if (forceOpenParcoursStep) {
+      openParcours(forceOpenParcoursStep);
+      if (setForceOpenParcoursStep) {
+        setForceOpenParcoursStep(null);
+      }
+    }
+  }, [forceOpenParcoursStep, dossierId]);
 
   const completeStep = (step: number) => {
     setCompletedSteps(prev => prev.includes(step) ? prev : [...prev, step]);

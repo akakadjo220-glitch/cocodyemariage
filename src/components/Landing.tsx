@@ -72,8 +72,6 @@ interface LandingProps {
   dossierActiveStep?: number;
   setDossierActiveStep?: (step: number) => void;
   isInitialLoading?: boolean;
-  forceOpenParcoursStep?: number | null;
-  setForceOpenParcoursStep?: (step: number | null) => void;
 }
 
 const STEPS_META = [
@@ -186,8 +184,6 @@ export default function Landing({
   dossierActiveStep,
   setDossierActiveStep,
   isInitialLoading = false,
-  forceOpenParcoursStep,
-  setForceOpenParcoursStep,
 }: LandingProps) {
   const [showParcours, setShowParcours] = useState(false);
   const [openDocSection, setOpenDocSection] = useState<'commun' | 'cas' | null>(null);
@@ -347,10 +343,13 @@ export default function Landing({
 
   // États du wizard
   const [localActiveStep, setLocalActiveStep] = useState(1);
-  const activeStep = localActiveStep;
+  const activeStep = dossierActiveStep || localActiveStep;
   const setActiveStep = (step: number | ((prev: number) => number)) => {
     const nextStep = typeof step === 'function' ? step(activeStep) : step;
     setLocalActiveStep(nextStep);
+    if (setDossierActiveStep) {
+      setDossierActiveStep(nextStep);
+    }
   };
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
@@ -615,14 +614,10 @@ export default function Landing({
         return s === 'verified' || s === 'uploading';
       });
 
-      let done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
-      if (localActiveStep > 1) {
-        const prevSteps = Array.from({ length: localActiveStep - 1 }, (_, i) => i + 1);
-        done = Array.from(new Set([...done, ...prevSteps]));
-      }
+      const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
       setCompletedSteps(done);
     }
-  }, [showParcours, documents, allDossiers, selectedMairieId, weddingDate, spouse1Name, spouse2Name, dossierId, epouxProfile, epouseProfile, localActiveStep]);
+  }, [showParcours, documents, allDossiers, selectedMairieId, weddingDate, spouse1Name, spouse2Name, dossierId, epouxProfile, epouseProfile]);
 
   // Charger les mairies réelles et dossiers depuis la DB au montage
   useEffect(() => {
@@ -681,7 +676,7 @@ export default function Landing({
   };
 
   // Initialiser le wizard selon l'état réel du dossier à chaque ouverture du popup
-  const openParcours = (targetStepOverride?: number) => {
+  const openParcours = () => {
     const hasNames = Boolean(spouse1Name?.trim() && spouse2Name?.trim());
     const hasMairie = Boolean(selectedMairieId);
     const hasDate = Boolean(weddingDate);
@@ -711,33 +706,18 @@ export default function Landing({
     setChosenDate(parsed.date);
     // Initialiser étapes complétées et étape active selon avancement réel
     const done = getInitialCompletedSteps(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
-    const startStep = targetStepOverride || getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
+    const startStep = getInitialStep(hasNames, hasMairie, isApproved, hasDate, isReservationPaid, isFinalPaid);
 
-    let finalCompleted = done;
-    if (targetStepOverride && targetStepOverride > 1) {
-      const prevSteps = Array.from({ length: targetStepOverride - 1 }, (_, i) => i + 1);
-      finalCompleted = Array.from(new Set([...done, ...prevSteps]));
-    }
-
-    if (dossierId || targetStepOverride) {
+    if (dossierId) {
       setPrecheckConfirmed(true);
       setProfileConfirmed(true);
     }
 
-    setCompletedSteps(finalCompleted);
-    setLocalActiveStep(startStep);
+    setCompletedSteps(done);
+    setActiveStep(startStep);
 
     setShowParcours(true);
   };
-
-  useEffect(() => {
-    if (forceOpenParcoursStep) {
-      openParcours(forceOpenParcoursStep);
-      if (setForceOpenParcoursStep) {
-        setForceOpenParcoursStep(null);
-      }
-    }
-  }, [forceOpenParcoursStep, dossierId]);
 
   const completeStep = (step: number) => {
     setCompletedSteps(prev => prev.includes(step) ? prev : [...prev, step]);

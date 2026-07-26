@@ -116,12 +116,6 @@ export default function App() {
   const [notifications, setNotifications] = useState<AlertNotification[]>(INITIAL_NOTIFICATIONS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [dossierActiveStep, setDossierActiveStep] = useState<number>(1);
-  const [forceOpenParcoursStep, setForceOpenParcoursStep] = useState<number | null>(null);
-
-  const handleOpenParcoursAtStep = (step: number) => {
-    setForceOpenParcoursStep(step);
-    setTab('landing');
-  };
 
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(() => {
     const localId = sessionStorage.getItem('e_mariage_dossier_id');
@@ -626,7 +620,7 @@ export default function App() {
     window.history.pushState({}, '', '/');
     setCurrentPath('/');
     triggerToast(`Connexion réussie : Espace ${role === 'mairie' ? (mairieAgentRole === 'supervisor' ? 'Superviseur' : 'Agent Mairie') :
-        role === 'maire' ? 'Le Maire' : 'Super Administrateur'
+      role === 'maire' ? 'Le Maire' : 'Super Administrateur'
       } déverrouillé.`);
   };
 
@@ -815,8 +809,6 @@ export default function App() {
                 spouse2Cni={spouse2Cni}
                 dossierActiveStep={dossierActiveStep}
                 setDossierActiveStep={setDossierActiveStep}
-                forceOpenParcoursStep={forceOpenParcoursStep}
-                setForceOpenParcoursStep={setForceOpenParcoursStep}
               />
             )}
 
@@ -842,7 +834,6 @@ export default function App() {
                 selectedMairieName={selectedMairieName}
                 weddingDate={weddingDate}
                 onWeddingDateSelected={handleWeddingDateSelected}
-                onOpenParcoursStep={handleOpenParcoursAtStep}
               />
             )}
 
@@ -966,7 +957,7 @@ export default function App() {
             }
             setAuthPendingRole(null);
             triggerToast(`Connexion réussie : Espace ${authPendingRole === 'mairie' ? 'Mairie' :
-                authPendingRole === 'maire' ? 'Le Maire' : 'Super Administrateur'
+              authPendingRole === 'maire' ? 'Le Maire' : 'Super Administrateur'
               } déverrouillé.`);
           }}
           onCancel={() => {

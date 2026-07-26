@@ -119,7 +119,6 @@ export default function App() {
   const [forceOpenParcoursStep, setForceOpenParcoursStep] = useState<number | null>(null);
 
   const handleOpenParcoursAtStep = (step: number) => {
-    setDossierActiveStep(step);
     setForceOpenParcoursStep(step);
     setTab('landing');
   };
@@ -626,10 +625,9 @@ export default function App() {
     }
     window.history.pushState({}, '', '/');
     setCurrentPath('/');
-    triggerToast(`Connexion réussie : Espace ${
-      role === 'mairie' ? (mairieAgentRole === 'supervisor' ? 'Superviseur' : 'Agent Mairie') :
-      role === 'maire' ? 'Le Maire' : 'Super Administrateur'
-    } déverrouillé.`);
+    triggerToast(`Connexion réussie : Espace ${role === 'mairie' ? (mairieAgentRole === 'supervisor' ? 'Superviseur' : 'Agent Mairie') :
+        role === 'maire' ? 'Le Maire' : 'Super Administrateur'
+      } déverrouillé.`);
   };
 
   const handleRoleChange = (newRole: 'citoyen' | 'mairie' | 'superadmin' | 'maire') => {
@@ -967,10 +965,9 @@ export default function App() {
               setTab('admin');
             }
             setAuthPendingRole(null);
-            triggerToast(`Connexion réussie : Espace ${
-              authPendingRole === 'mairie' ? 'Mairie' :
-              authPendingRole === 'maire' ? 'Le Maire' : 'Super Administrateur'
-            } déverrouillé.`);
+            triggerToast(`Connexion réussie : Espace ${authPendingRole === 'mairie' ? 'Mairie' :
+                authPendingRole === 'maire' ? 'Le Maire' : 'Super Administrateur'
+              } déverrouillé.`);
           }}
           onCancel={() => {
             setAuthPendingRole(null);

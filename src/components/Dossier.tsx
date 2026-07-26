@@ -1078,13 +1078,13 @@ export default function Dossier({
     try {
       const customId = `custom_${Date.now()}`;
       const fileName = customDocFile.name;
-      
+
       // Upload file to Supabase storage
       await uploadDocumentFile(dossierId, customId, customDocFile, fileName);
-      
+
       // Update state and DB with custom document
       await updateDocumentStatus(customId, 'verified', fileName, null, null);
-      
+
       addNotification(`✅ Document spécifique "${customDocTitle}" téléversé avec succès !`, 'success');
       setShowAddCustomModal(false);
       setCustomDocTitle('');
@@ -1230,8 +1230,8 @@ export default function Dossier({
                   return (
                     <div className="mt-2 space-y-3">
                       <div className={`p-4 rounded-xl border flex flex-col gap-1.5 ${isOpened
-                          ? 'bg-emerald-50/95 border-emerald-200 text-emerald-950'
-                          : 'bg-amber-50/95 border-amber-200 text-amber-950'
+                        ? 'bg-emerald-50/95 border-emerald-200 text-emerald-950'
+                        : 'bg-amber-50/95 border-amber-200 text-amber-950'
                         }`}>
                         <div className="flex items-center justify-between font-bold text-xs">
                           <span className="flex items-center gap-1.5">

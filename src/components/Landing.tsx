@@ -721,7 +721,7 @@ export default function Landing({
     }
 
     setCompletedSteps(finalCompleted);
-    setActiveStep(startStep);
+    setLocalActiveStep(startStep);
 
     setShowParcours(true);
   };
@@ -1171,8 +1171,8 @@ export default function Landing({
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-400 uppercase">Ouverture des réservations :</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isOpened
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                            : 'bg-amber-50 border-amber-200 text-amber-700'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                          : 'bg-amber-50 border-amber-200 text-amber-700'
                           }`}>
                           {isOpened ? '🟢 Ouvertes' : `⏳ Bientôt (${remaining || 'Fermé'})`}
                         </span>
@@ -1202,8 +1202,8 @@ export default function Landing({
                     type="button"
                     onClick={() => setSelectedMonthSim(slot.id)}
                     className={`text-left rounded-xl p-4 border transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[120px] shadow-sm hover:shadow-md ${isSelected
-                        ? 'bg-white border-[#c5a368] ring-2 ring-[#c5a368]/20'
-                        : 'bg-white/80 hover:bg-white border-[#c5a368]/20 hover:border-[#c5a368]/50'
+                      ? 'bg-white border-[#c5a368] ring-2 ring-[#c5a368]/20'
+                      : 'bg-white/80 hover:bg-white border-[#c5a368]/20 hover:border-[#c5a368]/50'
                       }`}
                   >
                     <div>
@@ -1212,8 +1212,8 @@ export default function Landing({
                           {slot.moisCélébration}
                         </h4>
                         <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded border whitespace-nowrap ${isOpened
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                            : 'bg-amber-50 border-amber-250 text-amber-600'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                          : 'bg-amber-50 border-amber-250 text-amber-600'
                           }`}>
                           {isOpened ? 'Ouvert' : remaining || 'Bientôt'}
                         </span>
@@ -1557,8 +1557,8 @@ export default function Landing({
                               return (
                                 <div className="mt-2 space-y-3">
                                   <div className={`p-4 rounded-xl border flex flex-col gap-1.5 ${isOpened
-                                      ? 'bg-emerald-50/95 border-emerald-200 text-emerald-950'
-                                      : 'bg-amber-50/95 border-amber-200 text-amber-950'
+                                    ? 'bg-emerald-50/95 border-emerald-200 text-emerald-950'
+                                    : 'bg-amber-50/95 border-amber-200 text-amber-950'
                                     }`}>
                                     <div className="flex items-center justify-between font-bold text-xs">
                                       <span className="flex items-center gap-1.5">

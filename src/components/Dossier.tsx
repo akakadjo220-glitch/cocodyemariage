@@ -2166,8 +2166,12 @@ export default function Dossier({
                     </p>
                     <button
                       onClick={() => {
-                        setActiveStep(4);
-                        setTab('timeline');
+                        if (onOpenParcoursStep) {
+                          onOpenParcoursStep(4);
+                        } else {
+                          setActiveStep(4);
+                          setTab('landing');
+                        }
                       }}
                       className="py-3.5 px-6 bg-emerald-600 text-white rounded-xl font-sans text-xs font-bold hover:bg-emerald-700 transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
                     >

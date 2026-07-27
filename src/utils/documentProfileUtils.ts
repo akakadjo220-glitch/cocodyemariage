@@ -21,27 +21,40 @@ export const DEFAULT_SPOUSE_PROFILE: SpouseProfile = {
   hasParentalLink: false
 };
 
-export function getSavedSpouseProfiles(dossierId?: string | null): { epouxProfile: SpouseProfile; epouseProfile: SpouseProfile } {
-  if (!dossierId || typeof window === 'undefined') {
-    return { epouxProfile: DEFAULT_SPOUSE_PROFILE, epouseProfile: DEFAULT_SPOUSE_PROFILE };
+export function getSavedSpouseProfiles(dossierId?: string | null): { epouxProfile: SpouseProfile; epouseProfile: SpouseProfile; isCustom: boolean } {
+  if (typeof window === 'undefined') {
+    return { epouxProfile: DEFAULT_SPOUSE_PROFILE, epouseProfile: DEFAULT_SPOUSE_PROFILE, isCustom: false };
   }
   try {
-    const rawEpoux = localStorage.getItem(`epoux_profile_${dossierId}`);
-    const rawEpouse = localStorage.getItem(`epouse_profile_${dossierId}`);
+    let rawEpoux = (dossierId && dossierId.trim()) ? localStorage.getItem(`epoux_profile_${dossierId}`) : null;
+    let rawEpouse = (dossierId && dossierId.trim()) ? localStorage.getItem(`epouse_profile_${dossierId}`) : null;
+
+    if (!rawEpoux) rawEpoux = localStorage.getItem('e_mariage_epoux_profile_draft');
+    if (!rawEpouse) rawEpouse = localStorage.getItem('e_mariage_epouse_profile_draft');
+
+    const isCustom = Boolean(rawEpoux || rawEpouse);
+
     return {
       epouxProfile: rawEpoux ? { ...DEFAULT_SPOUSE_PROFILE, ...JSON.parse(rawEpoux) } : DEFAULT_SPOUSE_PROFILE,
-      epouseProfile: rawEpouse ? { ...DEFAULT_SPOUSE_PROFILE, ...JSON.parse(rawEpouse) } : DEFAULT_SPOUSE_PROFILE
+      epouseProfile: rawEpouse ? { ...DEFAULT_SPOUSE_PROFILE, ...JSON.parse(rawEpouse) } : DEFAULT_SPOUSE_PROFILE,
+      isCustom
     };
   } catch (e) {
-    return { epouxProfile: DEFAULT_SPOUSE_PROFILE, epouseProfile: DEFAULT_SPOUSE_PROFILE };
+    return { epouxProfile: DEFAULT_SPOUSE_PROFILE, epouseProfile: DEFAULT_SPOUSE_PROFILE, isCustom: false };
   }
 }
 
 export function saveSpouseProfiles(dossierId: string | null | undefined, epouxProfile: SpouseProfile, epouseProfile: SpouseProfile) {
-  if (!dossierId || typeof window === 'undefined') return;
+  if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(`epoux_profile_${dossierId}`, JSON.stringify(epouxProfile));
-    localStorage.setItem(`epouse_profile_${dossierId}`, JSON.stringify(epouseProfile));
+    const rawEpoux = JSON.stringify(epouxProfile);
+    const rawEpouse = JSON.stringify(epouseProfile);
+    localStorage.setItem('e_mariage_epoux_profile_draft', rawEpoux);
+    localStorage.setItem('e_mariage_epouse_profile_draft', rawEpouse);
+    if (dossierId && dossierId.trim()) {
+      localStorage.setItem(`epoux_profile_${dossierId}`, rawEpoux);
+      localStorage.setItem(`epouse_profile_${dossierId}`, rawEpouse);
+    }
   } catch (e) {
     console.warn("Failed to save spouse profiles to localStorage", e);
   }

@@ -668,19 +668,17 @@ export default function Landing({
   }, [dossierId]);
 
   useEffect(() => {
-    if (dossierId) {
-      const saved = getSavedSpouseProfiles(dossierId);
-      const targetDossier = allDossiers.find(d => d.id === dossierId);
-      if (targetDossier?.epoux_profile) {
-        setEpouxProfile(targetDossier.epoux_profile);
-      } else if (saved.epouxProfile) {
-        setEpouxProfile(saved.epouxProfile);
-      }
-      if (targetDossier?.epouse_profile) {
-        setEpouseProfile(targetDossier.epouse_profile);
-      } else if (saved.epouseProfile) {
-        setEpouseProfile(saved.epouseProfile);
-      }
+    const saved = getSavedSpouseProfiles(dossierId);
+    const targetDossier = dossierId ? allDossiers.find(d => d.id === dossierId) : null;
+    if (targetDossier?.epoux_profile) {
+      setEpouxProfile(targetDossier.epoux_profile);
+    } else if (saved.isCustom) {
+      setEpouxProfile(saved.epouxProfile);
+    }
+    if (targetDossier?.epouse_profile) {
+      setEpouseProfile(targetDossier.epouse_profile);
+    } else if (saved.isCustom) {
+      setEpouseProfile(saved.epouseProfile);
     }
   }, [dossierId, allDossiers]);
 
@@ -780,6 +778,13 @@ export default function Landing({
     const safeStartStep = Math.min(Math.max(startStep, 1), 6);
 
 
+
+    // Pré-remplir les profils d'état civil
+    const savedProf = getSavedSpouseProfiles(dossierId);
+    const epouxP = targetDossier?.epoux_profile || savedProf.epouxProfile;
+    const epouseP = targetDossier?.epouse_profile || savedProf.epouseProfile;
+    if (epouxP) setEpouxProfile(epouxP);
+    if (epouseP) setEpouseProfile(epouseP);
 
     if (dossierId) {
       setPrecheckConfirmed(true);

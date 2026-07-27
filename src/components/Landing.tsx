@@ -3,7 +3,7 @@ import { Calendar, CheckSquare, UploadCloud, CreditCard, ChevronRight, Heart, Ca
 import { motion, AnimatePresence } from 'motion/react';
 import { getMairies, MairieInfo, getDossiers, findDossierByQuery, getPaystackConfig, sendOpenwaWhatsapp, DossierInfo, getCapacityForDate, checkDuplicateSpouse, logDuplicateAttempt, updateDossierWeddingDate, getSystemParameters, SystemParameters } from '../services/dbService';
 import { TimelineStep, DocumentInfo } from '../types';
-import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles } from '../utils/documentProfileUtils';
+import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles, getSavedSpouseProfiles, saveSpouseProfiles } from '../utils/documentProfileUtils';
 import { supabase } from '../supabaseClient';
 
 export const ensurePhonePrefix = (val: string): string => {
@@ -666,6 +666,23 @@ export default function Landing({
     }
     loadMairiesAndDossiers();
   }, [dossierId]);
+
+  useEffect(() => {
+    if (dossierId) {
+      const saved = getSavedSpouseProfiles(dossierId);
+      const targetDossier = allDossiers.find(d => d.id === dossierId);
+      if (targetDossier?.epoux_profile) {
+        setEpouxProfile(targetDossier.epoux_profile);
+      } else if (saved.epouxProfile) {
+        setEpouxProfile(saved.epouxProfile);
+      }
+      if (targetDossier?.epouse_profile) {
+        setEpouseProfile(targetDossier.epouse_profile);
+      } else if (saved.epouseProfile) {
+        setEpouseProfile(saved.epouseProfile);
+      }
+    }
+  }, [dossierId, allDossiers]);
 
   const parseWeddingDate = (wDateStr: string) => {
     if (!wDateStr) return { date: '', time: '' };
@@ -1672,7 +1689,11 @@ export default function Landing({
                                 <div className="grid grid-cols-3 gap-1.5 text-[9.5px]">
                                   <div>
                                     <label className="block text-[8.5px] text-slate-400 mb-1">État civil</label>
-                                    <select value={epouxProfile.maritalStatus} onChange={e => setEpouxProfile({ ...epouxProfile, maritalStatus: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <select value={epouxProfile.maritalStatus} onChange={e => {
+                                      const updated = { ...epouxProfile, maritalStatus: e.target.value as any };
+                                      setEpouxProfile(updated);
+                                      saveSpouseProfiles(dossierId, updated, epouseProfile);
+                                    }} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
                                       <option value="celibataire">Célibataire</option>
                                       <option value="veuf">Veuf</option>
                                       <option value="divorce">Divorcé</option>
@@ -1680,14 +1701,22 @@ export default function Landing({
                                   </div>
                                   <div>
                                     <label className="block text-[8.5px] text-slate-400 mb-1">Statut pro</label>
-                                    <select value={epouxProfile.professionType} onChange={e => setEpouxProfile({ ...epouxProfile, professionType: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <select value={epouxProfile.professionType} onChange={e => {
+                                      const updated = { ...epouxProfile, professionType: e.target.value as any };
+                                      setEpouxProfile(updated);
+                                      saveSpouseProfiles(dossierId, updated, epouseProfile);
+                                    }} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
                                       <option value="civil">Civil</option>
                                       <option value="militaire">Militaire / Force de l'ordre</option>
                                     </select>
                                   </div>
                                   <div>
                                     <label className="block text-[8.5px] text-slate-400 mb-1">Nationalité</label>
-                                    <select value={epouxProfile.nationalityType} onChange={e => setEpouxProfile({ ...epouxProfile, nationalityType: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <select value={epouxProfile.nationalityType} onChange={e => {
+                                      const updated = { ...epouxProfile, nationalityType: e.target.value as any };
+                                      setEpouxProfile(updated);
+                                      saveSpouseProfiles(dossierId, updated, epouseProfile);
+                                    }} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
                                       <option value="ivoirien">Ivoirien</option>
                                       <option value="etranger_dispense">Étranger (FR/ML)</option>
                                       <option value="etranger_autre">Étranger (Autre)</option>
@@ -1702,7 +1731,11 @@ export default function Landing({
                                 <div className="grid grid-cols-3 gap-1.5 text-[9.5px]">
                                   <div>
                                     <label className="block text-[8.5px] text-slate-400 mb-1">État civil</label>
-                                    <select value={epouseProfile.maritalStatus} onChange={e => setEpouseProfile({ ...epouseProfile, maritalStatus: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <select value={epouseProfile.maritalStatus} onChange={e => {
+                                      const updated = { ...epouseProfile, maritalStatus: e.target.value as any };
+                                      setEpouseProfile(updated);
+                                      saveSpouseProfiles(dossierId, epouxProfile, updated);
+                                    }} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
                                       <option value="celibataire">Célibataire</option>
                                       <option value="veuf">Veuve</option>
                                       <option value="divorce">Divorcée</option>
@@ -1710,14 +1743,22 @@ export default function Landing({
                                   </div>
                                   <div>
                                     <label className="block text-[8.5px] text-slate-400 mb-1">Statut pro</label>
-                                    <select value={epouseProfile.professionType} onChange={e => setEpouseProfile({ ...epouseProfile, professionType: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <select value={epouseProfile.professionType} onChange={e => {
+                                      const updated = { ...epouseProfile, professionType: e.target.value as any };
+                                      setEpouseProfile(updated);
+                                      saveSpouseProfiles(dossierId, epouxProfile, updated);
+                                    }} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
                                       <option value="civil">Civile</option>
                                       <option value="militaire">Militaire / Force de l'ordre</option>
                                     </select>
                                   </div>
                                   <div>
                                     <label className="block text-[8.5px] text-slate-400 mb-1">Nationalité</label>
-                                    <select value={epouseProfile.nationalityType} onChange={e => setEpouseProfile({ ...epouseProfile, nationalityType: e.target.value as any })} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
+                                    <select value={epouseProfile.nationalityType} onChange={e => {
+                                      const updated = { ...epouseProfile, nationalityType: e.target.value as any };
+                                      setEpouseProfile(updated);
+                                      saveSpouseProfiles(dossierId, epouxProfile, updated);
+                                    }} className="w-full p-1.5 border rounded-lg bg-slate-50 font-bold text-slate-700 focus:outline-none focus:border-primary">
                                       <option value="ivoirien">Ivoirienne</option>
                                       <option value="etranger_dispense">Étrangère (FR/ML)</option>
                                       <option value="etranger_autre">Étrangère (Autre)</option>

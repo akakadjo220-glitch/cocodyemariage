@@ -37,7 +37,7 @@ const getDossierMsgColor = (statut: string | null) => {
 };
 import { DocumentInfo, AiAnalysisResult } from '../types';
 import { INITIAL_DOCUMENTS } from '../data';
-import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles } from '../utils/documentProfileUtils';
+import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles, getSavedSpouseProfiles } from '../utils/documentProfileUtils';
 import {
   uploadDocumentFile,
   checkDuplicateDocumentNumber,
@@ -2048,7 +2048,10 @@ export default function Dossier({
 
                 {/* 1. Justificatifs requis selon la situation du couple */}
                 {(() => {
-                  const requiredMetas = getRequiredDocsForProfiles(DEFAULT_SPOUSE_PROFILE, DEFAULT_SPOUSE_PROFILE);
+                  const savedProf = getSavedSpouseProfiles(dossierId);
+                  const epouxP = dossierDetails?.epoux_profile || savedProf.epouxProfile;
+                  const epouseP = dossierDetails?.epouse_profile || savedProf.epouseProfile;
+                  const requiredMetas = getRequiredDocsForProfiles(epouxP, epouseP);
                   const step7Ids = requiredMetas
                     .filter(d => !['doc1', 'doc2', 'doc1_f', 'doc2_f', 'selfie_epoux', 'selfie_epouse'].includes(d.id))
                     .map(d => d.id);

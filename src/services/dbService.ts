@@ -8,6 +8,7 @@ import {
   INITIAL_TIMELINE_STEPS,
   INITIAL_NOTIFICATIONS
 } from '../data';
+import { SpouseProfile, saveSpouseProfiles, getSavedSpouseProfiles } from '../utils/documentProfileUtils';
 
 // @ts-ignore
 import * as pdfjsLib from 'pdfjs-dist';
@@ -82,6 +83,8 @@ export interface DossierInfo {
   salle_id?: string | null;
   statut?: string | null;
   frais_timbre_paye?: boolean;
+  epoux_profile?: SpouseProfile;
+  epouse_profile?: SpouseProfile;
 }
 
 export const INITIAL_MAIRIES: MairieInfo[] = [
@@ -404,7 +407,9 @@ export async function getDossiers(): Promise<DossierInfo[]> {
         date_mariage: item.date_mariage || null,
         heure_mariage: item.heure_mariage || null,
         salle_id: item.salle_id || null,
-        statut: item.statut || 'EN_COURS'
+        statut: item.statut || 'EN_COURS',
+        epoux_profile: item.epoux_profile || getSavedSpouseProfiles(item.id).epouxProfile,
+        epouse_profile: item.epouse_profile || getSavedSpouseProfiles(item.id).epouseProfile
       }));
   } catch (err) {
     console.warn("Supabase: Failed to fetch dossiers.", err);
@@ -422,6 +427,7 @@ export async function getDossierById(id: string): Promise<DossierInfo | null> {
     if (error) throw error;
     if (data && data.length > 0) {
       const row = data[0];
+      const savedProf = getSavedSpouseProfiles(row.id);
       return {
         id: row.id,
         mairie_id: row.mairie_id,
@@ -472,7 +478,9 @@ export async function getDossierById(id: string): Promise<DossierInfo | null> {
         date_mariage: row.date_mariage || null,
         heure_mariage: row.heure_mariage || null,
         salle_id: row.salle_id || null,
-        statut: row.statut || 'EN_COURS'
+        statut: row.statut || 'EN_COURS',
+        epoux_profile: row.epoux_profile || savedProf.epouxProfile,
+        epouse_profile: row.epouse_profile || savedProf.epouseProfile
       };
     }
     return null;

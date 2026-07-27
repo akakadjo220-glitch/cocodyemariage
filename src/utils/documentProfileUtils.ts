@@ -21,6 +21,32 @@ export const DEFAULT_SPOUSE_PROFILE: SpouseProfile = {
   hasParentalLink: false
 };
 
+export function getSavedSpouseProfiles(dossierId?: string | null): { epouxProfile: SpouseProfile; epouseProfile: SpouseProfile } {
+  if (!dossierId || typeof window === 'undefined') {
+    return { epouxProfile: DEFAULT_SPOUSE_PROFILE, epouseProfile: DEFAULT_SPOUSE_PROFILE };
+  }
+  try {
+    const rawEpoux = localStorage.getItem(`epoux_profile_${dossierId}`);
+    const rawEpouse = localStorage.getItem(`epouse_profile_${dossierId}`);
+    return {
+      epouxProfile: rawEpoux ? { ...DEFAULT_SPOUSE_PROFILE, ...JSON.parse(rawEpoux) } : DEFAULT_SPOUSE_PROFILE,
+      epouseProfile: rawEpouse ? { ...DEFAULT_SPOUSE_PROFILE, ...JSON.parse(rawEpouse) } : DEFAULT_SPOUSE_PROFILE
+    };
+  } catch (e) {
+    return { epouxProfile: DEFAULT_SPOUSE_PROFILE, epouseProfile: DEFAULT_SPOUSE_PROFILE };
+  }
+}
+
+export function saveSpouseProfiles(dossierId: string | null | undefined, epouxProfile: SpouseProfile, epouseProfile: SpouseProfile) {
+  if (!dossierId || typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`epoux_profile_${dossierId}`, JSON.stringify(epouxProfile));
+    localStorage.setItem(`epouse_profile_${dossierId}`, JSON.stringify(epouseProfile));
+  } catch (e) {
+    console.warn("Failed to save spouse profiles to localStorage", e);
+  }
+}
+
 /**
   * Calcule la liste exacte des pièces justificatives obligatoires
   * en fonction des profils spécifiques de l'Époux et de l'Épouse (Loi N° 2019-570 Mairie de Cocody).

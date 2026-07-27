@@ -339,7 +339,10 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
   // System actions audit logger helper
   const logSystemAction = (message: string, type: 'info' | 'success' | 'warning' | 'admin' = 'info') => {
-    const ts = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const d = new Date();
+    const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const ts = `${dateStr} à ${timeStr}`;
     const newLog: AuditLog = {
       id: Math.random().toString(),
       message,
@@ -516,9 +519,10 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       if (logs && logs.length > 0) {
         setActivityLogs(logs.map(l => ({ id: l.id, message: l.message, timestamp: l.timestamp, type: l.type as any })));
       } else {
+        const todayStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const defaultLogs: AuditLog[] = [
-          { id: 'l1', message: "Système : Registre d'état civil connecté et sécurisé.", timestamp: "08:15:22", type: 'info' },
-          { id: 'l2', message: "Audit : Portail de Cocody raccordé avec le code d'accès par défaut.", timestamp: "08:15:25", type: 'success' }
+          { id: 'l1', message: "Système : Registre d'état civil connecté et sécurisé.", timestamp: `${todayStr} à 08:15:22`, type: 'info' },
+          { id: 'l2', message: "Audit : Portail de Cocody raccordé avec le code d'accès par défaut.", timestamp: `${todayStr} à 08:15:25`, type: 'success' }
         ];
         setActivityLogs(defaultLogs);
       }

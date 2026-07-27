@@ -81,6 +81,7 @@ export interface DossierInfo {
   heure_mariage?: string | null;
   salle_id?: string | null;
   statut?: string | null;
+  frais_timbre_paye?: boolean;
 }
 
 export const INITIAL_MAIRIES: MairieInfo[] = [
@@ -1821,12 +1822,27 @@ export async function getActivityLogs(): Promise<ActivityLog[]> {
     if (error) throw error;
     if (!data || data.length === 0) return [];
 
-    return data.map(item => ({
-      id: item.id,
-      message: item.message,
-      type: item.type,
-      timestamp: item.timestamp
-    }));
+    return data.map(item => {
+      let formattedTs = item.timestamp;
+      if (item.created_at) {
+        const d = new Date(item.created_at);
+        if (!isNaN(d.getTime())) {
+          const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          formattedTs = `${dateStr} à ${timeStr}`;
+        }
+      } else if (item.timestamp && !item.timestamp.includes('/')) {
+        const d = new Date();
+        const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        formattedTs = `${dateStr} à ${item.timestamp}`;
+      }
+      return {
+        id: item.id,
+        message: item.message,
+        type: item.type,
+        timestamp: formattedTs || new Date().toLocaleDateString('fr-FR')
+      };
+    });
   } catch (err) {
     console.warn('Supabase: Failed to fetch activity logs.', err);
     return [];
@@ -1836,7 +1852,10 @@ export async function getActivityLogs(): Promise<ActivityLog[]> {
 export async function addActivityLog(message: string, type: string, timestamp?: string): Promise<boolean> {
   try {
     const logId = `log_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const ts = timestamp || new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const ts = timestamp || `${dateStr} à ${timeStr}`;
     const { error } = await supabase
       .from('activity_logs')
       .insert({
@@ -5821,6 +5840,25 @@ export async function confirmMairieAppointment(dossierId: string): Promise<boole
     return true;
   } catch (err) {
     console.warn(`Failed to confirm appointment for ${dossierId}.`, err);
+    return false;
+  }
+}
+
+export async function recordCaissePaymentInDb(dossierId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('dossiers')
+      .update({
+        frais_timbre_paye: true,
+        physical_verified: true,
+        status: 'approved'
+      })
+      .eq('id', dossierId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn(`Failed to record caisse payment for ${dossierId}.`, err);
     return false;
   }
 }

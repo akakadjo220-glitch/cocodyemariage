@@ -3095,6 +3095,23 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
     const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
     const weekDays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
+    const pendingRdvPhysiquesDossiers = dossiers.filter(d => {
+      const isForMairie = isSuperadmin || !activeMairieId || d.mairie_id === activeMairieId;
+      const hasRdv = Boolean(d.date_rendezvous || d.appointment_date || d.frais_reservation_paye);
+      const notYetVerified = d.physical_verified !== true && d.status !== 'celebrated';
+      return isForMairie && hasRdv && notYetVerified;
+    });
+    const rdvPhysiquesCount = pendingRdvPhysiquesDossiers.length;
+
+    const readyCelebrationsDossiers = dossiers.filter(d => {
+      const isForMairie = isSuperadmin || !activeMairieId || d.mairie_id === activeMairieId;
+      const hasWeddingDate = Boolean(d.wedding_date || d.date_mariage);
+      const isReady = d.frais_reservation_paye === true || d.status === 'approved' || d.statut === 'VALIDE';
+      const notYetCelebrated = d.status !== 'celebrated';
+      return isForMairie && hasWeddingDate && isReady && notYetCelebrated;
+    });
+    const celebrationsCount = readyCelebrationsDossiers.length;
+
     const handlePrevMonth = () => {
       if (calendarMonth === 0) {
         setCalendarMonth(11);
@@ -3457,23 +3474,33 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
         <div className="flex border-b border-neutral-100 pb-1 gap-4 font-sans text-xs">
           <button
             onClick={() => setAgendaSubTab('celebrations')}
-            className={`pb-2.5 px-2 font-bold cursor-pointer transition-all border-b-2 ${
+            className={`pb-2.5 px-3 font-bold cursor-pointer transition-all border-b-2 flex items-center gap-2 ${
               agendaSubTab === 'celebrations'
                 ? 'border-primary text-primary font-black'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            👰 Célébrations de Mariage
+            <span>👰 Célébrations de Mariage</span>
+            {celebrationsCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-600 text-white animate-pulse shadow-sm">
+                {celebrationsCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setAgendaSubTab('rdv_physiques')}
-            className={`pb-2.5 px-2 font-bold cursor-pointer transition-all border-b-2 ${
+            className={`pb-2.5 px-3 font-bold cursor-pointer transition-all border-b-2 flex items-center gap-2 ${
               agendaSubTab === 'rdv_physiques'
                 ? 'border-primary text-primary font-black'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            📂 Rendez-vous Physiques (Dépôt)
+            <span>📂 Rendez-vous Physiques (Dépôt)</span>
+            {rdvPhysiquesCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white animate-pulse shadow-sm">
+                {rdvPhysiquesCount}
+              </span>
+            )}
           </button>
         </div>
 
@@ -4044,8 +4071,18 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                   : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
             >
-              <Calendar className="w-4 h-4" />
-              Agenda National
+              <Calendar className="w-4 h-4 text-primary" />
+              <span>Agenda National</span>
+              {(() => {
+                const pendingRdvCount = dossiers.filter(d => Boolean(d.date_rendezvous || d.appointment_date || d.frais_reservation_paye) && d.physical_verified !== true && d.status !== 'celebrated').length;
+                const pendingCelebrationsCount = dossiers.filter(d => Boolean(d.wedding_date || d.date_mariage) && (d.frais_reservation_paye === true || d.status === 'approved' || d.statut === 'VALIDE') && d.status !== 'celebrated').length;
+                const totalAgendaBadges = pendingRdvCount + pendingCelebrationsCount;
+                return totalAgendaBadges > 0 ? (
+                  <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-rose-600 text-white animate-pulse shadow-sm">
+                    {totalAgendaBadges}
+                  </span>
+                ) : null;
+              })()}
             </button>
             <button
               onClick={() => setSuperadminActiveTab('partners')}
@@ -6420,6 +6457,17 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                 >
                   <Calendar className="w-4 h-4 text-accent" />
                   <span>Agenda</span>
+                  {(() => {
+                    const mDossiers = dossiers.filter(d => d.mairie_id === activeMairieId);
+                    const pendingRdvCount = mDossiers.filter(d => Boolean(d.date_rendezvous || d.appointment_date || d.frais_reservation_paye) && d.physical_verified !== true && d.status !== 'celebrated').length;
+                    const pendingCelebrationsCount = mDossiers.filter(d => Boolean(d.wedding_date || d.date_mariage) && (d.frais_reservation_paye === true || d.status === 'approved' || d.statut === 'VALIDE') && d.status !== 'celebrated').length;
+                    const totalMairieAgendaBadges = pendingRdvCount + pendingCelebrationsCount;
+                    return totalMairieAgendaBadges > 0 ? (
+                      <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-rose-600 text-white animate-pulse shadow-sm">
+                        {totalMairieAgendaBadges}
+                      </span>
+                    ) : null;
+                  })()}
                   {mairieActiveTab === 'agenda' && (
                     <span className="absolute bottom-0 left-0 w-full h-[2.5px] bg-gradient-to-r from-primary to-accent rounded-full animate-fade-in" />
                   )}

@@ -1159,7 +1159,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
           const reason = rejectionReasons[d.id] || "Non conforme";
           customMessage += ` - ${d.name} (Motif : ${reason})\n`;
         });
-        customMessage += `\nVeuillez corriger et re-téléverser ces documents directement sur la plateforme (https://e-mariage.ci) afin que l'examen puisse reprendre.`;
+        const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://e-mariage.ci';
+        customMessage += `\nVeuillez corriger et re-téléverser ces documents directement sur la plateforme (${siteUrl}) afin que l'examen puisse reprendre.`;
       } else {
         customMessage += `🎉 Félicitations, toutes vos pièces justificatives ont été validées avec succès ! Le dossier est désormais prêt pour l'étape suivante.`;
       }

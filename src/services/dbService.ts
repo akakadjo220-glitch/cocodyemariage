@@ -1997,7 +1997,8 @@ export async function triggerSpouseNotifications(
   } else if (event === 'approved') {
     messageText = `Félicitations ! Le dossier d'union civile de ${dossier.spouse1_name} & ${dossier.spouse2_name} a été validé et approuvé par l'officier civil. La célébration est confirmée pour le ${details?.weddingDate || dossier.wedding_date || 'Non spécifiée'}. Votre rendez-vous obligatoire de signature en mairie est fixé au ${details?.appointmentDate || 'Non spécifié'}. Veuillez vous munir de vos pièces d'identité originales.`;
   } else if (event === 'rejected') {
-    messageText = `Alerte E-Mariage : Le document "${details?.docName || 'Justificatif'}" a été rejeté by l'officier d'état civil. Motif : ${details?.reason || 'Non spécifié'}. Vous pouvez corriger et re-téléverser ce document directement sur le site (https://e-mariage.ci) ou vous rendre à la mairie pour assistance.`;
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://e-mariage.ci';
+    messageText = `Alerte E-Mariage : Le document "${details?.docName || 'Justificatif'}" a été rejeté par l'officier d'état civil. Motif : ${details?.reason || 'Non spécifié'}. Vous pouvez corriger et re-téléverser ce document directement sur le site (${siteUrl}) ou vous rendre à la mairie pour assistance.`;
   } else if (event === 'slot_reminder_j3') {
     messageText = `📲 Rappel Civil E-Mariage (J+3) : Votre créneau du ${details?.weddingDate || dossier.wedding_date || 'réservé'} est bloqué. Il vous reste 4 jours pour vous présenter à la mairie pour le contrôle physique des originaux et le règlement des droits municipaux.`;
   } else if (event === 'slot_reminder_j5') {
@@ -5759,7 +5760,8 @@ export async function confirmPaystackReservationPayment(
 ): Promise<boolean> {
   try {
     const now = new Date().toISOString();
-    const qrCodeVerificationUrl = `https://e-mariage.ci/verify-receipt/${dossierId}`;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://e-mariage.ci';
+    const qrCodeVerificationUrl = `${baseUrl}/verify-receipt/${dossierId}`;
 
     let dossier = await getDossierById(dossierId);
 

@@ -30,7 +30,8 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 
 export async function generateReceiptPdf(data: ReceiptData): Promise<void> {
   // 1. Generate QR Code as DataURL
-  const qrCodeUrl = `https://e-mariage.ci/verify-receipt/${data.dossierId}`;
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://e-mariage.ci';
+  const qrCodeUrl = `${baseUrl}/verify-receipt/${data.dossierId}`;
   let qrDataUrl = '';
   try {
     qrDataUrl = await QRCode.toDataURL(qrCodeUrl, { width: 120, margin: 1 });

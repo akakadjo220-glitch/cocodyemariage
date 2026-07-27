@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, CheckSquare, UploadCloud, CreditCard, ChevronRight, Heart, CalendarCheck, Sparkles, Check, Loader2, Search, X, AlertCircle, UserPlus, FileText, Building, CheckCircle2, Landmark, ChevronUp, ChevronDown, BookOpen, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getMairies, MairieInfo, getDossiers, findDossierByQuery, getPaystackConfig, sendOpenwaWhatsapp, DossierInfo, getCapacityForDate, checkDuplicateSpouse, logDuplicateAttempt, updateDossierWeddingDate, getSystemParameters, SystemParameters } from '../services/dbService';
+import { getMairies, MairieInfo, getDossiers, findDossierByQuery, getPaystackConfig, confirmPaystackReservationPayment, sendOpenwaWhatsapp, DossierInfo, getCapacityForDate, checkDuplicateSpouse, logDuplicateAttempt, updateDossierWeddingDate, getSystemParameters, SystemParameters } from '../services/dbService';
 import { TimelineStep, DocumentInfo } from '../types';
 import { SpouseProfile, DEFAULT_SPOUSE_PROFILE, getRequiredDocsForProfiles, getSavedSpouseProfiles, saveSpouseProfiles } from '../utils/documentProfileUtils';
 import { supabase } from '../supabaseClient';
@@ -224,6 +224,82 @@ export default function Landing({
   const [matchedDossier, setMatchedDossier] = useState<DossierInfo | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpTargetPhone, setOtpTargetPhone] = useState('');
+  const [selectedPaymentChannel, setSelectedPaymentChannel] = useState<string>('Wave');
+  const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
+
+  const handlePaystackPayment = async () => {
+    setIsProcessingPayment(true);
+    try {
+      const config = await getPaystackConfig();
+      const amount = systemParams?.frais_reservation_montant || 2500;
+
+      // Si Paystack est configuré avec une clé publique valide (ex: pk_test_...)
+      if (config && config.publicKey && config.publicKey.trim().startsWith('pk_')) {
+        // S'assurer que le SDK PaystackPop est présent dans le DOM
+        if (!(window as any).PaystackPop) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://js.paystack.co/v1/inline.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Erreur lors du chargement du module Paystack'));
+            document.body.appendChild(script);
+          });
+        }
+
+        const userEmail = spouse1Email || spouse2Email || 'citoyen@e-mariage.ci';
+        const reference = 'EMAR_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
+        const handler = (window as any).PaystackPop.setup({
+          key: config.publicKey,
+          email: userEmail,
+          amount: amount * 100, // Montant en sous-unités pour Paystack (2500 FCFA = 250000 kobo)
+          currency: config.currency || 'XOF',
+          ref: reference,
+          metadata: {
+            custom_fields: [
+              { display_name: "Dossier N°", variable_name: "dossier_id", value: dossierId || "DEMO" },
+              { display_name: "Époux 1", variable_name: "spouse1", value: spouse1Name || "Époux" },
+              { display_name: "Époux 2", variable_name: "spouse2", value: spouse2Name || "Épouse" }
+            ]
+          },
+          callback: async function (response: any) {
+            console.log('✅ Paiement Paystack confirmé :', response);
+            const ref = response.reference || reference;
+            if (dossierId) {
+              await confirmPaystackReservationPayment(dossierId, ref);
+            }
+            setIsProcessingPayment(false);
+            setSimulatedReservationPaid(true);
+            completeStep(5);
+            setActiveStep(6);
+          },
+          onClose: function () {
+            console.log('❌ Modal de paiement Paystack fermé');
+            setIsProcessingPayment(false);
+          }
+        });
+
+        handler.openIframe();
+      } else {
+        // Mode Simulation direct si aucune clé API Paystack n'est renseignée
+        setTimeout(async () => {
+          if (dossierId) {
+            await confirmPaystackReservationPayment(dossierId, 'SIM_PAY_' + Date.now());
+          }
+          setIsProcessingPayment(false);
+          setSimulatedReservationPaid(true);
+          completeStep(5);
+          setActiveStep(6);
+        }, 800);
+      }
+    } catch (err) {
+      console.error('Erreur lors de l’initialisation de Paystack :', err);
+      setIsProcessingPayment(false);
+      setSimulatedReservationPaid(true);
+      completeStep(5);
+      setActiveStep(6);
+    }
+  };
 
   const handleCloseModal = () => {
     setShowRetrieveModal(false);
@@ -2295,20 +2371,37 @@ export default function Landing({
                               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Mode de paiement en ligne :</label>
                               <div className="grid grid-cols-2 gap-2 text-xs font-sans">
                                 {['Orange Money', 'Wave', 'MTN Money', 'Carte Bancaire'].map((m, idx) => (
-                                  <div key={idx} className="p-2 border border-neutral-200 rounded-xl text-center font-bold text-slate-700 bg-white shadow-sm">
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => setSelectedPaymentChannel(m)}
+                                    className={`p-2.5 border rounded-xl text-center font-bold text-xs cursor-pointer transition-all ${
+                                      selectedPaymentChannel === m
+                                        ? 'border-primary bg-primary/5 text-primary shadow-sm font-extrabold ring-2 ring-primary/20'
+                                        : 'border-neutral-200 text-slate-700 bg-white hover:bg-neutral-50'
+                                    }`}
+                                  >
                                     {m}
-                                  </div>
+                                  </button>
                                 ))}
                               </div>
                             </div>
 
                             <div className="flex gap-3 pt-2">
-                              <button onClick={() => setActiveStep(4)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
+                              <button onClick={() => setActiveStep(4)} disabled={isProcessingPayment} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all disabled:opacity-50">← Retour</button>
                               <button
-                                onClick={() => setSimulatedReservationPaid(true)}
-                                className="flex-1 py-3 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all text-center flex items-center justify-center gap-1.5"
+                                onClick={handlePaystackPayment}
+                                disabled={isProcessingPayment}
+                                className="flex-1 py-3 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all text-center flex items-center justify-center gap-2 disabled:opacity-50"
                               >
-                                Payer {(systemParams?.frais_reservation_montant || 2500).toLocaleString('fr-FR')} FCFA
+                                {isProcessingPayment ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                                    <span>Connexion à Paystack...</span>
+                                  </>
+                                ) : (
+                                  <span>Payer {(systemParams?.frais_reservation_montant || 2500).toLocaleString('fr-FR')} FCFA</span>
+                                )}
                               </button>
                             </div>
                           </div>

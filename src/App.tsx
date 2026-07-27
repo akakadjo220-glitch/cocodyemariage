@@ -797,32 +797,7 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'timeline' && (
-              <Timeline
-                steps={timelineSteps}
-                setTab={setTab}
-                updateStepStatus={updateStepStatus}
-                onMairieSelected={handleMairieSelected}
-                dossierId={dossierId}
-                spouse1Name={spouse1Name}
-                spouse2Name={spouse2Name}
-                spouse1Phone={spouse1Phone}
-                spouse2Phone={spouse2Phone}
-                spouse1Email={spouse1Email}
-                spouse2Email={spouse2Email}
-                onUpdateNames={handleUpdateNames}
-                onWeddingDateSelected={handleWeddingDateSelected}
-                selectedMairieName={selectedMairieName}
-                documents={documents}
-                spouse1Birthdate={spouse1Birthdate}
-                spouse2Birthdate={spouse2Birthdate}
-                spouse1Cni={spouse1Cni}
-                spouse2Cni={spouse2Cni}
-                dossierActiveStep={dossierActiveStep}
-                setDossierActiveStep={setDossierActiveStep}
-                onOpenParcoursStep={handleOpenParcoursAtStep}
-              />
-            )}
+
 
             {currentTab === 'dossier' && (
               <Dossier
@@ -915,9 +890,8 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setTab('timeline')}
-              className={`flex flex-col items-center justify-center cursor-pointer transition-all duration-300 w-16 ${currentTab === 'timeline' ? 'text-primary scale-105 font-bold' : 'text-slate-400 font-medium'
-                }`}
+              onClick={() => handleOpenParcoursAtStep(1)}
+              className="flex flex-col items-center justify-center cursor-pointer transition-all duration-300 w-16 text-slate-400 font-medium hover:text-primary"
             >
               <Calendar className="w-5 h-5" />
               <span className="font-sans text-[10px] tracking-wider mt-1">Parcours</span>

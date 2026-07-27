@@ -33,7 +33,6 @@ export default function Header({
     { id: 'guide', label: 'Guide du Citoyen' },
     { id: 'bans', label: 'Bans Publics' },
     { id: 'dashboard', label: 'Tableau de bord' },
-    { id: 'timeline', label: 'Parcours civil' },
     { id: 'partners', label: 'Prestataires d\'exception' },
     { id: 'dossier', label: 'Documents / Dossier' }
   ];

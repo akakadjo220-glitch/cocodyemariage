@@ -2192,7 +2192,7 @@ export default function Dossier({
                           onOpenParcoursStep(4);
                         } else {
                           setActiveStep(4);
-                          setTab('timeline');
+                          setTab('accueil');
                         }
                       }}
                       className="py-3.5 px-6 bg-emerald-600 text-white rounded-xl font-sans text-xs font-bold hover:bg-emerald-700 transition-all cursor-pointer shadow-md inline-flex items-center gap-2"

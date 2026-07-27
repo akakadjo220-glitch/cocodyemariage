@@ -2338,9 +2338,9 @@ export default function Landing({
                           </div>
                         )}
 
-                        <button onClick={() => { setShowParcours(false); setTab('timeline'); }}
+                        <button onClick={() => { setShowParcours(false); setTab('dossier'); }}
                           className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-bold hover:bg-primary/5 cursor-pointer transition-all">
-                          📅 Voir le compte à rebours de réservation
+                          📁 Consulter mes documents et pièces justificatives
                         </button>
                       </div>
                     )}
@@ -2385,12 +2385,12 @@ export default function Landing({
                 )}
               </div>
 
-              {/* Footer : Parcours détaillé */}
+              {/* Footer : Dossier & Documents */}
               {!allDone && (
                 <div className="px-5 pb-5 pt-3 border-t border-neutral-100 shrink-0">
-                  <button onClick={() => { setShowParcours(false); setTab('timeline'); }}
+                  <button onClick={() => { setShowParcours(false); setTab('dossier'); }}
                     className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-sans text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all">
-                    <span>Voir le parcours détaillé complet</span>
+                    <span>Consulter mes pièces et documents officiels</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>

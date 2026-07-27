@@ -4,7 +4,7 @@ import {
   CheckCircle2, AlertTriangle, ClipboardList, Shield, ToggleLeft,
   ToggleRight, Settings, Users, Calendar, ArrowRight, Activity, Landmark,
   Lock, Unlock, Key, Trash2, Search, Filter, RefreshCw, Edit, LogOut, Loader2, Cpu,
-  Clock, Printer, CheckSquare, QrCode, Receipt
+  Clock, Printer, CheckSquare, QrCode, Receipt, CreditCard, Coins
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -2838,11 +2838,14 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
   const renderSuperadminFinanceView = () => {
     const successfulPayments = allPayments.filter(p => p.status === 'success');
-    const totalPlatform = dossiers.filter(d => d.frais_reservation_paye === true).length * (paystackAmount || 2500);
-    const totalCaisse = dossiers.filter(d => d.frais_timbre_paye === true).length * (paramTimbrePrice || 100000);
+    const countPlatform = dossiers.filter(d => d.frais_reservation_paye === true).length;
+    const totalPlatform = countPlatform * (paystackAmount || 2500);
+
+    const countCaisse = dossiers.filter(d => d.frais_timbre_paye === true).length;
+    const totalCaisse = countCaisse * (paramTimbrePrice || 100000);
+
     const totalCollectedGlobal = totalPlatform + totalCaisse;
-    
-    const totalTransactions = dossiers.filter(d => d.frais_reservation_paye === true).length + dossiers.filter(d => d.frais_timbre_paye === true).length;
+    const totalTransactions = countPlatform + countCaisse;
     const averageTicket = totalTransactions > 0 ? Math.round(totalCollectedGlobal / totalTransactions) : 0;
 
     const openReceipt = (pay: PaymentInfo) => {
@@ -2856,21 +2859,25 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       setReceiptMairieName(matchedMairie?.name || 'Cocody');
     };
 
-    // Calculate revenue per Mairie for SVG chart
-    const mairieRevenueMap: { [key: string]: number } = {};
-    mairies.forEach(m => {
+    // Calculate revenue per Mairie
+    const mairiesData = mairies.map(m => {
       const mDossiers = dossiers.filter(d => d.mairie_id === m.id);
-      const platformRec = mDossiers.filter(d => d.frais_reservation_paye === true).length * (paystackAmount || 2500);
-      const caisseRec = mDossiers.filter(d => d.frais_timbre_paye === true).length * (paramTimbrePrice || 100000);
-      mairieRevenueMap[m.id] = platformRec + caisseRec;
-    });
+      const platformCount = mDossiers.filter(d => d.frais_reservation_paye === true).length;
+      const platformRec = platformCount * (paystackAmount || 2500);
+      const caisseCount = mDossiers.filter(d => d.frais_timbre_paye === true).length;
+      const caisseRec = caisseCount * (paramTimbrePrice || 100000);
+      const total = platformRec + caisseRec;
+      return {
+        name: m.name,
+        platformRec,
+        caisseRec,
+        total,
+        platformCount,
+        caisseCount
+      };
+    }).sort((a, b) => b.total - a.total);
 
-    const mairiesData = mairies.map(m => ({
-      name: m.name,
-      amount: mairieRevenueMap[m.id] || 0
-    })).sort((a, b) => b.amount - a.amount);
-
-    const maxMairieAmount = Math.max(...mairiesData.map(d => d.amount), 1);
+    const maxMairieAmount = Math.max(...mairiesData.map(d => d.total), 1);
 
     // Calculate payment methods distribution
     const methodCounts: { [key: string]: number } = {
@@ -2890,35 +2897,49 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
     return (
       <div className="flex flex-col gap-8 text-left font-sans mt-4">
-        {/* Metric Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="glass-card rounded-2xl p-6 border border-amber-500/20 shadow flex items-center gap-4 bg-white/55 backdrop-blur-md">
-            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
+        {/* Metric Cards - 4 distinct categories */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="glass-card rounded-2xl p-5 border border-blue-500/20 shadow-sm flex items-center gap-4 bg-white/70 backdrop-blur-md">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200 shrink-0">
+              <CreditCard className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Frais en Ligne (Plateforme)</span>
+              <span className="text-lg font-bold text-blue-700">{totalPlatform.toLocaleString()} XOF</span>
+              <span className="text-[10px] text-slate-500 font-medium block mt-0.5">{countPlatform} dossier(s) réglé(s) (2 500 F)</span>
+            </div>
+          </div>
+
+          <div className="glass-card rounded-2xl p-5 border border-emerald-500/20 shadow-sm flex items-center gap-4 bg-white/70 backdrop-blur-md">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200 shrink-0">
               <Landmark className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Recettes Nationales Cumulées</span>
-              <span className="text-xl font-bold text-slate-800">{totalCollectedGlobal.toLocaleString()} XOF</span>
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Droits de Mariage (Mairie)</span>
+              <span className="text-lg font-bold text-emerald-700">{totalCaisse.toLocaleString()} XOF</span>
+              <span className="text-[10px] text-slate-500 font-medium block mt-0.5">{countCaisse} quittance(s) municipale(s)</span>
             </div>
           </div>
 
-          <div className="glass-card rounded-2xl p-6 border border-emerald-500/20 shadow flex items-center gap-4 bg-white/55 backdrop-blur-md">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200 shrink-0">
-              <CheckCircle2 className="w-6 h-6" />
+          <div className="glass-card rounded-2xl p-5 border border-amber-500/20 shadow-sm flex items-center gap-4 bg-white/70 backdrop-blur-md">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
+              <Coins className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Recettes Globales Cumulées</span>
+              <span className="text-lg font-bold text-amber-700">{totalCollectedGlobal.toLocaleString()} XOF</span>
+              <span className="text-[10px] text-slate-500 font-medium block mt-0.5">En Ligne + Droits Mairie</span>
+            </div>
+          </div>
+
+          <div className="glass-card rounded-2xl p-5 border border-violet-500/20 shadow-sm flex items-center gap-4 bg-white/70 backdrop-blur-md">
+            <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-200 shrink-0">
+              <Receipt className="w-6 h-6" />
             </div>
             <div>
               <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Volume de Quittances</span>
-              <span className="text-xl font-bold text-slate-800">{totalTransactions} Transactions</span>
-            </div>
-          </div>
-
-          <div className="glass-card rounded-2xl p-6 border border-violet-500/20 shadow flex items-center gap-4 bg-white/55 backdrop-blur-md">
-            <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-200 shrink-0">
-              <Award className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Panier Moyen / Dossier</span>
-              <span className="text-xl font-bold text-slate-800">{averageTicket.toLocaleString()} XOF</span>
+              <span className="text-lg font-bold text-violet-700">{totalTransactions} Transactions</span>
+              <span className="text-[10px] text-slate-500 font-medium block mt-0.5">Panier Moyen: {averageTicket.toLocaleString()} XOF</span>
             </div>
           </div>
         </div>
@@ -2927,23 +2948,37 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Revenue per Mairie */}
           <div className="glass-card rounded-2xl p-6 border border-neutral-100 flex flex-col gap-4 shadow-sm bg-white/60">
-            <h4 className="font-serif text-sm font-bold text-slate-800 border-b border-neutral-100 pb-2">Recettes par Mairie</h4>
-            <div className="flex flex-col gap-3.5 mt-2">
+            <h4 className="font-serif text-sm font-bold text-slate-800 border-b border-neutral-100 pb-2">Ventilation des Recettes par Mairie</h4>
+            <div className="flex flex-col gap-4 mt-2">
               {mairiesData.map((m, idx) => {
-                const percent = Math.round((m.amount / maxMairieAmount) * 100);
+                const percent = Math.round((m.total / maxMairieAmount) * 100);
                 return (
-                  <div key={idx} className="flex flex-col gap-1.5 text-xs">
-                    <div className="flex justify-between font-semibold text-slate-700">
+                  <div key={idx} className="flex flex-col gap-1.5 text-xs bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+                    <div className="flex justify-between font-bold text-slate-800">
                       <span>{m.name}</span>
-                      <span>{m.amount.toLocaleString()} XOF</span>
+                      <span>Total: {m.total.toLocaleString()} XOF</span>
                     </div>
-                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percent}%` }}
-                        transition={{ duration: 1.2, ease: "easeOut" }}
-                      />
+                    <div className="flex justify-between text-[11px] text-slate-500 font-medium mt-0.5">
+                      <span className="text-blue-600">💳 En ligne: {m.platformRec.toLocaleString()} F ({m.platformCount})</span>
+                      <span className="text-emerald-600">🏛️ Droits Mairie: {m.caisseRec.toLocaleString()} F ({m.caisseCount})</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden flex mt-1">
+                      {m.total > 0 ? (
+                        <>
+                          <div
+                            className="h-full bg-blue-500 transition-all duration-500"
+                            style={{ width: `${Math.round((m.platformRec / m.total) * percent)}%` }}
+                            title={`Frais en ligne: ${m.platformRec.toLocaleString()} XOF`}
+                          />
+                          <div
+                            className="h-full bg-emerald-500 transition-all duration-500"
+                            style={{ width: `${Math.round((m.caisseRec / m.total) * percent)}%` }}
+                            title={`Droits Mairie: ${m.caisseRec.toLocaleString()} XOF`}
+                          />
+                        </>
+                      ) : (
+                        <div className="h-full bg-slate-200 w-full" />
+                      )}
                     </div>
                   </div>
                 );
@@ -2979,7 +3014,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
         {/* Global Transactions Table */}
         <div className="glass-card rounded-2xl p-6 md:p-8 flex flex-col gap-4 shadow-sm bg-white/70">
-          <h3 className="font-serif text-lg font-bold text-slate-800 border-b border-neutral-100 pb-3">Flux Financier National (Transactions)</h3>
+          <h3 className="font-serif text-lg font-bold text-slate-800 border-b border-neutral-100 pb-3">Flux Financier National (Transactions Détaillées)</h3>
           {successfulPayments.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-xs">
               Aucune transaction financière n'a été enregistrée au niveau national.
@@ -2992,6 +3027,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                     <th className="py-3 px-3">Date</th>
                     <th className="py-3 px-3">Mairie</th>
                     <th className="py-3 px-3">Futurs Époux</th>
+                    <th className="py-3 px-3">Nature du Frais</th>
                     <th className="py-3 px-3">Référence</th>
                     <th className="py-3 px-3">Mode</th>
                     <th className="py-3 px-3">Montant</th>
@@ -3006,11 +3042,24 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                       : 'Couple inconnu';
                     const matchedMairie = mairies.find(m => m.id === pay.mairieId);
                     const mairieLabel = matchedMairie ? matchedMairie.name : 'Inconnu';
+                    const isOnlineFee = pay.amount === 2500 || pay.method.toLowerCase().includes('paystack');
+
                     return (
                       <tr key={pay.id} className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors">
                         <td className="py-3 px-3 text-slate-500">{new Date(pay.date).toLocaleDateString('fr-FR')}</td>
                         <td className="py-3 px-3 font-semibold text-slate-650">{mairieLabel}</td>
                         <td className="py-3 px-3 font-bold text-slate-800">{couple}</td>
+                        <td className="py-3 px-3">
+                          {isOnlineFee ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              💳 Frais en Ligne (2500 F)
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              🏛️ Droits Mairie / Timbres
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3 px-3 font-mono text-slate-500">{pay.reference}</td>
                         <td className="py-3 px-3 text-slate-600">{pay.method}</td>
                         <td className="py-3 px-3 font-bold text-slate-900">{pay.amount.toLocaleString()} XOF</td>
@@ -4053,42 +4102,59 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
             <>
               {/* Global Financial Stats row */}
               {(() => {
-                const totalPlatform = dossiers.filter(d => d.frais_reservation_paye === true).length * (paystackAmount || 2500);
-                const totalCaisse = dossiers.filter(d => d.frais_timbre_paye === true).length * (paramTimbrePrice || 100000);
+                const countPlatform = dossiers.filter(d => d.frais_reservation_paye === true).length;
+                const totalPlatform = countPlatform * (paystackAmount || 2500);
+
+                const countCaisse = dossiers.filter(d => d.frais_timbre_paye === true).length;
+                const totalCaisse = countCaisse * (paramTimbrePrice || 100000);
+
                 const totalCollectedGlobal = totalPlatform + totalCaisse;
-                
-                const totalTransactions = dossiers.filter(d => d.frais_reservation_paye === true).length + dossiers.filter(d => d.frais_timbre_paye === true).length;
+                const totalTransactions = countPlatform + countCaisse;
                 const averageTicket = totalTransactions > 0 ? Math.round(totalCollectedGlobal / totalTransactions) : 0;
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4 w-full">
-                    <div className="glass-card rounded-2xl p-5 border border-amber-500/20 shadow flex items-center gap-4 bg-white/55 backdrop-blur-md">
-                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-250 shrink-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 w-full">
+                    <div className="glass-card rounded-2xl p-4 border border-blue-500/20 shadow flex items-center gap-3.5 bg-white/70 backdrop-blur-md">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200 shrink-0">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <div className="text-left font-sans">
+                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Frais en Ligne (Plateforme)</span>
+                        <span className="font-sans text-base font-bold text-blue-700">{totalPlatform.toLocaleString()} XOF</span>
+                        <span className="text-[9px] text-slate-400 font-medium block">{countPlatform} dossier(s) (2500 F)</span>
+                      </div>
+                    </div>
+
+                    <div className="glass-card rounded-2xl p-4 border border-emerald-500/20 shadow flex items-center gap-3.5 bg-white/70 backdrop-blur-md">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200 shrink-0">
                         <Landmark className="w-5 h-5" />
                       </div>
                       <div className="text-left font-sans">
-                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Recettes Nationales Cumulées</span>
-                        <span className="font-sans text-base font-bold text-slate-800">{totalCollectedGlobal.toLocaleString()} XOF</span>
+                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Droits de Mariage (Mairie)</span>
+                        <span className="font-sans text-base font-bold text-emerald-700">{totalCaisse.toLocaleString()} XOF</span>
+                        <span className="text-[9px] text-slate-400 font-medium block">{countCaisse} quittance(s)</span>
                       </div>
                     </div>
 
-                    <div className="glass-card rounded-2xl p-5 border border-emerald-500/20 shadow flex items-center gap-4 bg-white/55 backdrop-blur-md">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-250 shrink-0">
-                        <CheckCircle2 className="w-5 h-5" />
+                    <div className="glass-card rounded-2xl p-4 border border-amber-500/20 shadow flex items-center gap-3.5 bg-white/70 backdrop-blur-md">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
+                        <Coins className="w-5 h-5" />
                       </div>
                       <div className="text-left font-sans">
-                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Volume de Quittances</span>
-                        <span className="font-sans text-base font-bold text-slate-800">{totalTransactions} Transactions</span>
+                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Recettes Cumulées</span>
+                        <span className="font-sans text-base font-bold text-amber-700">{totalCollectedGlobal.toLocaleString()} XOF</span>
+                        <span className="text-[9px] text-slate-400 font-medium block">Total général</span>
                       </div>
                     </div>
 
-                    <div className="glass-card rounded-2xl p-5 border border-violet-500/20 shadow flex items-center gap-4 bg-white/55 backdrop-blur-md">
-                      <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-250 shrink-0">
-                        <Award className="w-5 h-5" />
+                    <div className="glass-card rounded-2xl p-4 border border-violet-500/20 shadow flex items-center gap-3.5 bg-white/70 backdrop-blur-md">
+                      <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center border border-violet-200 shrink-0">
+                        <Receipt className="w-5 h-5" />
                       </div>
                       <div className="text-left font-sans">
-                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Panier Moyen / Dossier</span>
-                        <span className="font-sans text-base font-bold text-slate-800">{averageTicket.toLocaleString()} XOF</span>
+                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Quittances &amp; Volume</span>
+                        <span className="font-sans text-base font-bold text-violet-700">{totalTransactions} Transactions</span>
+                        <span className="text-[9px] text-slate-400 font-medium block">Panier: {averageTicket.toLocaleString()} F</span>
                       </div>
                     </div>
                   </div>

@@ -343,6 +343,66 @@ export async function deleteDossier(id: string): Promise<boolean> {
   }
 }
 
+export function computeCorrectRdvDate(rawRdvDate: string | null, rawWeddingDate: string | null): string | null {
+  if (!rawWeddingDate) return rawRdvDate;
+
+  let wDate: Date | null = null;
+  if (rawWeddingDate.includes('-')) {
+    const parts = rawWeddingDate.split('T')[0].split(' ')[0].split('-').map(n => parseInt(n, 10));
+    if (parts.length === 3 && parts[0] > 1900) wDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  } else if (rawWeddingDate.includes('/')) {
+    const parts = rawWeddingDate.split(' ')[0].split('/').map(n => parseInt(n, 10));
+    if (parts.length === 3) wDate = new Date(parts[2], parts[1] - 1, parts[0]);
+  } else {
+    const MOIS: Record<string, number> = {
+      janvier: 0, février: 1, mars: 2, avril: 3, mai: 4, juin: 5,
+      juillet: 6, août: 7, septembre: 8, octobre: 9, novembre: 10, décembre: 11
+    };
+    const match = rawWeddingDate.match(/^(\d{1,2})\s+([a-zéûî]+)\s+(\d{4})/i);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const monthKey = match[2].toLowerCase();
+      const year = parseInt(match[3], 10);
+      const monthIdx = MOIS[monthKey];
+      if (monthIdx !== undefined) wDate = new Date(year, monthIdx, day);
+    }
+  }
+
+  if (!wDate || isNaN(wDate.getTime())) return rawRdvDate;
+
+  const wIso = `${wDate.getFullYear()}-${String(wDate.getMonth() + 1).padStart(2, '0')}-${String(wDate.getDate()).padStart(2, '0')}`;
+
+  let rIso: string | null = null;
+  if (rawRdvDate) {
+    if (rawRdvDate.includes('-')) {
+      const parts = rawRdvDate.split('T')[0].split(' ')[0].split('-').map(n => parseInt(n, 10));
+      if (parts.length === 3 && parts[0] > 1900) {
+        rIso = `${parts[0]}-${String(parts[1]).padStart(2, '0')}-${String(parts[2]).padStart(2, '0')}`;
+      }
+    } else if (rawRdvDate.includes('/')) {
+      const parts = rawRdvDate.split(' ')[0].split('/').map(n => parseInt(n, 10));
+      if (parts.length === 3) {
+        rIso = `${parts[2]}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`;
+      }
+    }
+  }
+
+  // If RDV is missing OR if RDV date matches wedding date exactly -> recalculate 14 days before wedding!
+  if (!rawRdvDate || !rIso || rIso === wIso) {
+    const testDate = new Date(wDate.getTime());
+    testDate.setDate(wDate.getDate() - 14);
+    if (testDate.getDay() === 0) testDate.setDate(testDate.getDate() - 2);
+    else if (testDate.getDay() === 6) testDate.setDate(testDate.getDate() - 1);
+
+    const yyyy = testDate.getFullYear();
+    const mm = String(testDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(testDate.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return rawRdvDate;
+}
+
 // --- DOSSIERS SERVICES ---
 
 export async function getDossiers(): Promise<DossierInfo[]> {
@@ -357,60 +417,73 @@ export async function getDossiers(): Promise<DossierInfo[]> {
 
     return data
       .filter(item => item.id !== '__system_rooms_config__')
-      .map(item => ({
-        id: item.id,
-        mairie_id: item.mairie_id,
-        spouse1_name: item.spouse1_name,
-        spouse2_name: item.spouse2_name,
-        spouse1_phone: item.spouse1_phone,
-        spouse2_phone: item.spouse2_phone,
-        spouse1_email: item.spouse1_email,
-        spouse2_email: item.spouse2_email,
-        spouse1_birthdate: item.spouse1_birthdate,
-        spouse2_birthdate: item.spouse2_birthdate,
-        spouse1_cni: item.spouse1_cni,
-        spouse2_cni: item.spouse2_cni,
-        wedding_date: item.wedding_date,
-        appointment_date: item.appointment_date || null,
-        status: item.status,
-        slot_reserved_at: item.slot_reserved_at || null,
-        whatsapp_reminders_sent: item.whatsapp_reminders_sent || [],
-        physical_verified: item.physical_verified || false,
-        bans_published_at: item.bans_published_at || null,
-        epoux_cni_url: item.epoux_cni_url,
-        epoux_cni_valide: item.epoux_cni_valide,
-        epoux_selfie_url: item.epoux_selfie_url,
-        epoux_selfie_valide: item.epoux_selfie_valide,
-        epoux_face_match_score: item.epoux_face_match_score ? Number(item.epoux_face_match_score) : undefined,
-        epoux_identite_verifiee: item.epoux_identite_verifiee,
-        epouse_cni_url: item.epouse_cni_url,
-        epouse_cni_valide: item.epouse_cni_valide,
-        epouse_selfie_url: item.epouse_selfie_url,
-        epouse_selfie_valide: item.epouse_selfie_valide,
-        epouse_face_match_score: item.epouse_face_match_score ? Number(item.epouse_face_match_score) : undefined,
-        epouse_identite_verifiee: item.epouse_identite_verifiee,
-        spouse1_cni_type: item.spouse1_cni_type || 'CNI',
-        spouse2_cni_type: item.spouse2_cni_type || 'CNI',
-        epoux_face_attempts: item.epoux_face_attempts || 0,
-        epouse_face_attempts: item.epouse_face_attempts || 0,
-        mairie_exam_unlocked: item.mairie_exam_unlocked || false,
-        frais_reservation_montant: item.frais_reservation_montant,
-        frais_reservation_paye: item.frais_reservation_paye || false,
-        frais_reservation_date_paiement: item.frais_reservation_date_paiement || null,
-        frais_reservation_reference: item.frais_reservation_reference || null,
-        recu_qr_code: item.recu_qr_code || null,
-        recu_url_pdf: item.recu_url_pdf || null,
-        date_rendezvous: item.date_rendezvous || null,
-        heure_rendezvous: item.heure_rendezvous || null,
-        rendezvous_confirme: item.rendezvous_confirme || false,
-        nombre_reprogrammations: item.nombre_reprogrammations || 0,
-        date_mariage: item.date_mariage || null,
-        heure_mariage: item.heure_mariage || null,
-        salle_id: item.salle_id || null,
-        statut: item.statut || 'EN_COURS',
-        epoux_profile: item.epoux_profile || getSavedSpouseProfiles(item.id).epouxProfile,
-        epouse_profile: item.epouse_profile || getSavedSpouseProfiles(item.id).epouseProfile
-      }));
+      .map(item => {
+        const rawRdv = item.date_rendezvous || item.appointment_date || null;
+        const rawWedding = item.wedding_date || item.date_mariage || null;
+        const effectiveRdv = computeCorrectRdvDate(rawRdv, rawWedding);
+
+        if (effectiveRdv && effectiveRdv !== rawRdv && item.id) {
+            supabase.from('dossiers').update({
+              date_rendezvous: effectiveRdv,
+              appointment_date: effectiveRdv
+            }).eq('id', item.id).then(() => {});
+        }
+
+        return {
+          id: item.id,
+          mairie_id: item.mairie_id,
+          spouse1_name: item.spouse1_name,
+          spouse2_name: item.spouse2_name,
+          spouse1_phone: item.spouse1_phone,
+          spouse2_phone: item.spouse2_phone,
+          spouse1_email: item.spouse1_email,
+          spouse2_email: item.spouse2_email,
+          spouse1_birthdate: item.spouse1_birthdate,
+          spouse2_birthdate: item.spouse2_birthdate,
+          spouse1_cni: item.spouse1_cni,
+          spouse2_cni: item.spouse2_cni,
+          wedding_date: item.wedding_date,
+          appointment_date: effectiveRdv,
+          status: item.status,
+          slot_reserved_at: item.slot_reserved_at || null,
+          whatsapp_reminders_sent: item.whatsapp_reminders_sent || [],
+          physical_verified: item.physical_verified || false,
+          bans_published_at: item.bans_published_at || null,
+          epoux_cni_url: item.epoux_cni_url,
+          epoux_cni_valide: item.epoux_cni_valide,
+          epoux_selfie_url: item.epoux_selfie_url,
+          epoux_selfie_valide: item.epoux_selfie_valide,
+          epoux_face_match_score: item.epoux_face_match_score ? Number(item.epoux_face_match_score) : undefined,
+          epoux_identite_verifiee: item.epoux_identite_verifiee,
+          epouse_cni_url: item.epouse_cni_url,
+          epouse_cni_valide: item.epouse_cni_valide,
+          epouse_selfie_url: item.epouse_selfie_url,
+          epouse_selfie_valide: item.epouse_selfie_valide,
+          epouse_face_match_score: item.epouse_face_match_score ? Number(item.epouse_face_match_score) : undefined,
+          epouse_identite_verifiee: item.epouse_identite_verifiee,
+          spouse1_cni_type: item.spouse1_cni_type || 'CNI',
+          spouse2_cni_type: item.spouse2_cni_type || 'CNI',
+          epoux_face_attempts: item.epoux_face_attempts || 0,
+          epouse_face_attempts: item.epouse_face_attempts || 0,
+          mairie_exam_unlocked: item.mairie_exam_unlocked || false,
+          frais_reservation_montant: item.frais_reservation_montant,
+          frais_reservation_paye: item.frais_reservation_paye || false,
+          frais_reservation_date_paiement: item.frais_reservation_date_paiement || null,
+          frais_reservation_reference: item.frais_reservation_reference || null,
+          recu_qr_code: item.recu_qr_code || null,
+          recu_url_pdf: item.recu_url_pdf || null,
+          date_rendezvous: effectiveRdv,
+          heure_rendezvous: item.heure_rendezvous || null,
+          rendezvous_confirme: item.rendezvous_confirme || false,
+          nombre_reprogrammations: item.nombre_reprogrammations || 0,
+          date_mariage: item.date_mariage || null,
+          heure_mariage: item.heure_mariage || null,
+          salle_id: item.salle_id || null,
+          statut: item.statut || 'EN_COURS',
+          epoux_profile: item.epoux_profile || getSavedSpouseProfiles(item.id).epouxProfile,
+          epouse_profile: item.epouse_profile || getSavedSpouseProfiles(item.id).epouseProfile
+        };
+      });
   } catch (err) {
     console.warn("Supabase: Failed to fetch dossiers.", err);
     return [];
@@ -428,6 +501,18 @@ export async function getDossierById(id: string): Promise<DossierInfo | null> {
     if (data && data.length > 0) {
       const row = data[0];
       const savedProf = getSavedSpouseProfiles(row.id);
+      
+      const rawRdv = row.date_rendezvous || row.appointment_date || null;
+      const rawWedding = row.wedding_date || row.date_mariage || null;
+      const effectiveRdv = computeCorrectRdvDate(rawRdv, rawWedding);
+
+      if (effectiveRdv && effectiveRdv !== rawRdv && row.id) {
+        supabase.from('dossiers').update({
+          date_rendezvous: effectiveRdv,
+          appointment_date: effectiveRdv
+        }).eq('id', row.id).then(() => {});
+      }
+
       return {
         id: row.id,
         mairie_id: row.mairie_id,
@@ -442,7 +527,7 @@ export async function getDossierById(id: string): Promise<DossierInfo | null> {
         spouse1_cni: row.spouse1_cni,
         spouse2_cni: row.spouse2_cni,
         wedding_date: row.wedding_date,
-        appointment_date: row.appointment_date || null,
+        appointment_date: effectiveRdv,
         status: row.status,
         slot_reserved_at: row.slot_reserved_at || null,
         whatsapp_reminders_sent: row.whatsapp_reminders_sent || [],
@@ -471,7 +556,7 @@ export async function getDossierById(id: string): Promise<DossierInfo | null> {
         frais_reservation_reference: row.frais_reservation_reference || null,
         recu_qr_code: row.recu_qr_code || null,
         recu_url_pdf: row.recu_url_pdf || null,
-        date_rendezvous: row.date_rendezvous || null,
+        date_rendezvous: effectiveRdv,
         heure_rendezvous: row.heure_rendezvous || null,
         rendezvous_confirme: row.rendezvous_confirme || false,
         nombre_reprogrammations: row.nombre_reprogrammations || 0,

@@ -245,7 +245,7 @@ export default function Landing({
         });
       }
 
-      const userEmail = spouse1Email || spouse2Email || 'citoyen@e-mariage.ci';
+      const userEmail = 'citoyen@e-mariage.ci';
       const reference = 'EMAR_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
 
       const handler = (window as any).PaystackPop.setup({

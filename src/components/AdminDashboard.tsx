@@ -2362,8 +2362,26 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
   // Note: Selected dossier data and opposition loading handled by main useEffect
 
-  // Preset time slots & format helper
-  const timeSlots = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"];
+  // Preset time slots & format helper based on room/mairie time offset
+  const getTimeSlotsForRoomOrMairie = (roomIdOrMairieId?: string): string[] => {
+    if (roomIdOrMairieId === 'cocody_salle_union') {
+      // 15-minute offset schedule (starts at 08:15)
+      return ["08:15", "08:45", "09:15", "09:45", "10:15", "10:45", "11:15", "11:45", "12:15", "12:45", "13:15", "13:45", "14:15", "14:45", "15:15"];
+    }
+    if (roomIdOrMairieId === 'cocody_salle_prestige') {
+      // 30-minute offset schedule (starts at 08:30)
+      return ["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00"];
+    }
+    // Default / All: Combine standard 15-min and 30-min room offset schedules
+    return [
+      "08:15", "08:30", "08:45", "09:00", "09:15", "09:30", "09:45", "10:00",
+      "10:15", "10:30", "10:45", "11:00", "11:15", "11:30", "11:45", "12:00",
+      "12:15", "12:30", "12:45", "13:00", "13:15", "13:30", "13:45", "14:00",
+      "14:15", "14:30", "14:45", "15:00", "15:15"
+    ];
+  };
+
+  const timeSlots = getTimeSlotsForRoomOrMairie();
   const formatWeddingDate = (dateStr: string, timeStr: string): string => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
@@ -2706,6 +2724,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   };
 
   const renderMairieFinanceView = () => {
+    const mairiePayments = allPayments.filter(p => p.mairieId === activeMairieId && p.status === 'success');
     const paidCount = dossiers.filter(d => d.mairie_id === activeMairieId && d.frais_timbre_paye === true).length;
     const totalCollected = paidCount * (paramTimbrePrice || 100000);
     const pendingCount = dossiers.filter(d => d.mairie_id === activeMairieId && d.frais_timbre_paye !== true).length;
@@ -2813,6 +2832,7 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   };
 
   const renderSuperadminFinanceView = () => {
+    const successfulPayments = allPayments.filter(p => p.status === 'success');
     const totalPlatform = dossiers.filter(d => d.frais_reservation_paye === true).length * (paystackAmount || 2500);
     const totalCaisse = dossiers.filter(d => d.frais_timbre_paye === true).length * (paramTimbrePrice || 100000);
     const totalCollectedGlobal = totalPlatform + totalCaisse;
@@ -3087,8 +3107,11 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       if (!sameDay) return false;
 
       const cleanedDateStr = d.wedding_date.toLowerCase();
-      const slotHour = slot.replace(':', 'h');
-      return cleanedDateStr.includes(slotHour) || cleanedDateStr.includes(slot);
+      const slotFormatted = slot.replace(':', 'h');
+      const [hStr, mStr] = slot.split(':');
+      const shortHour = `${parseInt(hStr, 10)}h${mStr}`;
+
+      return cleanedDateStr.includes(slotFormatted) || cleanedDateStr.includes(slot) || cleanedDateStr.includes(shortHour);
     };
 
     // Handle view dossier from calendar
@@ -3597,9 +3620,38 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
           {/* Time Slots Cards */}
           <div className="space-y-3 mt-2 max-h-[460px] overflow-y-auto pr-1">
             <AnimatePresence mode="popLayout">
-              {timeSlots.map((slot) => {
-                // Find booking for this slot
-                const booking = selectedBookings.find(d => isDossierAtSlot(d, selectedCalendarDate, slot));
+              {(() => {
+                const activeFilter = selectedRoomFilter !== 'all' 
+                  ? selectedRoomFilter 
+                  : (superadminCalendarMairieFilter !== 'all' ? superadminCalendarMairieFilter : undefined);
+                
+                const baseSlots = getTimeSlotsForRoomOrMairie(activeFilter);
+                
+                // Collect booked times for this selected date
+                const bookedTimes: string[] = [];
+                selectedBookings.forEach(d => {
+                  if (!d.wedding_date) return;
+                  const match = d.wedding_date.match(/(\d{1,2})[h:](\d{2})/i);
+                  if (match) {
+                    const h = match[1].padStart(2, '0');
+                    const m = match[2];
+                    const timeVal = `${h}:${m}`;
+                    if (!bookedTimes.includes(timeVal)) {
+                      bookedTimes.push(timeVal);
+                    }
+                  }
+                });
+
+                const combinedSlots = Array.from(new Set([...baseSlots, ...bookedTimes]));
+                combinedSlots.sort((a, b) => {
+                  const [ha, ma] = a.split(':').map(Number);
+                  const [hb, mb] = b.split(':').map(Number);
+                  return (ha * 60 + ma) - (hb * 60 + mb);
+                });
+
+                return combinedSlots.map((slot) => {
+                  // Find booking for this slot
+                  const booking = selectedBookings.find(d => isDossierAtSlot(d, selectedCalendarDate, slot));
 
                 if (booking) {
                   let badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
@@ -3646,12 +3698,14 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
                         <div className="flex flex-col gap-0.5 text-[10px] text-slate-400 font-sans">
                           <span>Code : <span className="font-mono text-slate-600 font-bold">{booking.id.toUpperCase().replace('DOSSIER_', '')}</span></span>
-                          {isSuperadmin && (
-                            <span className="flex items-center gap-1 text-slate-500 font-medium mt-0.5">
-                              <Landmark className="w-3 h-3 text-primary shrink-0" />
-                              {associatedMairie ? associatedMairie.name : booking.mairie_id}
-                            </span>
-                          )}
+                          <span className="flex items-center gap-1 text-slate-500 font-medium mt-0.5">
+                            <Landmark className="w-3 h-3 text-primary shrink-0" />
+                            {booking.mairie_id === 'cocody_salle_union'
+                              ? "Salle de l'Union (Salle 2)"
+                              : booking.mairie_id === 'cocody_salle_prestige'
+                                ? "Salle Prestige (Salle 1)"
+                                : (associatedMairie ? associatedMairie.name : booking.mairie_id)}
+                          </span>
                         </div>
                       </div>
 
@@ -3689,11 +3743,11 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                       <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold">
                         Disponible
                       </span>
-                      <span className="text-[9px] text-slate-400 font-medium">Aucune union planifiée</span>
                     </div>
                   </motion.div>
                 );
-              })}
+              });
+            })()}
             </AnimatePresence>
           </div>
         </div>

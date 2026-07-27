@@ -130,6 +130,8 @@ export default function App() {
     return Boolean(localId && !demoIds.includes(localId));
   });
 
+  const [verifyDossierId, setVerifyDossierId] = useState<string | null>(null);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const verifyId = params.get('verify') || params.get('id');

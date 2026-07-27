@@ -524,11 +524,21 @@ export default function Dossier({
             (dossierDetails?.epouse_face_attempts ?? 0) >= 3);
       case 6: // Extrait Épouse
         return doc2_f?.status === 'verified';
-      case 7: // Autres docs
-        // Remaining required documents: doc3, doc3_f (Justifs), doc5, doc9 (Témoins CNI)
-        const remIds = ['doc3', 'doc3_f', 'doc5', 'doc9'];
-        const remDocs = documents.filter(d => remIds.includes(d.id));
-        return remDocs.length > 0 && remDocs.every(d => d.status === 'verified' || !!d.fileName);
+      case 7: {
+        // Justificatifs requis calculés dynamiquement selon la situation des époux
+        const savedProf = getSavedSpouseProfiles(dossierId);
+        const epouxP = dossierDetails?.epoux_profile || savedProf.epouxProfile;
+        const epouseP = dossierDetails?.epouse_profile || savedProf.epouseProfile;
+        const requiredMetas = getRequiredDocsForProfiles(epouxP, epouseP);
+
+        const step7Ids = requiredMetas
+          .filter(d => !['doc1', 'doc2', 'doc1_f', 'doc2_f', 'selfie_epoux', 'selfie_epouse'].includes(d.id))
+          .map(d => d.id);
+
+        if (step7Ids.length === 0) return true;
+        const step7Docs = documents.filter(d => step7Ids.includes(d.id));
+        return step7Docs.length === step7Ids.length && step7Docs.every(d => d.status === 'verified' || !!d.fileName);
+      }
       default:
         return false;
     }
@@ -592,11 +602,20 @@ export default function Dossier({
       case 6:
         if (doc2_f?.status === 'rejected') return 'red';
         return 'none';
-      case 7:
-        const remIds = ['doc3', 'doc3_f', 'doc5', 'doc9'];
-        const rejectedRem = documents.filter(d => remIds.includes(d.id) && d.status === 'rejected');
+      case 7: {
+        const savedProf = getSavedSpouseProfiles(dossierId);
+        const epouxP = dossierDetails?.epoux_profile || savedProf.epouxProfile;
+        const epouseP = dossierDetails?.epouse_profile || savedProf.epouseProfile;
+        const requiredMetas = getRequiredDocsForProfiles(epouxP, epouseP);
+
+        const step7Ids = requiredMetas
+          .filter(d => !['doc1', 'doc2', 'doc1_f', 'doc2_f', 'selfie_epoux', 'selfie_epouse'].includes(d.id))
+          .map(d => d.id);
+
+        const rejectedRem = documents.filter(d => step7Ids.includes(d.id) && d.status === 'rejected');
         if (rejectedRem.length > 0) return 'red';
         return 'none';
+      }
       default:
         return 'none';
     }

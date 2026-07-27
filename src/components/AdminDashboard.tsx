@@ -3212,6 +3212,10 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
 
     // Get appointments for a specific day
     const getAppointmentsForDate = (date: Date) => {
+      const targetY = date.getFullYear();
+      const targetM = date.getMonth();
+      const targetD = date.getDate();
+
       return dossiers.filter(d => {
         if (!isSuperadmin) {
           if (isCentralMairie) {
@@ -3229,15 +3233,36 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
         const rdvDateStr = d.date_rendezvous || d.appointment_date;
         if (!rdvDateStr) return false;
 
-        const parts = rdvDateStr.split('/');
-        if (parts.length !== 3) return false;
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const year = parseInt(parts[2], 10);
+        let year: number | null = null;
+        let month: number | null = null;
+        let day: number | null = null;
 
-        return date.getFullYear() === year &&
-               date.getMonth() === month &&
-               date.getDate() === day;
+        if (rdvDateStr.includes('-')) {
+          const parts = rdvDateStr.split('T')[0].split('-');
+          if (parts.length === 3) {
+            year = parseInt(parts[0], 10);
+            month = parseInt(parts[1], 10) - 1;
+            day = parseInt(parts[2], 10);
+          }
+        } else if (rdvDateStr.includes('/')) {
+          const parts = rdvDateStr.split('/');
+          if (parts.length === 3) {
+            day = parseInt(parts[0], 10);
+            month = parseInt(parts[1], 10) - 1;
+            year = parseInt(parts[2], 10);
+          }
+        } else {
+          const parsed = new Date(rdvDateStr);
+          if (!isNaN(parsed.getTime())) {
+            year = parsed.getFullYear();
+            month = parsed.getMonth();
+            day = parsed.getDate();
+          }
+        }
+
+        if (year === null || month === null || day === null) return false;
+
+        return targetY === year && targetM === month && targetD === day;
       });
     };
 

@@ -1595,7 +1595,7 @@ export async function deleteNotificationFromDb(id: string, dossierId: string): P
 
 const DEFAULT_PAYSTACK_CONFIG: PaystackConfig = {
   mode: 'test',
-  publicKey: '',
+  publicKey: 'pk_test_093aa2de57ef6fc763d5ec2bbd715dd231ab98c2',
   secretKey: '',
   currency: 'XOF',
   amount: 50000,
@@ -1615,7 +1615,23 @@ const DEFAULT_PAYSTACK_CONFIG: PaystackConfig = {
 };
 
 export async function getPaystackConfig(): Promise<PaystackConfig> {
-  const config = getLocal<PaystackConfig>('e_mariage_paystack_config', DEFAULT_PAYSTACK_CONFIG);
+  let config = getLocal<PaystackConfig>('e_mariage_paystack_config', DEFAULT_PAYSTACK_CONFIG);
+
+  try {
+    const { data, error } = await supabase
+      .from('system_configs')
+      .select('config')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (data && data.config) {
+      config = { ...DEFAULT_PAYSTACK_CONFIG, ...config, ...data.config };
+      setLocal('e_mariage_paystack_config', config);
+    }
+  } catch (err) {
+    console.warn("Supabase: Error loading Paystack config.", err);
+  }
+
   if (!config.whatsappToken) {
     config.enableWhatsappNotifs = DEFAULT_PAYSTACK_CONFIG.enableWhatsappNotifs;
     config.whatsappToken = DEFAULT_PAYSTACK_CONFIG.whatsappToken;

@@ -232,72 +232,56 @@ export default function Landing({
     try {
       const config = await getPaystackConfig();
       const amount = systemParams?.frais_reservation_montant || 2500;
+      const pubKey = config?.publicKey?.trim() || 'pk_test_093aa2de57ef6fc763d5ec2bbd715dd231ab98c2';
 
-      // Si Paystack est configuré avec une clé publique valide (ex: pk_test_...)
-      if (config && config.publicKey && config.publicKey.trim().startsWith('pk_')) {
-        // S'assurer que le SDK PaystackPop est présent dans le DOM
-        if (!(window as any).PaystackPop) {
-          await new Promise<void>((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://js.paystack.co/v1/inline.js';
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Erreur lors du chargement du module Paystack'));
-            document.body.appendChild(script);
-          });
-        }
-
-        const userEmail = spouse1Email || spouse2Email || 'citoyen@e-mariage.ci';
-        const reference = 'EMAR_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-
-        const handler = (window as any).PaystackPop.setup({
-          key: config.publicKey,
-          email: userEmail,
-          amount: amount * 100, // Montant en sous-unités pour Paystack (2500 FCFA = 250000 kobo)
-          currency: config.currency || 'XOF',
-          ref: reference,
-          metadata: {
-            custom_fields: [
-              { display_name: "Dossier N°", variable_name: "dossier_id", value: dossierId || "DEMO" },
-              { display_name: "Époux 1", variable_name: "spouse1", value: spouse1Name || "Époux" },
-              { display_name: "Époux 2", variable_name: "spouse2", value: spouse2Name || "Épouse" }
-            ]
-          },
-          callback: async function (response: any) {
-            console.log('✅ Paiement Paystack confirmé :', response);
-            const ref = response.reference || reference;
-            if (dossierId) {
-              await confirmPaystackReservationPayment(dossierId, ref);
-            }
-            setIsProcessingPayment(false);
-            setSimulatedReservationPaid(true);
-            completeStep(5);
-            setActiveStep(6);
-          },
-          onClose: function () {
-            console.log('❌ Modal de paiement Paystack fermé');
-            setIsProcessingPayment(false);
-          }
+      // S'assurer que le SDK PaystackPop est présent dans le DOM
+      if (!(window as any).PaystackPop) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://js.paystack.co/v1/inline.js';
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Erreur lors du chargement du module Paystack'));
+          document.body.appendChild(script);
         });
+      }
 
-        handler.openIframe();
-      } else {
-        // Mode Simulation direct si aucune clé API Paystack n'est renseignée
-        setTimeout(async () => {
+      const userEmail = spouse1Email || spouse2Email || 'citoyen@e-mariage.ci';
+      const reference = 'EMAR_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
+      const handler = (window as any).PaystackPop.setup({
+        key: pubKey,
+        email: userEmail,
+        amount: amount * 100, // Montant en sous-unités pour Paystack (2500 FCFA = 250000 kobo)
+        currency: config?.currency || 'XOF',
+        ref: reference,
+        metadata: {
+          custom_fields: [
+            { display_name: "Dossier N°", variable_name: "dossier_id", value: dossierId || "DEMO" },
+            { display_name: "Époux 1", variable_name: "spouse1", value: spouse1Name || "Époux" },
+            { display_name: "Époux 2", variable_name: "spouse2", value: spouse2Name || "Épouse" }
+          ]
+        },
+        callback: async function (response: any) {
+          console.log('✅ Paiement Paystack confirmé :', response);
+          const ref = response?.reference || reference;
           if (dossierId) {
-            await confirmPaystackReservationPayment(dossierId, 'SIM_PAY_' + Date.now());
+            await confirmPaystackReservationPayment(dossierId, ref);
           }
           setIsProcessingPayment(false);
           setSimulatedReservationPaid(true);
           completeStep(5);
           setActiveStep(6);
-        }, 800);
-      }
+        },
+        onClose: function () {
+          console.log('❌ Modal de paiement Paystack fermé');
+          setIsProcessingPayment(false);
+        }
+      });
+
+      handler.openIframe();
     } catch (err) {
       console.error('Erreur lors de l’initialisation de Paystack :', err);
       setIsProcessingPayment(false);
-      setSimulatedReservationPaid(true);
-      completeStep(5);
-      setActiveStep(6);
     }
   };
 

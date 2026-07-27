@@ -800,20 +800,38 @@ export async function attribuerAutomatiquementRdv(
     juillet: 6, août: 7, septembre: 8, octobre: 9, novembre: 10, décembre: 11
   };
   
-  let wDate = new Date();
+  let wDate: Date | null = null;
   try {
-    const match = weddingDateStr.match(/^(\d{1,2})\s+([a-zéûî]+)\s+(\d{4})/i);
-    if (match) {
-      const day = parseInt(match[1], 10);
-      const monthKey = match[2].toLowerCase();
-      const year = parseInt(match[3], 10);
-      const monthIdx = MOIS[monthKey];
-      if (monthIdx !== undefined) {
-        wDate = new Date(year, monthIdx, day);
+    if (weddingDateStr.includes('-')) {
+      const cleanIso = weddingDateStr.split('T')[0].split(' ')[0];
+      const parts = cleanIso.split('-').map(n => parseInt(n, 10));
+      if (parts.length === 3 && parts[0] > 1900) {
+        wDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+    } else if (weddingDateStr.includes('/')) {
+      const parts = weddingDateStr.split(' ')[0].split('/').map(n => parseInt(n, 10));
+      if (parts.length === 3) {
+        wDate = new Date(parts[2], parts[1] - 1, parts[0]);
+      }
+    } else {
+      const match = weddingDateStr.match(/^(\d{1,2})\s+([a-zéûî]+)\s+(\d{4})/i);
+      if (match) {
+        const day = parseInt(match[1], 10);
+        const monthKey = match[2].toLowerCase();
+        const year = parseInt(match[3], 10);
+        const monthIdx = MOIS[monthKey];
+        if (monthIdx !== undefined) {
+          wDate = new Date(year, monthIdx, day);
+        }
       }
     }
   } catch (err) {
     console.error("Error parsing wedding date for appointment: ", err);
+  }
+
+  if (!wDate || isNaN(wDate.getTime())) {
+    wDate = new Date();
+    wDate.setDate(wDate.getDate() + 30);
   }
 
   const params = await getSystemParameters();
@@ -825,7 +843,7 @@ export async function attribuerAutomatiquementRdv(
   let leastBusyDate: Date | null = null;
 
   // Plage légale : de Mariage - 30 jours à Mariage - 10 jours
-  for (let i = 10; i <= 30; i++) {
+  for (let i = 14; i <= 30; i++) {
     const testDate = new Date(wDate.getTime());
     testDate.setDate(wDate.getDate() - i);
 
@@ -847,12 +865,14 @@ export async function attribuerAutomatiquementRdv(
     const dd = String(testDate.getDate()).padStart(2, '0');
     const mm = String(testDate.getMonth() + 1).padStart(2, '0');
     const yyyy = testDate.getFullYear();
-    const testDateStr = `${dd}/${mm}/${yyyy}`;
+    const testDateFr = `${dd}/${mm}/${yyyy}`;
+    const testDateIso = `${yyyy}-${mm}-${dd}`;
 
     const rdvCount = allDossiers.filter(d => {
       if (d.status === 'rejected' || d.statut === 'ANNULE' || d.statut === 'EXPIRE' || d.statut === 'REJETE') return false;
       if (d.mairie_id !== mairieId) return false;
-      return d.date_rendezvous === testDateStr || d.appointment_date === testDateStr;
+      return d.date_rendezvous === testDateFr || d.appointment_date === testDateFr ||
+             d.date_rendezvous === testDateIso || d.appointment_date === testDateIso;
     }).length;
 
     if (rdvCount < limit) {
@@ -867,13 +887,13 @@ export async function attribuerAutomatiquementRdv(
   }
 
   if (!selectedDate) {
-    selectedDate = leastBusyDate || new Date(wDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+    selectedDate = leastBusyDate || new Date(wDate.getTime() - 14 * 24 * 60 * 60 * 1000);
   }
 
   const finalDd = String(selectedDate.getDate()).padStart(2, '0');
   const finalMm = String(selectedDate.getMonth() + 1).padStart(2, '0');
   const finalYyyy = selectedDate.getFullYear();
-  const appointmentDateStr = `${finalDd}/${finalMm}/${finalYyyy}`;
+  const appointmentDateStr = `${finalYyyy}-${finalMm}-${finalDd}`;
 
   const existingRdvCount = allDossiers.filter(d => {
     if (d.status === 'rejected' || d.statut === 'ANNULE' || d.statut === 'EXPIRE' || d.statut === 'REJETE') return false;
@@ -882,7 +902,6 @@ export async function attribuerAutomatiquementRdv(
   }).length;
 
   // Staggering (échelonnement) des heures : matins uniquement (08h00 - 12h00)
-  // 08:00, 08:30, 09:00, 09:30, 10:00, 10:30, 11:00, 11:30
   const startHour = 8;
   const intervalMin = 30;
   const totalMin = startHour * 60 + (existingRdvCount % 8) * intervalMin;
@@ -5779,8 +5798,12 @@ export async function confirmPaystackReservationPayment(
     let appointmentDateStr: string | null = dossier?.date_rendezvous || null;
     let appointmentTimeStr = dossier?.heure_rendezvous || "09:00";
 
-    if (!appointmentDateStr && dossier?.wedding_date) {
-      const autoRdv = await attribuerAutomatiquementRdv(dossier.wedding_date, dossier.mairie_id);
+    const isRdvSameAsWedding = appointmentDateStr && dossier?.wedding_date && (
+      appointmentDateStr.split('T')[0].split(' ')[0] === dossier.wedding_date.split('T')[0].split(' ')[0]
+    );
+
+    if ((!appointmentDateStr || isRdvSameAsWedding) && dossier?.wedding_date) {
+      const autoRdv = await attribuerAutomatiquementRdv(dossier.wedding_date, dossier.mairie_id || 'cocody_salle_prestige');
       appointmentDateStr = autoRdv.date;
       appointmentTimeStr = autoRdv.heure;
     } else if (!appointmentDateStr) {

@@ -1498,34 +1498,65 @@ export default function Landing({
                   )}
                 </div>
 
-                {/* Stepper */}
-                <div className="flex items-center gap-0 pb-3 overflow-x-auto scrollbar-hide">
-                  {STEPS_META.map((s, idx) => {
-                    const isDone = completedSteps.includes(s.id);
-                    const isActive = activeStep === s.id;
-                    return (
-                      <React.Fragment key={s.id}>
-                        <button
-                          onClick={() => (isDone || s.id <= activeStep) && setActiveStep(s.id)}
-                          className={`flex flex-col items-center gap-1 shrink-0 transition-all duration-200 ${isDone || s.id <= activeStep ? 'cursor-pointer' : 'cursor-default'}`}
-                        >
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base border-2 transition-all duration-300 ${
-                            isActive ? 'bg-primary border-primary text-white shadow-md scale-110' :
-                            isDone ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' :
-                            'bg-neutral-100 border-neutral-200 text-slate-400'
-                          }`}>
-                            {isActive ? <span className="text-xs font-bold">{s.id}</span> : isDone ? <Check className="w-4 h-4" /> : <span className="text-xs font-bold">{s.id}</span>}
-                          </div>
-                          <span className={`text-[8px] font-bold whitespace-nowrap ${isActive ? 'text-primary' : isDone ? 'text-emerald-600' : 'text-slate-400'}`}>
-                            {s.short}
-                          </span>
-                        </button>
-                        {idx < STEPS_META.length - 1 && (
-                          <div className={`flex-1 h-0.5 mx-1 rounded-full transition-all duration-500 ${completedSteps.includes(s.id) ? 'bg-emerald-400' : 'bg-neutral-200'}`} />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
+                {/* Stepper avec curseur animé du couple */}
+                <div className="relative pt-7 pb-2 px-1">
+                  {/* Curseur animé du couple au-dessus de l'étape active */}
+                  <motion.div
+                    className="absolute top-0 flex flex-col items-center pointer-events-none z-20"
+                    initial={false}
+                    animate={{
+                      left: `${((activeStep - 1) / (STEPS_META.length - 1)) * 100}%`
+                    }}
+                    transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+                    style={{ translateX: '-50%' }}
+                  >
+                    <div className="flex items-center justify-center gap-0.5 drop-shadow-sm select-none">
+                      {/* Figure 1: Époux (Maroon/Magenta) */}
+                      <svg className="w-4 h-4.5 text-primary" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="5" r="3.5" />
+                        <path d="M12 10.5c-3.5 0-6 2.2-6 5.5v2h12v-2c0-3.3-2.5-5.5-6-5.5z" />
+                      </svg>
+                      {/* Mains jointes / Cœur */}
+                      <span className="text-[9px] text-rose-500 font-bold -mx-1 animate-pulse">🤝</span>
+                      {/* Figure 2: Épouse (Beige/Or) */}
+                      <svg className="w-4 h-4.5 text-[#c5a368]" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="5" r="3.5" />
+                        <path d="M12 10.5c-3.2 0-5.5 2.2-5.5 5.5v2h11v-2c0-3.3-2.3-5.5-5.5-5.5z" />
+                      </svg>
+                    </div>
+                    {/* Pointeur triangle rose vers le cercle d'étape actif */}
+                    <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] border-t-primary -mt-0.5" />
+                  </motion.div>
+
+                  {/* Pistes d'étapes (Stepper) */}
+                  <div className="flex items-center justify-between relative z-10">
+                    {STEPS_META.map((s, idx) => {
+                      const isDone = completedSteps.includes(s.id);
+                      const isActive = activeStep === s.id;
+                      return (
+                        <React.Fragment key={s.id}>
+                          <button
+                            onClick={() => (isDone || s.id <= activeStep) && setActiveStep(s.id)}
+                            className={`flex flex-col items-center gap-1 shrink-0 transition-all duration-200 ${isDone || s.id <= activeStep ? 'cursor-pointer' : 'cursor-default'}`}
+                          >
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300 ${
+                              isActive ? 'bg-primary border-primary text-white shadow-md scale-110 ring-4 ring-primary/20' :
+                              isDone ? 'bg-[#c5a368] border-[#c5a368] text-white shadow-sm' :
+                              'bg-neutral-100 border-neutral-200 text-slate-400'
+                            }`}>
+                              {isActive ? s.id : isDone ? <Check className="w-4 h-4" /> : s.id}
+                            </div>
+                            <span className={`text-[8px] font-bold whitespace-nowrap ${isActive ? 'text-primary' : isDone ? 'text-[#c5a368]' : 'text-slate-400'}`}>
+                              {s.short}
+                            </span>
+                          </button>
+                          {idx < STEPS_META.length - 1 && (
+                            <div className={`flex-1 h-0.5 mx-1 rounded-full transition-all duration-500 ${completedSteps.includes(s.id) ? 'bg-[#c5a368]' : 'bg-neutral-200'}`} />
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Barre de progression */}

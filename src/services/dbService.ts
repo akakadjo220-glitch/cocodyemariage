@@ -5801,11 +5801,13 @@ export async function confirmPaystackReservationPayment(
           heure_rendezvous: appointmentTimeStr,
           appointment_date: appointmentDateStr,
           rendezvous_confirme: false,
+          status: 'approved',
           statut: 'VALIDE'
         })
         .eq('id', dossierId);
 
       if (updateErr) console.warn("Supabase: Error updating dossier payment", updateErr);
+      else console.log(`Supabase: Payment confirmed for dossier ${dossierId}`);
     }
 
     // 2. Enregistrer la transaction dans la table Supabase 'payments' pour le Tableau de bord Admin / Mairie

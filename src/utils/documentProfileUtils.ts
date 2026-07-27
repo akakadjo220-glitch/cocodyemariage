@@ -54,6 +54,14 @@ export function saveSpouseProfiles(dossierId: string | null | undefined, epouxPr
     if (dossierId && dossierId.trim()) {
       localStorage.setItem(`epoux_profile_${dossierId}`, rawEpoux);
       localStorage.setItem(`epouse_profile_${dossierId}`, rawEpouse);
+      import('../supabaseClient').then(({ supabase }) => {
+        supabase.from('dossiers').update({
+          epoux_profile: epouxProfile as any,
+          epouse_profile: epouseProfile as any
+        }).eq('id', dossierId).then(({ error }) => {
+          if (error) console.warn("Supabase: Error syncing spouse profiles", error);
+        });
+      });
     }
   } catch (e) {
     console.warn("Failed to save spouse profiles to localStorage", e);

@@ -5761,51 +5761,83 @@ export async function confirmPaystackReservationPayment(
     const now = new Date().toISOString();
     const qrCodeVerificationUrl = `https://e-mariage.ci/verify-receipt/${dossierId}`;
 
-    const dossier = await getDossierById(dossierId);
-    if (!dossier) return false;
+    let dossier = await getDossierById(dossierId);
 
-    let appointmentDateStr: string | null = null;
-    let appointmentTimeStr = "09:00";
+    // Si le dossier n'existe pas encore en base Supabase, le créer immédiatement
+    if (!dossier && dossierId) {
+      console.log(`Supabase: Creating dossier ${dossierId} before confirming payment...`);
+      await supabase.from('dossiers').upsert({
+        id: dossierId,
+        statut: 'EN_COURS',
+        created_at: now
+      });
+      dossier = await getDossierById(dossierId);
+    }
 
-    if (dossier.wedding_date) {
+    let appointmentDateStr: string | null = dossier?.date_rendezvous || null;
+    let appointmentTimeStr = dossier?.heure_rendezvous || "09:00";
+
+    if (!appointmentDateStr && dossier?.wedding_date) {
       const autoRdv = await attribuerAutomatiquementRdv(dossier.wedding_date, dossier.mairie_id);
       appointmentDateStr = autoRdv.date;
       appointmentTimeStr = autoRdv.heure;
+    } else if (!appointmentDateStr) {
+      const d = new Date();
+      d.setDate(d.getDate() + 14);
+      appointmentDateStr = d.toISOString().split('T')[0];
     }
 
-    const { error } = await supabase
-      .from('dossiers')
-      .update({
-        frais_reservation_paye: true,
-        frais_reservation_date_paiement: now,
-        frais_reservation_reference: reference,
-        recu_qr_code: qrCodeVerificationUrl,
-        recu_url_pdf: `/receipts/receipt_${dossierId}.pdf`,
-        date_rendezvous: appointmentDateStr,
-        heure_rendezvous: appointmentTimeStr,
-        appointment_date: appointmentDateStr,
-        rendezvous_confirme: false,
-        statut: 'VALIDE'
-      })
-      .eq('id', dossierId);
+    // 1. Mettre à jour le dossier dans Supabase
+    if (dossierId) {
+      const { error: updateErr } = await supabase
+        .from('dossiers')
+        .update({
+          frais_reservation_paye: true,
+          frais_reservation_date_paiement: now,
+          frais_reservation_reference: reference,
+          recu_qr_code: qrCodeVerificationUrl,
+          recu_url_pdf: `/receipts/receipt_${dossierId}.pdf`,
+          date_rendezvous: appointmentDateStr,
+          heure_rendezvous: appointmentTimeStr,
+          appointment_date: appointmentDateStr,
+          rendezvous_confirme: false,
+          statut: 'VALIDE'
+        })
+        .eq('id', dossierId);
 
-    if (error) throw error;
+      if (updateErr) console.warn("Supabase: Error updating dossier payment", updateErr);
+    }
 
+    // 2. Enregistrer la transaction dans la table Supabase 'payments' pour le Tableau de bord Admin / Mairie
+    await recordPaymentInDb({
+      id: 'pay_' + Date.now(),
+      dossierId: dossierId || 'DEMO',
+      amount: 2500,
+      currency: 'XOF',
+      status: 'success',
+      reference: reference,
+      method: 'paystack',
+      date: now,
+      mairieId: dossier?.mairie_id || 'mairie_cocody'
+    });
+
+    // 3. Envoyer la notification WhatsApp aux époux
     const config = await getPaystackConfig();
-    const textMsg = `Votre paiement de réservation de 2500 FCFA a été confirmé. Reçu QR Code : ${qrCodeVerificationUrl}. Votre rendez-vous physique en mairie est fixé au ${appointmentDateStr} à ${appointmentTimeStr}.`;
+    const textMsg = `🎉 [E-MARIAGE CONFIRMATION] Votre paiement de réservation de 2 500 FCFA pour le dossier N° ${dossierId.toUpperCase()} a été validé avec succès (Réf: ${reference}) ! Votre rendez-vous physique en Mairie est fixé au ${appointmentDateStr} à ${appointmentTimeStr}. Reçu : ${qrCodeVerificationUrl}`;
 
-    if (dossier.spouse1_phone) {
+    if (dossier?.spouse1_phone) {
       await sendOpenwaWhatsapp(config, dossier.spouse1_phone, textMsg);
     }
-    if (dossier.spouse2_phone) {
+    if (dossier?.spouse2_phone) {
       await sendOpenwaWhatsapp(config, dossier.spouse2_phone, textMsg);
     }
 
-    console.log(`[WhatsApp Sent to ${dossier.spouse1_phone}]: ${textMsg}`);
+    console.log(`[WhatsApp Payment Notification Sent]: ${textMsg}`);
 
+    // 4. Ajouter la notification dans la base de données
     await addNotificationToDb({
       id: 'pay_' + Date.now(),
-      text: `Paiement de confirmation validé (2500 FCFA). Votre rendez-vous physique est le ${appointmentDateStr} à ${appointmentTimeStr}.`,
+      text: `Paiement Paystack de confirmation validé (2500 FCFA). Rendez-vous physique fixé au ${appointmentDateStr} à ${appointmentTimeStr}.`,
       time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       type: 'success'
     }, dossierId);

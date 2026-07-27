@@ -251,13 +251,26 @@ export default function Landing({
       const handleSuccess = function (response: any) {
         console.log('✅ Paiement Paystack confirmé :', response);
         const ref = response?.reference || response?.trxref || reference;
-        if (dossierId) {
-          confirmPaystackReservationPayment(dossierId, ref).catch(console.warn);
-        }
-        setIsProcessingPayment(false);
-        setSimulatedReservationPaid(true);
-        completeStep(5);
-        setActiveStep(6);
+
+        const executePaymentConfirmation = async () => {
+          if (dossierId) {
+            await confirmPaystackReservationPayment(dossierId, ref);
+            const freshDossiers = await getDossiers();
+            setAllDossiers(freshDossiers);
+          }
+          setIsProcessingPayment(false);
+          setSimulatedReservationPaid(true);
+          completeStep(5);
+          setActiveStep(6);
+        };
+
+        executePaymentConfirmation().catch((err) => {
+          console.warn('Erreur lors de la confirmation en DB:', err);
+          setIsProcessingPayment(false);
+          setSimulatedReservationPaid(true);
+          completeStep(5);
+          setActiveStep(6);
+        });
       };
 
       const handleClose = function () {
@@ -745,6 +758,10 @@ export default function Landing({
       setEpouseProfile(targetDossier.epouse_profile);
     } else if (saved.isCustom) {
       setEpouseProfile(saved.epouseProfile);
+    }
+    if (targetDossier?.frais_reservation_paye) {
+      setSimulatedReservationPaid(true);
+      completeStep(5);
     }
   }, [dossierId, allDossiers]);
 

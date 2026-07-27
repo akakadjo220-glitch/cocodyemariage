@@ -248,6 +248,23 @@ export default function Landing({
       const userEmail = 'citoyen@e-mariage.ci';
       const reference = 'EMAR_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
 
+      const handleSuccess = function (response: any) {
+        console.log('✅ Paiement Paystack confirmé :', response);
+        const ref = response?.reference || response?.trxref || reference;
+        if (dossierId) {
+          confirmPaystackReservationPayment(dossierId, ref).catch(console.warn);
+        }
+        setIsProcessingPayment(false);
+        setSimulatedReservationPaid(true);
+        completeStep(5);
+        setActiveStep(6);
+      };
+
+      const handleClose = function () {
+        console.log('❌ Modal de paiement Paystack fermé par l’usager');
+        setIsProcessingPayment(false);
+      };
+
       const handler = (window as any).PaystackPop.setup({
         key: pubKey,
         email: userEmail,
@@ -261,21 +278,10 @@ export default function Landing({
             { display_name: "Époux 2", variable_name: "spouse2", value: spouse2Name || "Épouse" }
           ]
         },
-        callback: async function (response: any) {
-          console.log('✅ Paiement Paystack confirmé :', response);
-          const ref = response?.reference || reference;
-          if (dossierId) {
-            await confirmPaystackReservationPayment(dossierId, ref);
-          }
-          setIsProcessingPayment(false);
-          setSimulatedReservationPaid(true);
-          completeStep(5);
-          setActiveStep(6);
-        },
-        onClose: function () {
-          console.log('❌ Modal de paiement Paystack fermé');
-          setIsProcessingPayment(false);
-        }
+        callback: handleSuccess,
+        onSuccess: handleSuccess,
+        onClose: handleClose,
+        onCancel: handleClose
       });
 
       handler.openIframe();

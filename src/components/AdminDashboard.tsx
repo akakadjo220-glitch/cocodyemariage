@@ -4804,42 +4804,41 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                         </select>
                       </div>
 
-                      <div className="flex flex-col gap-1.5 text-left">
+                      <div className="flex flex-col gap-2 text-left">
                         <label className="font-semibold text-slate-700">Image d'illustration</label>
-                        <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editPartnerImageUrl}
+                          onChange={(e) => setEditPartnerImageUrl(e.target.value)}
+                          placeholder="URL de l'image (https://...)"
+                          className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                        />
+                        <label className="w-full py-2 px-3 border border-dashed border-neutral-300 hover:border-primary hover:bg-primary/5 rounded-xl cursor-pointer bg-neutral-50 text-slate-700 flex items-center justify-center gap-1.5 transition-all text-xs font-semibold">
+                          <span>📷 Importer un fichier...</span>
                           <input
-                            type="text"
-                            value={editPartnerImageUrl}
-                            onChange={(e) => setEditPartnerImageUrl(e.target.value)}
-                            placeholder="URL de l'image (https://...) ou téléversez"
-                            className="flex-1 border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setEditPartnerImageUrl(reader.result as string);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="hidden"
                           />
-                          <label className="px-3 py-3 border border-neutral-300 hover:border-primary hover:text-primary rounded-xl cursor-pointer bg-neutral-50 text-slate-700 flex items-center justify-center shrink-0 transition-all text-xs font-semibold">
-                            <span>Télécharger...</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    setEditPartnerImageUrl(reader.result as string);
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
-                              }}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
+                        </label>
                         {editPartnerImageUrl && (
-                          <div className="mt-1.5 relative w-16 h-16 rounded-lg overflow-hidden border border-neutral-200">
+                          <div className="mt-1 relative w-20 h-20 rounded-xl overflow-hidden border border-neutral-200 shadow-xs">
                             <img src={editPartnerImageUrl} alt="Aperçu" className="w-full h-full object-cover" />
                             <button
                               type="button"
                               onClick={() => setEditPartnerImageUrl('')}
-                              className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full w-4 h-4 flex items-center justify-center text-[8px] cursor-pointer"
+                              className="absolute top-1 right-1 bg-black/70 hover:bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] cursor-pointer transition-colors"
+                              title="Supprimer l'image"
                             >
                               ✕
                             </button>
@@ -4953,42 +4952,41 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                         </select>
                       </div>
 
-                      <div className="flex flex-col gap-1.5 text-left">
+                      <div className="flex flex-col gap-2 text-left">
                         <label className="font-semibold text-slate-700">Image d'illustration</label>
-                        <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newPartnerImageUrl}
+                          onChange={(e) => setNewPartnerImageUrl(e.target.value)}
+                          placeholder="URL de l'image (https://...)"
+                          className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                        />
+                        <label className="w-full py-2 px-3 border border-dashed border-neutral-300 hover:border-primary hover:bg-primary/5 rounded-xl cursor-pointer bg-neutral-50 text-slate-700 flex items-center justify-center gap-1.5 transition-all text-xs font-semibold">
+                          <span>📷 Importer un fichier...</span>
                           <input
-                            type="text"
-                            value={newPartnerImageUrl}
-                            onChange={(e) => setNewPartnerImageUrl(e.target.value)}
-                            placeholder="URL de l'image (https://...) ou téléversez"
-                            className="flex-1 border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setNewPartnerImageUrl(reader.result as string);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="hidden"
                           />
-                          <label className="px-3 py-3 border border-neutral-300 hover:border-primary hover:text-primary rounded-xl cursor-pointer bg-neutral-50 text-slate-700 flex items-center justify-center shrink-0 transition-all text-xs font-semibold">
-                            <span>Télécharger...</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    setNewPartnerImageUrl(reader.result as string);
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
-                              }}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
+                        </label>
                         {newPartnerImageUrl && (
-                          <div className="mt-1.5 relative w-16 h-16 rounded-lg overflow-hidden border border-neutral-200">
+                          <div className="mt-1 relative w-20 h-20 rounded-xl overflow-hidden border border-neutral-200 shadow-xs">
                             <img src={newPartnerImageUrl} alt="Aperçu" className="w-full h-full object-cover" />
                             <button
                               type="button"
                               onClick={() => setNewPartnerImageUrl('')}
-                              className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full w-4 h-4 flex items-center justify-center text-[8px] cursor-pointer"
+                              className="absolute top-1 right-1 bg-black/70 hover:bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] cursor-pointer transition-colors"
+                              title="Supprimer l'image"
                             >
                               ✕
                             </button>

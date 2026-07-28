@@ -918,7 +918,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       imageUrl: newPartnerImageUrl || 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600&auto=format&fit=crop',
       rating: newPartnerRating || 5.0,
       contacted: false,
-      mairieId: newPartnerMairieId
+      mairieId: newPartnerMairieId,
+      contactPhone: newPartnerPhone || undefined,
+      email: newPartnerEmail || undefined
     };
 
     const success = await createPartner(newPartner);
@@ -930,6 +932,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       setNewPartnerImageUrl('');
       setNewPartnerRating(5.0);
       setNewPartnerMairieId(null);
+      setNewPartnerPhone('');
+      setNewPartnerEmail('');
       loadData();
     } else {
       addNotification("Erreur lors de la création du prestataire.", "warning");
@@ -944,6 +948,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
     setEditPartnerImageUrl(partner.imageUrl);
     setEditPartnerRating(partner.rating);
     setEditPartnerMairieId(partner.mairieId || null);
+    setEditPartnerPhone(partner.contactPhone || '');
+    setEditPartnerEmail(partner.email || '');
   };
 
   const handleSavePartner = async (id: string) => {
@@ -957,7 +963,9 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
       imageUrl: editPartnerImageUrl,
       rating: editPartnerRating,
       contacted: partners.find(p => p.id === id)?.contacted ?? false,
-      mairieId: editPartnerMairieId
+      mairieId: editPartnerMairieId,
+      contactPhone: editPartnerPhone || undefined,
+      email: editPartnerEmail || undefined
     };
 
     const success = await updatePartner(updatedPartner);
@@ -4757,6 +4765,28 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                           value={editPartnerRating}
                           onChange={(e) => setEditPartnerRating(parseFloat(e.target.value))}
                           className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 text-left">
+                        <label className="font-semibold text-slate-700">Téléphone / WhatsApp Prestataire</label>
+                        <input
+                          type="text"
+                          value={editPartnerPhone}
+                          onChange={(e) => setEditPartnerPhone(e.target.value)}
+                          placeholder="Ex: +225 07 08 09 10 11"
+                          className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 text-left">
+                        <label className="font-semibold text-slate-700">Email du Prestataire</label>
+                        <input
+                          type="email"
+                          value={editPartnerEmail}
+                          onChange={(e) => setEditPartnerEmail(e.target.value)}
+                          placeholder="Ex: contact@prestataire.ci"
+                          className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
                         />
                       </div>
 

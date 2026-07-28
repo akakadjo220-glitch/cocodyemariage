@@ -4917,27 +4917,26 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="font-semibold text-slate-700">Téléphone / WhatsApp Prestataire</label>
-                          <input
-                            type="text"
-                            value={newPartnerPhone}
-                            onChange={(e) => setNewPartnerPhone(e.target.value)}
-                            placeholder="Ex: +225 07 08 09 10 11"
-                            className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <label className="font-semibold text-slate-700">Email du Prestataire</label>
-                          <input
-                            type="email"
-                            value={newPartnerEmail}
-                            onChange={(e) => setNewPartnerEmail(e.target.value)}
-                            placeholder="Ex: contact@prestataire.ci"
-                            className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
-                          />
-                        </div>
+                      <div className="flex flex-col gap-1.5 text-left">
+                        <label className="font-semibold text-slate-700">Téléphone / WhatsApp Prestataire</label>
+                        <input
+                          type="text"
+                          value={newPartnerPhone}
+                          onChange={(e) => setNewPartnerPhone(e.target.value)}
+                          placeholder="Ex: +225 07 08 09 10 11"
+                          className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 text-left">
+                        <label className="font-semibold text-slate-700">Email du Prestataire</label>
+                        <input
+                          type="email"
+                          value={newPartnerEmail}
+                          onChange={(e) => setNewPartnerEmail(e.target.value)}
+                          placeholder="Ex: contact@prestataire.ci"
+                          className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                        />
                       </div>
 
                       <div className="flex flex-col gap-1.5 text-left">

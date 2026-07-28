@@ -875,7 +875,7 @@ export default function Landing({
     // Si le paiement et l'envoi ont déjà été effectués, diriger directement vers le Tableau de bord
     if (targetDossier?.frais_reservation_paye || simulatedReservationPaid) {
       setShowParcours(false);
-      setTab('dossier');
+      setTab('dashboard');
       const event = new CustomEvent('e_mariage_toast', {
         detail: {
           message: '📋 Votre dossier est déjà transmis à la Mairie. Retrouvez vos convocations et dates ci-dessous.',
@@ -2478,7 +2478,7 @@ export default function Landing({
                               <button onClick={() => { 
                                   completeStep(5); 
                                   setShowParcours(false); 
-                                  setTab('dossier'); 
+                                  setTab('dashboard'); 
                                   const event = new CustomEvent('e_mariage_toast', {
                                     detail: {
                                       message: '🚀 Dossier transmis avec succès à la Mairie ! Retrouvez vos détails et convocations ci-dessous.',

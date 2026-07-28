@@ -208,11 +208,18 @@ export default function Dashboard({
     setPartners(dbPartners);
   };
   // Compute stats on the fly based on current documents validation from Dossier
-  const totalRequired = documents ? documents.filter(doc => doc.category === 'spouses' || doc.category === 'witnesses').length : 6;
-  const completedRequired = documents ? documents.filter(
-    doc => (doc.category === 'spouses' || doc.category === 'witnesses') && doc.status === 'verified'
-  ).length : 0;
-  const completionPercentage = totalRequired > 0 ? Math.round((completedRequired / totalRequired) * 100) : 0;
+  const rawTotal = (documents && Array.isArray(documents) && documents.length > 0) ? documents.length : 8;
+  const totalRequired = Math.max(rawTotal, 7);
+
+  const isDossierApprovedOrPaid = dossierStatus === 'approved' || dossierStatus === 'VALIDE' || Boolean(appointmentDate);
+
+  const completedRequired = isDossierApprovedOrPaid
+    ? totalRequired
+    : (documents ? documents.filter(
+        doc => doc.status === 'verified' || doc.status === 'uploaded' || Boolean(doc.url || doc.file_path || doc.file_name)
+      ).length : 0);
+
+  const completionPercentage = totalRequired > 0 ? Math.min(100, Math.round((completedRequired / totalRequired) * 100)) : 0;
 
   // Format wedding date to French readable format
   const formatDateFrench = (dateStr: string | null) => {

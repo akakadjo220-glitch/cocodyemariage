@@ -5766,22 +5766,20 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                     <div className="border-t border-slate-100 pt-5 mt-3 text-left">
                       <h5 className="font-bold text-slate-800 text-xs mb-3 flex items-center gap-2 font-serif">
                         <Calendar className="w-4 h-4 text-primary shrink-0" />
-                        Planification des Rendez-vous en Mairie
+                        Planification &amp; Équilibrage Dynamique des Rendez-vous
                       </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="font-semibold text-slate-700 text-xs">Délai RDV Mairie (jours avant le mariage)*</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="90"
-                            value={rdvDelayDays}
-                            onChange={(e) => setRdvDelayDays(parseInt(e.target.value) || 14)}
-                            placeholder="Ex: 14"
-                            className="w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:border-[#c5a368] focus:ring-2 focus:ring-[#c5a368]/10 focus:outline-none font-sans text-xs text-slate-800 shadow-sm"
-                            required
-                          />
+                      <div className="p-4 bg-emerald-50/50 border border-emerald-200/80 rounded-2xl flex flex-col gap-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <span>✨ Algorithme d'Équilibrage Automatique (Mairie de Cocody)</span>
+                          </span>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Actif • Fenêtre J-30 à J-10
+                          </span>
                         </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">
+                          Les dates de rendez-vous physiques sont automatiquement attribuées et réparties sans saturation sur la fenêtre légale (entre <strong>30 jours</strong> et <strong>10 jours avant le mariage civil</strong>), en fonction du <strong>Quota journalier de RDV physiques</strong> configuré ci-dessous.
+                        </p>
                       </div>
                     </div>
 

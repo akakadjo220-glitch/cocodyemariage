@@ -81,8 +81,7 @@ const STEPS_META = [
   { id: 2, icon: '🏛️', label: 'Choix de la mairie', short: 'Mairie' },
   { id: 3, icon: '📁', label: 'Dépôt des documents', short: 'Documents' },
   { id: 4, icon: '📅', label: 'Option de date', short: 'Date' },
-  { id: 5, icon: '💳', label: 'Paiement en ligne (2 500 F) & RDV', short: 'Paiement' },
-  { id: 6, icon: '💍', label: 'Célébration', short: 'Célébration' },
+  { id: 5, icon: '💳', label: 'Paiement & Envoi du dossier', short: 'Paiement' },
 ];
 
 const HORAIRES = [
@@ -110,8 +109,7 @@ function getInitialStep(hasNames: boolean, hasMairie: boolean, isApproved: boole
   if (!hasMairie) return 2;
   if (!isApproved) return 3;
   if (!hasDate) return 4;
-  if (!(isReservationPaid && isFinalPaid)) return 5;
-  return 6;
+  return 5;
 }
 
 import { useVerifierDoublon } from '../utils/useVerifierDoublon';
@@ -872,6 +870,20 @@ export default function Landing({
     if (dossierId) {
       setPrecheckConfirmed(true);
       setProfileConfirmed(true);
+    }
+
+    // Si le paiement et l'envoi ont déjà été effectués, diriger directement vers le Tableau de bord
+    if (targetDossier?.frais_reservation_paye || simulatedReservationPaid) {
+      setShowParcours(false);
+      setTab('dossier');
+      const event = new CustomEvent('e_mariage_toast', {
+        detail: {
+          message: '📋 Votre dossier est déjà transmis à la Mairie. Retrouvez vos convocations et dates ci-dessous.',
+          type: 'info'
+        }
+      });
+      window.dispatchEvent(event);
+      return;
     }
 
     setCompletedSteps(done);
@@ -2462,10 +2474,21 @@ export default function Landing({
                             </div>
 
                             <div className="flex gap-3">
-                              <button onClick={() => setSimulatedReservationPaid(false)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">Retour</button>
-                              <button onClick={() => { completeStep(5); setActiveStep(6); }}
-                                className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all">
-                                Continuer → Célébration
+                              <button onClick={() => setSimulatedReservationPaid(false)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
+                              <button onClick={() => { 
+                                  completeStep(5); 
+                                  setShowParcours(false); 
+                                  setTab('dossier'); 
+                                  const event = new CustomEvent('e_mariage_toast', {
+                                    detail: {
+                                      message: '🚀 Dossier transmis avec succès à la Mairie ! Retrouvez vos détails et convocations ci-dessous.',
+                                      type: 'success'
+                                    }
+                                  });
+                                  window.dispatchEvent(event);
+                                }}
+                                className="flex-1 py-3.5 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer shadow-md transition-all flex items-center justify-center gap-2">
+                                <span>🚀 Envoyer et finaliser mon dossier</span>
                               </button>
                             </div>
                           </div>
@@ -2475,43 +2498,6 @@ export default function Landing({
                           className="w-full py-2.5 rounded-xl border border-primary/30 text-primary text-xs font-bold hover:bg-primary/5 cursor-pointer transition-all">
                           📁 Consulter mes documents et pièces justificatives
                         </button>
-                      </div>
-                    )}
-
-                    {/* ── ÉTAPE 6 : Rendez-vous & Célébration ── */}
-                    {activeStep === 6 && (
-                      <div className="space-y-4" style={{ animation: 'fadeSlideIn 0.3s ease' }}>
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-2xl shrink-0">💍</div>
-                          <div>
-                            <h4 className="font-serif font-bold text-slate-900 text-base">Rendez-vous & Célébration</h4>
-                            <p className="font-sans text-xs text-slate-400">Célébration officielle devant Monsieur le Maire et signature des registres.</p>
-                          </div>
-                        </div>
-
-                        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 text-center space-y-3">
-                          <div className="text-4xl">🎊</div>
-                          <h5 className="font-serif font-bold text-rose-800 text-lg">Votre dossier est prêt !</h5>
-                          <p className="font-sans text-xs text-slate-600 leading-relaxed">
-                            Le jour J, venez munis des originaux de vos pièces d'identité à la mairie de célébration. L'officier de l'État Civil procédera officiellement à votre union.
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          {["🪪 Originaux des pièces d'identité", "👥 Présence des 2 témoins obligatoire", "✅ Dossier complet et validé", "💍 Bagues de mariage (optionnel)"].map((item, i) => (
-                            <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-neutral-50">
-                              <span className="font-sans text-xs text-slate-700">{item}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="flex gap-3">
-                          <button onClick={() => setActiveStep(5)} className="px-4 py-3 border border-neutral-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-neutral-50 cursor-pointer transition-all">← Retour</button>
-                          <button onClick={() => { completeStep(6); setAllDone(true); }}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-container cursor-pointer shadow-md transition-all">
-                            Finaliser mon dossier 🎊
-                          </button>
-                        </div>
                       </div>
                     )}
                   </>

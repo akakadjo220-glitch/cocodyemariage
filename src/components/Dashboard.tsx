@@ -71,7 +71,7 @@ interface DashboardProps {
   dossierId: string;
   onUpdateNames: (s1: string, s2: string) => void;
   selectedMairieName: string;
-  dossierStatus: 'under_review' | 'approved' | 'rejected' | 'celebrated';
+  dossierStatus: 'under_review' | 'approved' | 'rejected' | 'celebrated' | 'VALIDE' | string;
   weddingDate: string | null;
   appointmentDate?: string | null;
 }

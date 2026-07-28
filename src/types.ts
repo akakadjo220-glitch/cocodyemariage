@@ -88,7 +88,7 @@ export interface DocumentInfo {
   id: string;
   name: string;
   description: string;
-  status: 'pending' | 'uploading' | 'verified' | 'rejected';
+  status: 'pending' | 'uploading' | 'verified' | 'rejected' | 'uploaded' | string;
   fileName?: string;
   category: 'spouses' | 'witnesses' | 'special';
   icon: string;
@@ -96,6 +96,9 @@ export interface DocumentInfo {
   docNumber?: string | null;
   aiAnalysis?: AiAnalysisResult | null;
   nombre_tentatives?: number;
+  url?: string;
+  file_path?: string;
+  file_url?: string;
 }
 
 export interface TimelineStep {

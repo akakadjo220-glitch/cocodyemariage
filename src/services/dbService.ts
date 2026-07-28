@@ -919,6 +919,7 @@ export async function attribuerAutomatiquementRdv(
     wDate.setDate(wDate.getDate() + 30);
   }
 
+  // Quota dynamique récupéré des paramètres système configurés par l'agent / superadmin
   const params = await getSystemParameters();
   const limit = params.quota_rdv_physiques_journalier || 5;
   const allDossiers = await getDossiers();
@@ -927,13 +928,13 @@ export async function attribuerAutomatiquementRdv(
   let minRdvCount = Infinity;
   let leastBusyDate: Date | null = null;
 
-  // Plage légale : de Mariage - 30 jours à Mariage - 10 jours
-  for (let i = 14; i <= 30; i++) {
+  // Fenêtre légale officielle Mairie de Cocody : entre 30 jours et 10 jours avant le mariage civil
+  for (let i = 10; i <= 30; i++) {
     const testDate = new Date(wDate.getTime());
     testDate.setDate(wDate.getDate() - i);
 
-    const dayOfWeek = testDate.getDay(); // 0 = Sunday, 6 = Saturday
-    if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Pas de rdv le week-end
+    const dayOfWeek = testDate.getDay(); // 0 = Dimanche, 6 = Samedi
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Pas de RDV physique le week-end
 
     // Exclure les jours fériés ivoiriens
     const year = testDate.getFullYear();
@@ -960,6 +961,7 @@ export async function attribuerAutomatiquementRdv(
              d.date_rendezvous === testDateIso || d.appointment_date === testDateIso;
     }).length;
 
+    // Si la journée n'a pas atteint le quota dynamique de l'agent (limit), attribuer ce jour
     if (rdvCount < limit) {
       selectedDate = testDate;
       break;
@@ -986,7 +988,7 @@ export async function attribuerAutomatiquementRdv(
     return d.date_rendezvous === appointmentDateStr || d.appointment_date === appointmentDateStr;
   }).length;
 
-  // Staggering (échelonnement) des heures : matins uniquement (08h00 - 12h00)
+  // Créneaux horaires échelonnés (matins uniquement : 08h00 - 12h00)
   const startHour = 8;
   const intervalMin = 30;
   const totalMin = startHour * 60 + (existingRdvCount % 8) * intervalMin;

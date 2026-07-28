@@ -182,6 +182,13 @@ export default function Dossier({
 }: DossierProps) {
   const [dossierDetails, setDossierDetails] = useState<DossierInfo | null>(null);
 
+  const isDossierLocked = Boolean(
+    dossierDetails?.frais_reservation_paye === true ||
+    dossierDetails?.status === 'approved' ||
+    dossierDetails?.status === 'VALIDE' ||
+    dossierDetails?.status === 'celebrated'
+  );
+
   // States for locked screen inputs
   const [s1, setS1] = useState(spouse1Name);
   const [s2, setS2] = useState(spouse2Name);
@@ -1512,17 +1519,30 @@ export default function Dossier({
         {isVerified && (
           <div className="flex justify-between items-center text-xs font-sans p-3 bg-white rounded-xl border border-neutral-100">
             <span className="font-bold text-slate-600 truncate max-w-[80%]">📄 {doc?.fileName}</span>
-            <button onClick={() => updateDocumentStatus(docId, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border-none outline-none cursor-pointer">
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {!isDossierLocked && (
+              <button onClick={() => updateDocumentStatus(docId, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border-none outline-none cursor-pointer">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            {isDossierLocked && (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg flex items-center gap-1 shrink-0">
+                🔒 Transmis
+              </span>
+            )}
           </div>
         )}
 
-        {!isVerified && !isUploading && (
+        {!isVerified && !isUploading && !isDossierLocked && (
           <button onClick={() => setShowFileUploadModal(docId)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
             <UploadCloud className="w-4 h-4" />
             <span>{isRejected ? 'Corriger le document' : 'Téléverser ma pièce'}</span>
           </button>
+        )}
+
+        {isDossierLocked && !isVerified && (
+          <div className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-3 py-2 rounded-xl flex items-center gap-1.5 self-start border border-emerald-200">
+            <span>🔒 Document verrouillé &amp; transmis</span>
+          </div>
         )}
 
         {isUploading && (
@@ -1616,17 +1636,30 @@ export default function Dossier({
         {isVerified && (
           <div className="flex justify-between items-center text-xs font-sans p-3 bg-white rounded-xl border border-neutral-100">
             <span className="font-bold text-slate-600 truncate max-w-[80%]">📄 {doc?.fileName}</span>
-            <button onClick={() => updateDocumentStatus(docId, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border-none outline-none cursor-pointer">
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {!isDossierLocked && (
+              <button onClick={() => updateDocumentStatus(docId, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border-none outline-none cursor-pointer">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            {isDossierLocked && (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg flex items-center gap-1 shrink-0">
+                🔒 Transmis
+              </span>
+            )}
           </div>
         )}
 
-        {!isVerified && !isUploading && (
+        {!isVerified && !isUploading && !isDossierLocked && (
           <button onClick={() => setShowFileUploadModal(docId)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
             <UploadCloud className="w-4 h-4" />
             <span>{isRejected ? 'Corriger le document' : 'Téléverser mon extrait'}</span>
           </button>
+        )}
+
+        {isDossierLocked && !isVerified && (
+          <div className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-3 py-2 rounded-xl flex items-center gap-1.5 self-start border border-emerald-200">
+            <span>🔒 Document verrouillé &amp; transmis</span>
+          </div>
         )}
 
         {isUploading && (
@@ -1730,19 +1763,26 @@ export default function Dossier({
               {isVerified === false && (
                 <p className="text-[10px] text-amber-700 font-semibold mt-1">⚠️ L'IA n'a pas pu valider automatiquement votre ressemblance. L'officier de la mairie procèdera à un contrôle visuel lors de votre rendez-vous.</p>
               )}
-              <button onClick={() => {
-                // Reset attempts and biometrics in DB
-                updateDossierFaceAttempts(dossierId, spouse as 'epoux' | 'epouse', 0);
-                updateDossierBiometrics(dossierId, {
-                  [`${spouse}_selfie_url`]: null,
-                  [`${spouse}_selfie_valide`]: null,
-                  [`${spouse}_face_match_score`]: null,
-                  [`${spouse}_identite_verifiee`]: null
-                }).then(() => fetchDossierDetails());
-              }} className="mt-3 text-[10px] font-bold text-red-500 hover:text-red-700 bg-transparent border-none outline-none cursor-pointer flex items-center gap-1">
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Reprendre le selfie</span>
-              </button>
+              {!isDossierLocked && (
+                <button onClick={() => {
+                  // Reset attempts and biometrics in DB
+                  updateDossierFaceAttempts(dossierId, spouse as 'epoux' | 'epouse', 0);
+                  updateDossierBiometrics(dossierId, {
+                    [`${spouse}_selfie_url`]: null,
+                    [`${spouse}_selfie_valide`]: null,
+                    [`${spouse}_face_match_score`]: null,
+                    [`${spouse}_identite_verifiee`]: null
+                  }).then(() => fetchDossierDetails());
+                }} className="mt-3 text-[10px] font-bold text-red-500 hover:text-red-700 bg-transparent border-none outline-none cursor-pointer flex items-center gap-1">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Reprendre le selfie</span>
+                </button>
+              )}
+              {isDossierLocked && (
+                <span className="mt-3 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg inline-flex items-center gap-1">
+                  🔒 Selfie biométrique verrouillé
+                </span>
+              )}
             </div>
           </div>
         ) : (
@@ -1889,6 +1929,30 @@ export default function Dossier({
           Téléversez vos pièces administratives et passez le contrôle de ressemblance faciale selfie. Suivez les 7 étapes de justificatifs pour préparer l'instruction de votre dossier.
         </p>
       </motion.section>
+
+      {/* Banner dossier verrouillé et transmis */}
+      {isDossierLocked && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 bg-emerald-50/90 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-emerald-950 shadow-sm animate-fade-in text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-sm">
+              🔒
+            </div>
+            <div>
+              <h4 className="font-serif font-bold text-sm text-emerald-900">Dossier Officiel Verrouillé &amp; Transmis à l'État Civil</h4>
+              <p className="font-sans text-xs text-emerald-700 mt-0.5 leading-relaxed font-semibold">
+                Votre dossier a été validé et transmis à la Mairie de Cocody. Toutes les informations administratives et pièces justificatives sont désormais verrouillées en lecture seule.
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-emerald-200 text-emerald-900 text-[10px] font-black rounded-full uppercase tracking-wider shrink-0 border border-emerald-300">
+            Lecture Seule 🔒
+          </span>
+        </motion.div>
+      )}
 
       {/* 7-step wizard stepper navigation */}
       <div className="flex items-center gap-1.5 pb-4 overflow-x-auto scrollbar-hide border-b border-accent/15 select-none">
@@ -2108,15 +2172,21 @@ export default function Dossier({
                                 {isUploaded ? (
                                   <div className="flex justify-between items-center text-xs font-sans p-2 bg-white rounded-xl border border-neutral-100">
                                     <span className="truncate max-w-[80%] font-semibold text-slate-600">📄 {doc.fileName}</span>
-                                    <button onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border border-none cursor-pointer">
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    {!isDossierLocked ? (
+                                      <button onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)} className="text-red-500 hover:text-red-700 bg-transparent border border-none cursor-pointer">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    ) : (
+                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">🔒 Transmis</span>
+                                    )}
                                   </div>
-                                ) : (
+                                ) : !isDossierLocked ? (
                                   <button onClick={() => setShowFileUploadModal(doc.id)} className="py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/5 font-sans text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
                                     <UploadCloud className="w-4 h-4" />
                                     <span>Téléverser</span>
                                   </button>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-1.5 rounded-xl border border-emerald-200 inline-block">🔒 Verrouillé</span>
                                 )}
                               </div>
                             );
@@ -2138,14 +2208,16 @@ export default function Dossier({
                         Si la Mairie exige une pièce complémentaire non répertoriée (ex: contrat de mariage, attestation notariée, autorisation spéciale...), ajoutez-la librement ci-dessous.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddCustomModal(true)}
-                      className="py-2.5 px-4 bg-primary hover:bg-primary-container text-white rounded-xl font-sans text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 cursor-pointer shrink-0"
-                    >
-                      <UploadCloud className="w-4 h-4" />
-                      <span>Ajouter un document</span>
-                    </button>
+                    {!isDossierLocked && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCustomModal(true)}
+                        className="py-2.5 px-4 bg-primary hover:bg-primary-container text-white rounded-xl font-sans text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <UploadCloud className="w-4 h-4" />
+                        <span>Ajouter un document</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Dynamic list of custom uploaded documents */}
@@ -2161,13 +2233,15 @@ export default function Dossier({
                             <span className="px-2 py-0.5 rounded-full font-sans text-[9px] font-bold bg-emerald-100 text-emerald-800">
                               Reçu ✓
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)}
-                              className="p-1 text-slate-400 hover:text-rose-600 bg-transparent border-none cursor-pointer transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {!isDossierLocked && (
+                              <button
+                                type="button"
+                                onClick={() => updateDocumentStatus(doc.id, 'pending', undefined, null)}
+                                className="p-1 text-slate-400 hover:text-rose-600 bg-transparent border-none cursor-pointer transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}

@@ -207,16 +207,20 @@ export default function Dashboard({
     const dbPartners = await getPartners(dossierId);
     setPartners(dbPartners);
   };
-  // Compute stats on the fly based on current documents validation from Dossier
-  const rawTotal = (documents && Array.isArray(documents) && documents.length > 0) ? documents.length : 8;
-  const totalRequired = Math.max(rawTotal, 7);
+  // Compute stats on the fly based on current required documents
+  const standardDocs = documents ? documents.filter(doc => doc.category === 'spouses' || doc.category === 'witnesses') : [];
+  const specialProvidedDocs = documents ? documents.filter(doc => doc.category === 'special' && Boolean(doc.url || doc.file_path || doc.fileName || doc.status === 'verified' || doc.status === 'uploaded')) : [];
+
+  // Total de pièces requises pour ce couple (8 pièces standard : 6 époux/épouse + 2 témoins)
+  const totalRequired = standardDocs.length > 0 ? (standardDocs.length + specialProvidedDocs.length) : 8;
 
   const isDossierApprovedOrPaid = dossierStatus === 'approved' || dossierStatus === 'VALIDE' || Boolean(appointmentDate);
 
   const completedRequired = isDossierApprovedOrPaid
     ? totalRequired
     : (documents ? documents.filter(
-        doc => doc.status === 'verified' || doc.status === 'uploaded' || Boolean(doc.url || doc.file_path || doc.file_name)
+        doc => (doc.category === 'spouses' || doc.category === 'witnesses' || doc.category === 'special') &&
+               (doc.status === 'verified' || doc.status === 'uploaded' || Boolean(doc.url || doc.file_path || doc.fileName))
       ).length : 0);
 
   const completionPercentage = totalRequired > 0 ? Math.min(100, Math.round((completedRequired / totalRequired) * 100)) : 0;

@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { AlertNotification, DocumentInfo, Partner } from '../types';
 import { getPartners, getMairies, MairieInfo, deletePartnerContactInDb, getPaymentForDossier, getDossierById } from '../services/dbService';
 import MarriageReceiptModal from './MarriageReceiptModal';
+import { getSavedSpouseProfiles, getRequiredDocsForProfiles } from '../utils/documentProfileUtils';
 
 const getSimulatedQuote = (category: string, isCFA: boolean) => {
   const cleanCat = category.trim();
@@ -99,6 +100,8 @@ export default function Dashboard({
   const [rdvConfirme, setRdvConfirme] = useState<boolean>(false);
   const [rdvHeure, setRdvHeure] = useState<string>("09:00");
 
+  const [dossierDetails, setDossierDetails] = useState<any>(null);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -112,6 +115,7 @@ export default function Dashboard({
         setMairies(dbMairies);
         setHasPaid(dbPayment !== null);
         if (dbDossier) {
+          setDossierDetails(dbDossier);
           setRdvConfirme(dbDossier.rendezvous_confirme === true);
           setRdvHeure(dbDossier.heure_rendezvous || "09:00");
         }
@@ -207,21 +211,23 @@ export default function Dashboard({
     const dbPartners = await getPartners(dossierId);
     setPartners(dbPartners);
   };
-  // Compute stats on the fly based on current required documents
-  const standardDocs = documents ? documents.filter(doc => doc.category === 'spouses' || doc.category === 'witnesses') : [];
-  const specialProvidedDocs = documents ? documents.filter(doc => doc.category === 'special' && Boolean(doc.url || doc.file_path || doc.fileName || doc.status === 'verified' || doc.status === 'uploaded')) : [];
+  // Compute dynamic required documents for this exact couple profile (real-time sync with Documents tab)
+  const savedProf = getSavedSpouseProfiles(dossierId);
+  const epouxP = dossierDetails?.epoux_profile || savedProf.epouxProfile;
+  const epouseP = dossierDetails?.epouse_profile || savedProf.epouseProfile;
+  const dynamicReqDocs = getRequiredDocsForProfiles(epouxP, epouseP);
 
-  // Total de pièces requises pour ce couple (8 pièces standard : 6 époux/épouse + 2 témoins)
-  const totalRequired = standardDocs.length > 0 ? (standardDocs.length + specialProvidedDocs.length) : 8;
+  // Le nombre de pièces requises s'ajuste à 100% dynamiquement selon le profil réel du couple (ex: 8, 9, 10, 11...)
+  const totalRequired = dynamicReqDocs.length > 0 ? dynamicReqDocs.length : (documents?.length || 8);
 
   const isDossierApprovedOrPaid = dossierStatus === 'approved' || dossierStatus === 'VALIDE' || Boolean(appointmentDate);
 
   const completedRequired = isDossierApprovedOrPaid
     ? totalRequired
-    : (documents ? documents.filter(
-        doc => (doc.category === 'spouses' || doc.category === 'witnesses' || doc.category === 'special') &&
-               (doc.status === 'verified' || doc.status === 'uploaded' || Boolean(doc.url || doc.file_path || doc.fileName))
-      ).length : 0);
+    : (documents ? dynamicReqDocs.filter(reqDoc => {
+        const d = documents.find(doc => doc.id === reqDoc.id || doc.id.endsWith('_' + reqDoc.id));
+        return Boolean(d && (d.status === 'verified' || d.status === 'uploaded' || d.fileName || d.url || d.file_path));
+      }).length : 0);
 
   const completionPercentage = totalRequired > 0 ? Math.min(100, Math.round((completedRequired / totalRequired) * 100)) : 0;
 

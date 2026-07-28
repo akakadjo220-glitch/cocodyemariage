@@ -1097,7 +1097,9 @@ export async function getPartners(dossierId?: string): Promise<Partner[]> {
       imageUrl: item.image_url,
       rating: Number(item.rating),
       contacted: false,
-      mairieId: item.mairie_id || null
+      mairieId: item.mairie_id || null,
+      contactPhone: item.contact_phone || item.phone || '',
+      email: item.email || ''
     }));
 
     let contactedMap = new Map<string, any>();
@@ -1119,7 +1121,7 @@ export async function getPartners(dossierId?: string): Promise<Partner[]> {
       return {
         ...p,
         contacted: !!contact,
-        contactPhone: contact?.phone,
+        contactPhone: p.contactPhone || contact?.phone,
         contactDate: contact?.date
       };
     });
@@ -1150,6 +1152,31 @@ export async function contactPartnerInDb(id: string, phone: string, date: string
       });
 
     if (error) throw error;
+
+    // Notification WhatsApp 100% Automatisée au Prestataire
+    (async () => {
+      try {
+        const [{ data: partnerData }, dossier, config] = await Promise.all([
+          supabase.from('partners').select('*').eq('id', id).single(),
+          getDossierById(finalDossierId),
+          getPaystackConfig()
+        ]);
+
+        const partnerPhone = partnerData?.contact_phone || partnerData?.phone || '';
+        if (partnerPhone && dossier) {
+          const spouseNames = `${dossier.spouse1_name} & ${dossier.spouse2_name}`;
+          const mairies = await getMairies();
+          const mairie = mairies.find(m => m.id === dossier.mairie_id);
+          const mairieName = mairie ? mairie.name : 'Cocody';
+          const autoMsg = `Bonjour ${partnerData.name}, la plateforme E-Mariage vous informe qu'une demande pour ${partnerData.category} (${partnerData.name}) a été effectuée pour le mariage civil de M. & Mme ${spouseNames} prévu le ${dossier.wedding_date || date} à la Mairie de ${mairieName}. Contact des mariés : ${phone}. Merci de confirmer votre disponibilité.`;
+
+          await sendOpenwaWhatsapp(config, partnerPhone, autoMsg);
+        }
+      } catch (e) {
+        console.warn("Automated partner WhatsApp notification silent fallback:", e);
+      }
+    })();
+
     return true;
   } catch (err) {
     console.warn(`Supabase: Failed to record partner contact for partner ${id}.`, err);
@@ -1211,7 +1238,9 @@ export async function createPartner(partner: Partner): Promise<boolean> {
         image_url: partner.imageUrl,
         rating: partner.rating,
         contacted: partner.contacted,
-        mairie_id: partner.mairieId || null
+        mairie_id: partner.mairieId || null,
+        contact_phone: partner.contactPhone || null,
+        email: partner.email || null
       });
     if (error) throw error;
     return true;
@@ -1232,7 +1261,9 @@ export async function updatePartner(partner: Partner): Promise<boolean> {
         image_url: partner.imageUrl,
         rating: partner.rating,
         contacted: partner.contacted,
-        mairie_id: partner.mairieId || null
+        mairie_id: partner.mairieId || null,
+        contact_phone: partner.contactPhone || null,
+        email: partner.email || null
       })
       .eq('id', partner.id);
     if (error) throw error;

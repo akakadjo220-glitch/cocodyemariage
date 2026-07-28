@@ -314,6 +314,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   const [newPartnerImageUrl, setNewPartnerImageUrl] = useState('');
   const [newPartnerRating, setNewPartnerRating] = useState(5.0);
   const [newPartnerMairieId, setNewPartnerMairieId] = useState<string | null>(null);
+  const [newPartnerPhone, setNewPartnerPhone] = useState('');
+  const [newPartnerEmail, setNewPartnerEmail] = useState('');
 
   const [editingPartnerId, setEditingPartnerId] = useState<string | null>(null);
   const [editPartnerName, setEditPartnerName] = useState('');
@@ -322,6 +324,8 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
   const [editPartnerImageUrl, setEditPartnerImageUrl] = useState('');
   const [editPartnerRating, setEditPartnerRating] = useState(5.0);
   const [editPartnerMairieId, setEditPartnerMairieId] = useState<string | null>(null);
+  const [editPartnerPhone, setEditPartnerPhone] = useState('');
+  const [editPartnerEmail, setEditPartnerEmail] = useState('');
 
   // Partner Contacts / orders state
   const [partnerContacts, setPartnerContacts] = useState<PartnerContact[]>([]);
@@ -4883,6 +4887,29 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                         />
                       </div>
 
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="font-semibold text-slate-700">Téléphone / WhatsApp Prestataire</label>
+                          <input
+                            type="text"
+                            value={newPartnerPhone}
+                            onChange={(e) => setNewPartnerPhone(e.target.value)}
+                            placeholder="Ex: +225 07 08 09 10 11"
+                            className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="font-semibold text-slate-700">Email du Prestataire</label>
+                          <input
+                            type="email"
+                            value={newPartnerEmail}
+                            onChange={(e) => setNewPartnerEmail(e.target.value)}
+                            placeholder="Ex: contact@prestataire.ci"
+                            className="border border-neutral-300 rounded-xl px-4 py-3 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 text-xs"
+                          />
+                        </div>
+                      </div>
+
                       <div className="flex flex-col gap-1.5 text-left">
                         <label className="font-semibold text-slate-700">Rattaché à la Mairie</label>
                         <select
@@ -5071,24 +5098,77 @@ export default function AdminDashboard({ currentRole, addNotification }: AdminDa
                               </span>
                             </td>
                             <td className="py-4 px-4 text-center">
-                              <button
-                                onClick={async () => {
-                                  if (confirm(`Êtes-vous sûr de vouloir supprimer la demande pour ${partner.name} ?`)) {
-                                    const success = await deletePartnerContactInDb(contact.partnerId, contact.dossierId);
-                                    if (success) {
-                                      addNotification(`Demande de service pour ${partner.name} supprimée.`, 'success');
-                                      logSystemAction(`Super Admin a supprimé la demande pour ${partner.name} (Dossier: ${dossierCode})`, 'admin');
-                                      loadData();
-                                    } else {
-                                      addNotification("Erreur lors de la suppression.", "warning");
-                                    }
-                                  }
-                                }}
-                                className="p-1 text-red-650 hover:text-red-800 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                                title="Supprimer la demande"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {(() => {
+                                const pPhone = partner.contactPhone || contact.phone || '';
+                                const cleanPPhone = pPhone.replace(/[^0-9]/g, '');
+                                const formattedDate = formatDateFrench(activeDossier?.wedding_date || contact.date || null);
+
+                                const waTemplate = `Bonjour ${partner.name}, la plateforme E-Mariage vous informe qu'une demande pour ${partner.category} (${partner.name}) a été effectuée pour le mariage civil de M. & Mme ${spouseNames} prévu le ${formattedDate} à la Mairie de ${celebrationLieu}. Contact des mariés : ${contact.phone || 'non spécifié'}. Merci de confirmer votre disponibilité.`;
+
+                                const targetWaPhone = cleanPPhone.startsWith('225') ? cleanPPhone : cleanPPhone ? '225' + cleanPPhone : '';
+                                const waLink = targetWaPhone 
+                                  ? `https://wa.me/${targetWaPhone}?text=${encodeURIComponent(waTemplate)}`
+                                  : `https://wa.me/?text=${encodeURIComponent(waTemplate)}`;
+
+                                const telLink = pPhone ? `tel:${pPhone}` : `tel:${contact.phone || ''}`;
+                                const mailLink = partner.email 
+                                  ? `mailto:${partner.email}?subject=${encodeURIComponent('Demande de Prestation E-Mariage - Mariage ' + spouseNames)}&body=${encodeURIComponent(waTemplate)}`
+                                  : null;
+
+                                return (
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <a
+                                      href={waLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg font-bold text-[10px] flex items-center gap-1 transition-colors shadow-xs"
+                                      title="Notifier le prestataire par WhatsApp (Message pré-rempli)"
+                                    >
+                                      <span>💬</span>
+                                      <span className="hidden sm:inline">WhatsApp</span>
+                                    </a>
+
+                                    <a
+                                      href={telLink}
+                                      className="p-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg font-bold text-[10px] flex items-center gap-1 transition-colors shadow-xs"
+                                      title={`Appeler le prestataire (${pPhone || 'N/A'})`}
+                                    >
+                                      <span>📞</span>
+                                      <span className="hidden sm:inline">Appeler</span>
+                                    </a>
+
+                                    {mailLink && (
+                                      <a
+                                        href={mailLink}
+                                        className="p-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg font-bold text-[10px] flex items-center gap-1 transition-colors shadow-xs"
+                                        title={`Envoyer un email au prestataire (${partner.email})`}
+                                      >
+                                        <span>✉️</span>
+                                        <span className="hidden sm:inline">Email</span>
+                                      </a>
+                                    )}
+
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm(`Êtes-vous sûr de vouloir supprimer la demande pour ${partner.name} ?`)) {
+                                          const success = await deletePartnerContactInDb(contact.partnerId, contact.dossierId);
+                                          if (success) {
+                                            addNotification(`Demande de service pour ${partner.name} supprimée.`, 'success');
+                                            logSystemAction(`Super Admin a supprimé la demande pour ${partner.name} (Dossier: ${dossierCode})`, 'admin');
+                                            loadData();
+                                          } else {
+                                            addNotification("Erreur lors de la suppression.", "warning");
+                                          }
+                                        }
+                                      }}
+                                      className="p-1 text-red-650 hover:text-red-800 hover:bg-red-50 rounded transition-colors cursor-pointer ml-1"
+                                      title="Supprimer la demande"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                );
+                              })()}
                             </td>
                           </tr>
                         );

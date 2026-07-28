@@ -8,6 +8,7 @@ export interface Partner {
   contacted: boolean;
   mairieId?: string | null;
   contactPhone?: string;
+  email?: string;
   contactDate?: string;
 }
 
